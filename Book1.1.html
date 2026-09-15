@@ -944,11 +944,17 @@ function Fixture({
     className: "fx"
   }, /*#__PURE__*/React.createElement("div", {
     className: 'l ' + (w ? w === g.p1 ? 'w' : 'lo' : '')
-  }, g.p1), /*#__PURE__*/React.createElement(Score, {
+  }, /*#__PURE__*/React.createElement(Nm, {
+    n: g.p1,
+    size: 18
+  })), /*#__PURE__*/React.createElement(Score, {
     g: g
   }), /*#__PURE__*/React.createElement("div", {
     className: 'r ' + (w ? w === g.p2 ? 'w' : 'lo' : '')
-  }, g.p2), children);
+  }, /*#__PURE__*/React.createElement(Nm, {
+    n: g.p2,
+    size: 18
+  })), children);
 }
 function Stat({
   v,
@@ -967,6 +973,432 @@ function Form({
     key: i,
     className: x
   }, x)));
+}
+
+/* ---------- clan tags and emblems ---------- */
+let PROF = {};
+const PALETTE = ['#FFFFFF', '#000000', '#C8102E', '#C9A227', '#54B9B3', '#3FA34D', '#1F6FEB', '#8E44AD', '#F39C12', '#E84393', '#7A7370', '#EDE6D6', '#0B6623', '#5C2E91', '#00B4D8', '#FF4D00'];
+const GLYPHS = {
+  circle: '<circle cx="50" cy="50" r="40"/>',
+  ring: '<circle cx="50" cy="50" r="36" fill="none" stroke="__C__" stroke-width="10"/>',
+  square: '<rect x="14" y="14" width="72" height="72"/>',
+  diamond: '<polygon points="50,6 94,50 50,94 6,50"/>',
+  triangle: '<polygon points="50,8 92,86 8,86"/>',
+  hexagon: '<polygon points="50,5 89,27 89,73 50,95 11,73 11,27"/>',
+  star: '<polygon points="50,5 61,38 96,38 68,58 79,92 50,72 21,92 32,58 4,38 39,38"/>',
+  cross: '<rect x="40" y="8" width="20" height="84"/><rect x="8" y="40" width="84" height="20"/>',
+  bolt: '<polygon points="60,4 22,56 46,56 38,96 78,42 54,42"/>',
+  bar: '<rect x="6" y="40" width="88" height="20"/>',
+  crescent: '<path fill-rule="evenodd" d="M50 5a45 45 0 1 0 0 90a45 45 0 1 0 0-90zM64 14a36 36 0 1 0 0 72a36 36 0 1 0 0-72z"/>',
+  heart: '<path d="M50 90L18 56C4 42 12 18 32 18c9 0 15 5 18 11c3-6 9-11 18-11c20 0 28 24 14 38z"/>',
+  flame: '<path d="M50 6c6 22 30 30 30 56a30 30 0 0 1-60 0c0-14 8-20 12-30c4 10 10 12 12 6c-2-12 2-22 6-32z"/>',
+  crown: '<polygon points="8,84 8,30 32,54 50,16 68,54 92,30 92,84"/>',
+  shield: '<path d="M50 6l38 12v34c0 22-18 36-38 44C30 88 12 74 12 52V18z"/>',
+  skull: '<circle cx="50" cy="42" r="30"/><rect x="34" y="60" width="32" height="24" rx="4"/><circle cx="39" cy="42" r="7" fill="__B__"/><circle cx="61" cy="42" r="7" fill="__B__"/><rect x="45" y="70" width="4" height="10" fill="__B__"/><rect x="52" y="70" width="4" height="10" fill="__B__"/>',
+  eightball: '<circle cx="50" cy="50" r="42"/><circle cx="50" cy="50" r="18" fill="#fff"/><text x="50" y="59" font-size="26" font-family="Anton,Impact,sans-serif" text-anchor="middle" fill="#000">8</text>',
+  cue: '<polygon points="6,90 12,96 96,14 92,4"/>',
+  splat: '<path d="M50 30c-6-12-20-14-30-8c8 2 12 8 10 16c-10-2-20 0-26 8c10-2 18 2 20 10c-8 2-12 8-10 16c6-6 14-8 22-4c-2 6 0 12 6 16l8-14l8 14c6-4 8-10 6-16c8-4 16-2 22 4c2-8-2-14-10-16c2-8 10-12 20-10c-6-8-16-10-26-8c-2-8 2-14 10-16c-10-6-24-4-30 8z"/>',
+  text: '<text x="50" y="72" font-size="64" font-family="Anton,Impact,sans-serif" text-anchor="middle">T</text>'
+};
+const tagOf = n => {
+  const p = PROF[n];
+  return p && p.tag ? '[' + p.tag + '] ' : '';
+};
+function emblemSVG(e, size) {
+  if (!e) return '';
+  const uid = 'c' + Math.random().toString(36).slice(2, 8);
+  const clip = e.shape === 'square' ? '<rect x="4" y="4" width="92" height="92" rx="10"/>' : e.shape === 'shield' ? '<path d="M50 3l44 13v36c0 24-20 38-44 46C26 90 6 76 6 52V16z"/>' : '<circle cx="50" cy="50" r="47"/>';
+  const layers = (e.layers || []).map(l => {
+    let g = GLYPHS[l.g] || '';
+    g = g.split('__C__').join(l.c).split('__B__').join(e.bg || '#000');
+    if (l.g === 'text') g = g.replace('>T<', '>' + String(l.t || '').replace(/[<>&]/g, '').slice(0, 3) + '<');
+    return `<g fill="${l.c}" transform="translate(${50 + (l.x || 0)} ${50 + (l.y || 0)}) rotate(${l.r || 0}) scale(${l.s || 1}) translate(-50 -50)">${g}</g>`;
+  }).join('');
+  return `<svg viewBox="0 0 100 100" width="${size}" height="${size}" xmlns="http://www.w3.org/2000/svg"><defs><clipPath id="${uid}">${clip}</clipPath></defs><g clip-path="url(#${uid})"><rect width="100" height="100" fill="${e.bg || '#000'}"/>${layers}</g></svg>`;
+}
+function Emblem({
+  e,
+  size = 22,
+  style
+}) {
+  return /*#__PURE__*/React.createElement("span", {
+    style: {
+      display: 'inline-block',
+      verticalAlign: 'middle',
+      lineHeight: 0,
+      ...style
+    },
+    dangerouslySetInnerHTML: {
+      __html: emblemSVG(e, size)
+    }
+  });
+}
+function Nm({
+  n,
+  size = 20,
+  noTag
+}) {
+  const p = PROF[n];
+  return /*#__PURE__*/React.createElement(React.Fragment, null, p && p.emblem && /*#__PURE__*/React.createElement(Emblem, {
+    e: p.emblem,
+    size: size,
+    style: {
+      marginRight: 6
+    }
+  }), !noTag && p && p.tag && /*#__PURE__*/React.createElement("span", {
+    style: {
+      opacity: .75,
+      fontWeight: 700
+    }
+  }, "[", p.tag, "] "), n);
+}
+function EmblemStudio({
+  me,
+  dispatch,
+  toast
+}) {
+  const p = PROF[me] || {};
+  const [tag, setTag] = useState(p.tag || '');
+  const [e, setE] = useState(p.emblem || {
+    bg: '#000000',
+    shape: 'circle',
+    layers: []
+  });
+  const [sel, setSel] = useState(0);
+  const L = e.layers[sel];
+  const upd = patch => setE(x => ({
+    ...x,
+    layers: x.layers.map((l, i) => i === sel ? {
+      ...l,
+      ...patch
+    } : l)
+  }));
+  const add = g => {
+    if (e.layers.length >= 8) {
+      toast('Eight layers is the limit.');
+      return;
+    }
+    setE(x => ({
+      ...x,
+      layers: [...x.layers, {
+        g,
+        c: '#C8102E',
+        x: 0,
+        y: 0,
+        s: 1,
+        r: 0,
+        t: 'A'
+      }]
+    }));
+    setSel(e.layers.length);
+  };
+  const del = () => {
+    setE(x => ({
+      ...x,
+      layers: x.layers.filter((_, i) => i !== sel)
+    }));
+    setSel(0);
+  };
+  const move = d => {
+    const a = [...e.layers];
+    const j = sel + d;
+    if (j < 0 || j >= a.length) return;
+    [a[sel], a[j]] = [a[j], a[sel]];
+    setE({
+      ...e,
+      layers: a
+    });
+    setSel(j);
+  };
+  const save = () => {
+    if (!/^[A-Za-z0-9]{0,5}$/.test(tag)) {
+      toast('Tag: up to 5 letters or numbers.');
+      return;
+    }
+    dispatch({
+      t: 'profile',
+      p: me,
+      tag: tag.toUpperCase(),
+      emblem: e
+    });
+    toast('Saved. The table knows.');
+  };
+  const sl = (k, min, max, step) => /*#__PURE__*/React.createElement("input", {
+    type: "range",
+    min: min,
+    max: max,
+    step: step,
+    value: L[k],
+    onChange: ev => upd({
+      [k]: +ev.target.value
+    }),
+    style: {
+      width: 120
+    }
+  });
+  return /*#__PURE__*/React.createElement("div", {
+    className: "panel",
+    style: {
+      marginTop: 18
+    }
+  }, /*#__PURE__*/React.createElement("h2", null, "Identity"), /*#__PURE__*/React.createElement("div", {
+    className: "grid g2"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    className: "f"
+  }, "Clan tag (shown before your name, up to 5 characters)"), /*#__PURE__*/React.createElement("div", {
+    className: "row"
+  }, /*#__PURE__*/React.createElement("input", {
+    style: {
+      width: 110,
+      fontFamily: 'Anton',
+      fontSize: 22,
+      textTransform: 'uppercase'
+    },
+    maxLength: "5",
+    value: tag,
+    onChange: ev => setTag(ev.target.value)
+  }), /*#__PURE__*/React.createElement("span", {
+    className: "display",
+    style: {
+      fontSize: 22
+    }
+  }, tag ? '[' + tag.toUpperCase() + '] ' : '', me)), /*#__PURE__*/React.createElement("div", {
+    className: "row",
+    style: {
+      marginTop: 14,
+      alignItems: 'flex-start'
+    }
+  }, /*#__PURE__*/React.createElement(Emblem, {
+    e: e,
+    size: 140
+  }), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    className: "f"
+  }, "Background"), /*#__PURE__*/React.createElement("div", null, PALETTE.map(c => /*#__PURE__*/React.createElement("button", {
+    key: c,
+    onClick: () => setE({
+      ...e,
+      bg: c
+    }),
+    style: {
+      width: 22,
+      height: 22,
+      background: c,
+      border: e.bg === c ? '3px solid var(--brass)' : '2px solid var(--smoke)',
+      margin: 2,
+      padding: 0
+    }
+  }))), /*#__PURE__*/React.createElement("label", {
+    className: "f",
+    style: {
+      marginTop: 8
+    }
+  }, "Shape"), /*#__PURE__*/React.createElement("div", {
+    className: "row"
+  }, ['circle', 'square', 'shield'].map(s => /*#__PURE__*/React.createElement("button", {
+    key: s,
+    className: 'chip' + (e.shape === s ? ' on' : ''),
+    onClick: () => setE({
+      ...e,
+      shape: s
+    })
+  }, s))))), /*#__PURE__*/React.createElement("div", {
+    className: "row",
+    style: {
+      marginTop: 12
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "btn",
+    onClick: save
+  }, "Save identity"), /*#__PURE__*/React.createElement("button", {
+    className: "btn ghost sm",
+    onClick: () => {
+      setE({
+        bg: '#000000',
+        shape: 'circle',
+        layers: []
+      });
+      setSel(0);
+    }
+  }, "Start over"))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    className: "f"
+  }, "Add a layer"), /*#__PURE__*/React.createElement("div", null, Object.keys(GLYPHS).map(g => /*#__PURE__*/React.createElement("button", {
+    key: g,
+    title: g,
+    onClick: () => add(g),
+    style: {
+      background: '#000',
+      border: '2px solid var(--smoke)',
+      padding: 2,
+      margin: 2,
+      lineHeight: 0
+    },
+    dangerouslySetInnerHTML: {
+      __html: emblemSVG({
+        bg: '#000',
+        shape: 'square',
+        layers: [{
+          g,
+          c: '#EDE6D6',
+          x: 0,
+          y: 0,
+          s: .8,
+          r: 0,
+          t: 'A'
+        }]
+      }, 34)
+    }
+  }))), /*#__PURE__*/React.createElement("label", {
+    className: "f",
+    style: {
+      marginTop: 10
+    }
+  }, "Layers (top of the list is drawn last)"), /*#__PURE__*/React.createElement("div", {
+    className: "row"
+  }, e.layers.map((l, i) => /*#__PURE__*/React.createElement("button", {
+    key: i,
+    className: 'chip' + (i === sel ? ' on' : ''),
+    onClick: () => setSel(i),
+    style: {
+      padding: '2px 6px'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    dangerouslySetInnerHTML: {
+      __html: emblemSVG({
+        bg: '#000',
+        shape: 'square',
+        layers: [{
+          ...l,
+          x: 0,
+          y: 0,
+          s: .8,
+          r: 0
+        }]
+      }, 22)
+    }
+  }))), e.layers.length === 0 && /*#__PURE__*/React.createElement("span", {
+    className: "small muted"
+  }, "No layers yet. Pick a shape above.")), L && /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 8
+    }
+  }, /*#__PURE__*/React.createElement("div", null, PALETTE.map(c => /*#__PURE__*/React.createElement("button", {
+    key: c,
+    onClick: () => upd({
+      c
+    }),
+    style: {
+      width: 22,
+      height: 22,
+      background: c,
+      border: L.c === c ? '3px solid var(--brass)' : '2px solid var(--smoke)',
+      margin: 2,
+      padding: 0
+    }
+  }))), L.g === 'text' && /*#__PURE__*/React.createElement("div", {
+    className: "row",
+    style: {
+      marginTop: 6
+    }
+  }, /*#__PURE__*/React.createElement("label", {
+    className: "f"
+  }, "Text (3 characters)"), /*#__PURE__*/React.createElement("input", {
+    maxLength: "3",
+    style: {
+      width: 70
+    },
+    value: L.t || '',
+    onChange: ev => upd({
+      t: ev.target.value
+    })
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "row small",
+    style: {
+      marginTop: 6
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      width: 56
+    }
+  }, "Size"), sl('s', .15, 1.8, .05)), /*#__PURE__*/React.createElement("div", {
+    className: "row small"
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      width: 56
+    }
+  }, "Turn"), sl('r', 0, 360, 5)), /*#__PURE__*/React.createElement("div", {
+    className: "row small"
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      width: 56
+    }
+  }, "Left/right"), sl('x', -45, 45, 1)), /*#__PURE__*/React.createElement("div", {
+    className: "row small"
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      width: 56
+    }
+  }, "Up/down"), sl('y', -45, 45, 1)), /*#__PURE__*/React.createElement("div", {
+    className: "row",
+    style: {
+      marginTop: 6
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "btn sm ghost",
+    onClick: () => move(1)
+  }, "Bring forward"), /*#__PURE__*/React.createElement("button", {
+    className: "btn sm ghost",
+    onClick: () => move(-1)
+  }, "Send back"), /*#__PURE__*/React.createElement("button", {
+    className: "btn sm ghost",
+    onClick: del
+  }, "Delete layer"))))));
+}
+
+/* ---------- knockout form table: last four game weeks ---------- */
+function formTable(store, upToWeek, n = 4) {
+  const weeks = store.weeks.filter(w => w.n <= upToWeek && w.n > upToWeek - n);
+  const P = {};
+  const get = x => P[x] || (P[x] = {
+    name: x,
+    w: 0,
+    l: 0,
+    d: 0,
+    weeks: 0
+  });
+  weeks.forEach(w => {
+    w.players.forEach(p => get(p).weeks++);
+    w.fixtures.filter(played).forEach(g => {
+      get(winner(g)).w++;
+      get(loser(g)).l++;
+      get(g.p1).d += g.s1 - g.s2;
+      get(g.p2).d += g.s2 - g.s1;
+    });
+  });
+  const active = new Set(store.players.filter(p => p.active).map(p => p.name));
+  return Object.values(P).filter(r => active.has(r.name)).sort((a, b) => b.w - a.w || b.d - a.d || b.weeks - a.weeks);
+}
+function drawKnockout(s, after) {
+  const st = formTable(s, after).map(r => r.name);
+  const mk = (p1, p2) => ({
+    id: 'g' + s.nextId++,
+    p1: p1 || null,
+    p2: p2 || null,
+    s1: null,
+    s2: null,
+    status: 'open',
+    sub: {}
+  });
+  const lg = (name, o) => ({
+    name,
+    games: [mk(st[o], st[o + 3]), mk(st[o + 1], st[o + 2]), mk(null, null)],
+    winner: null,
+    prize: s.payouts.koPrize
+  });
+  return {
+    season: s.knockouts.length + 1,
+    after,
+    leagues: [lg('Champions', 0), lg('Europa', 4), lg('Conference', 8)]
+  };
 }
 
 /* ---------- Table page ---------- */
@@ -1021,7 +1453,10 @@ function TablePage({
     className: "rank"
   }, i + 1), /*#__PURE__*/React.createElement("td", {
     className: "name"
-  }, r.name, r.tie === 'playoff' && /*#__PURE__*/React.createElement("span", {
+  }, /*#__PURE__*/React.createElement(Nm, {
+    n: r.name,
+    size: 24
+  }), r.tie === 'playoff' && /*#__PURE__*/React.createElement("span", {
     className: "stamp warn",
     style: {
       marginLeft: 8
@@ -1128,7 +1563,10 @@ function MyPage({
   };
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: "page-title"
-  }, /*#__PURE__*/React.createElement("h1", null, me), /*#__PURE__*/React.createElement("span", {
+  }, /*#__PURE__*/React.createElement("h1", null, /*#__PURE__*/React.createElement(Nm, {
+    n: me,
+    size: 48
+  })), /*#__PURE__*/React.createElement("span", {
     className: "sub"
   }, "Game week ", w.n)), /*#__PURE__*/React.createElement("div", {
     className: "grid g2"
@@ -1151,7 +1589,7 @@ function MyPage({
     }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("b", null, o), g.slot && /*#__PURE__*/React.createElement("span", {
       className: "small muted"
     }, " · ", g.slot === 'mongoff' ? 'mong off' : g.slot + ' final')), played(g) ? /*#__PURE__*/React.createElement("span", {
-      className: "stamp ok"
+      className: 'stamp ' + (won(g, me) ? 'ok' : 'bad')
     }, won(g, me) ? 'won ' + (g.p1 === me ? g.s1 + '-' + g.s2 : g.s2 + '-' + g.s1) : 'lost ' + (g.p1 === me ? g.s1 + '-' + g.s2 : g.s2 + '-' + g.s1)) : g.status === 'disputed' ? /*#__PURE__*/React.createElement("span", {
       className: "stamp bad"
     }, "disputed") : my ? /*#__PURE__*/React.createElement("span", {
@@ -1341,7 +1779,11 @@ function MyPage({
     l: "best finish"
   })), /*#__PURE__*/React.createElement(Form, {
     f: st.form
-  })));
+  })), /*#__PURE__*/React.createElement(EmblemStudio, {
+    me: me,
+    dispatch: dispatch,
+    toast: toast
+  }));
 }
 
 /* ---------- Master ---------- */
@@ -1404,7 +1846,10 @@ function MasterPage({
     className: r.name === me ? 'me' : ''
   }, /*#__PURE__*/React.createElement("td", {
     className: "n muted"
-  }, i + 1), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("b", null, r.name), !store.players.find(p => p.name === r.name)?.active && /*#__PURE__*/React.createElement("span", {
+  }, i + 1), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("b", null, /*#__PURE__*/React.createElement(Nm, {
+    n: r.name,
+    size: 18
+  })), !store.players.find(p => p.name === r.name)?.active && /*#__PURE__*/React.createElement("span", {
     className: "small muted"
   }, " (former)")), /*#__PURE__*/React.createElement("td", {
     className: "n"
@@ -1438,7 +1883,11 @@ function StatsPage({
   })).sort((a, b) => b.c - a.c)[0];
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: "page-title"
-  }, /*#__PURE__*/React.createElement("h1", null, "Dossier"), /*#__PURE__*/React.createElement("select", {
+  }, /*#__PURE__*/React.createElement("h1", null, /*#__PURE__*/React.createElement(Nm, {
+    n: p,
+    size: 48,
+    noTag: true
+  }), tagOf(p) ? ' ' + tagOf(p) : ''), /*#__PURE__*/React.createElement("select", {
     value: p,
     onChange: e => setP(e.target.value)
   }, store.players.map(x => /*#__PURE__*/React.createElement("option", {
@@ -1578,7 +2027,51 @@ function KOPage({
     className: "page-title"
   }, /*#__PURE__*/React.createElement("h1", null, "Knockouts"), /*#__PURE__*/React.createElement("span", {
     className: "sub"
-  }, "Every four weeks. ", gbp(store.payouts.koEntry), " in, ", gbp(store.payouts.koPrize), " to the winner.")), [...store.knockouts].reverse().map(k => /*#__PURE__*/React.createElement("div", {
+  }, "Every four weeks. ", gbp(store.payouts.koEntry), " in, ", gbp(store.payouts.koPrize), " to the winner.")), /*#__PURE__*/React.createElement("div", {
+    className: "panel",
+    style: {
+      marginBottom: 18
+    }
+  }, /*#__PURE__*/React.createElement("h2", null, "Form table ", /*#__PURE__*/React.createElement("span", {
+    className: "muted small"
+  }, "last four game weeks, decides the next draw")), (() => {
+    const last = store.weeks[store.weeks.length - 1];
+    const ft = formTable(store, last.n);
+    return /*#__PURE__*/React.createElement("table", {
+      className: "plain"
+    }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", null), /*#__PURE__*/React.createElement("th", null, "Player"), /*#__PURE__*/React.createElement("th", {
+      style: {
+        textAlign: 'right'
+      }
+    }, "W"), /*#__PURE__*/React.createElement("th", {
+      style: {
+        textAlign: 'right'
+      }
+    }, "L"), /*#__PURE__*/React.createElement("th", {
+      style: {
+        textAlign: 'right'
+      }
+    }, "Diff"), /*#__PURE__*/React.createElement("th", null, "League"))), /*#__PURE__*/React.createElement("tbody", null, ft.map((r, i) => /*#__PURE__*/React.createElement("tr", {
+      key: r.name
+    }, /*#__PURE__*/React.createElement("td", {
+      className: "n muted"
+    }, i + 1), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement(Nm, {
+      n: r.name,
+      size: 18
+    })), /*#__PURE__*/React.createElement("td", {
+      className: "n"
+    }, r.w), /*#__PURE__*/React.createElement("td", {
+      className: "n"
+    }, r.l), /*#__PURE__*/React.createElement("td", {
+      className: "n"
+    }, r.d > 0 ? '+' : '', r.d), /*#__PURE__*/React.createElement("td", {
+      className: "small"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "kt"
+    }, i < 4 ? 'Champions' : i < 8 ? 'Europa' : i < 12 ? 'Conference' : ''))))));
+  })(), /*#__PURE__*/React.createElement("p", {
+    className: "small muted"
+  }, "Wins over the last four weeks, then ball difference. Positions 1 to 4 go in the Champions League, 5 to 8 Europa, 9 to 12 Conference.")), [...store.knockouts].reverse().map(k => /*#__PURE__*/React.createElement("div", {
     key: k.season,
     className: "panel",
     style: {
@@ -1994,7 +2487,18 @@ function RegimePage({
     className: "panel"
   }, /*#__PURE__*/React.createElement("h2", null, "Knockout"), /*#__PURE__*/React.createElement("p", {
     className: "small muted"
-  }, "Season ", store.knockouts.length, " is drawn after game week ", store.knockouts[store.knockouts.length - 1].after, ". Results are entered here."), store.knockouts[store.knockouts.length - 1].leagues.map(l => /*#__PURE__*/React.createElement("div", {
+  }, "Season ", store.knockouts.length, " is drawn after game week ", store.knockouts[store.knockouts.length - 1].after, ". Results are entered here."), (() => {
+    const k = store.knockouts[store.knockouts.length - 1];
+    const untouched = k.leagues.every(l => l.games.every(g => !played(g)));
+    return untouched && /*#__PURE__*/React.createElement("button", {
+      className: "btn ghost sm",
+      onClick: () => {
+        if (confirm('Redraw season ' + k.season + ' from the last four weeks of form?')) dispatch({
+          t: 'redrawKO'
+        });
+      }
+    }, "Redraw season ", k.season, " from form");
+  })(), store.knockouts[store.knockouts.length - 1].leagues.map((l, li) => /*#__PURE__*/React.createElement("div", {
     key: l.name
   }, /*#__PURE__*/React.createElement("div", {
     className: "kt"
@@ -2003,7 +2507,20 @@ function RegimePage({
     className: "fx"
   }, /*#__PURE__*/React.createElement("div", {
     className: "l"
-  }, g.p1 || '?'), /*#__PURE__*/React.createElement("div", {
+  }, played(g) || i === 2 ? g.p1 || '?' : /*#__PURE__*/React.createElement("select", {
+    value: g.p1 || '',
+    onChange: e => dispatch({
+      t: 'koSlot',
+      league: li,
+      game: i,
+      side: 'p1',
+      name: e.target.value
+    })
+  }, /*#__PURE__*/React.createElement("option", {
+    value: ""
+  }, "?"), store.players.filter(p => p.active || p.name === g.p1).map(p => /*#__PURE__*/React.createElement("option", {
+    key: p.name
+  }, p.name, p.active ? '' : ' (retired)')))), /*#__PURE__*/React.createElement("div", {
     className: "row",
     style: {
       justifyContent: 'center'
@@ -2024,9 +2541,22 @@ function RegimePage({
     onClick: () => enter(g)
   }, "Set")), /*#__PURE__*/React.createElement("div", {
     className: "r"
-  }, g.p2 || '?'))))), /*#__PURE__*/React.createElement("p", {
+  }, played(g) || i === 2 ? g.p2 || '?' : /*#__PURE__*/React.createElement("select", {
+    value: g.p2 || '',
+    onChange: e => dispatch({
+      t: 'koSlot',
+      league: li,
+      game: i,
+      side: 'p2',
+      name: e.target.value
+    })
+  }, /*#__PURE__*/React.createElement("option", {
+    value: ""
+  }, "?"), store.players.filter(p => p.active || p.name === g.p2).map(p => /*#__PURE__*/React.createElement("option", {
+    key: p.name
+  }, p.name, p.active ? '' : ' (retired)')))))))), /*#__PURE__*/React.createElement("p", {
     className: "small muted"
-  }, "Finals fill in automatically from the semis. The winner's ", gbp(po.koPrize), " is recorded when the final is set."))), sec === 'players' && /*#__PURE__*/React.createElement("div", {
+  }, "Injured or missing? Change a name in an unplayed semi. Finals fill in automatically from the semis. The winner's ", gbp(po.koPrize), " is recorded when the final is set."))), sec === 'players' && /*#__PURE__*/React.createElement("div", {
     className: "panel"
   }, /*#__PURE__*/React.createElement("h2", null, "Players"), /*#__PURE__*/React.createElement("div", {
     className: "row"
@@ -2289,38 +2819,8 @@ function reduce(store, a) {
         s.players.filter(p => p.active).forEach(p => s.rollcall[p.name] = 'in');
         log('GW' + n + ' opened with ' + a.players.join(', '));
         if (n % 4 === 1 && s.knockouts[s.knockouts.length - 1].after < n - 1) {
-          const prev = s.weeks[n - 2];
-          const st = standings(prev).map(r => r.name);
-          const mk = (p1, p2) => ({
-            id: 'g' + s.nextId++,
-            p1,
-            p2,
-            s1: null,
-            s2: null,
-            status: 'open',
-            sub: {}
-          });
-          s.knockouts.push({
-            season: s.knockouts.length + 1,
-            after: n - 1,
-            leagues: [{
-              name: 'Champions',
-              games: [mk(st[0], st[3]), mk(st[1], st[2]), mk(null, null)],
-              winner: null,
-              prize: s.payouts.koPrize
-            }, {
-              name: 'Europa',
-              games: [mk(st[4], st[7]), mk(st[5], st[6]), mk(null, null)],
-              winner: null,
-              prize: s.payouts.koPrize
-            }, {
-              name: 'Conference',
-              games: [mk(st[8], st[11]), mk(st[9], st[10]), mk(null, null)],
-              winner: null,
-              prize: s.payouts.koPrize
-            }]
-          });
-          log('Knockout season drawn from GW' + (n - 1) + ' table');
+          s.knockouts.push(drawKnockout(s, n - 1));
+          log('Knockout season drawn from the last four weeks of form');
         }
         break;
       }
@@ -2356,6 +2856,33 @@ function reduce(store, a) {
           p.active = a.v;
           if (a.v) s.rollcall[p.name] = 'in';else delete s.rollcall[p.name];
         }
+        break;
+      }
+    case 'profile':
+      {
+        s.profiles = s.profiles || {};
+        s.profiles[a.p] = {
+          tag: String(a.tag || '').slice(0, 5),
+          emblem: a.emblem || null
+        };
+        log(a.p + ' updated their identity');
+        break;
+      }
+    case 'koSlot':
+      {
+        const k = s.knockouts[s.knockouts.length - 1];
+        const g = k.leagues[a.league].games[a.game];
+        g[a.side] = a.name || null;
+        log(`${a.by} set ${k.leagues[a.league].name} semi to ${g.p1 || '?'} v ${g.p2 || '?'}`);
+        break;
+      }
+    case 'redrawKO':
+      {
+        const k = s.knockouts[s.knockouts.length - 1];
+        s.knockouts[s.knockouts.length - 1] = Object.assign(drawKnockout(s, k.after), {
+          season: k.season
+        });
+        log('Season ' + k.season + ' redrawn from form by ' + a.by);
         break;
       }
     case 'replace':
@@ -2464,6 +2991,7 @@ function App() {
       clearInterval(iv);
     };
   }, []);
+  PROF = store && store.profiles || {};
   const me = cred ? cred.name : cred;
   const isAdmin = !!(cred && cred.role === 'admin');
   const cloudEmpty = !!(store && !store.weeks);
@@ -2490,7 +3018,7 @@ function App() {
           refresh();
         } else toast('Not saved: ' + e.message);
       }
-    } else if (cred && (a.t === 'submit' || a.t === 'rollcall')) {
+    } else if (cred && (a.t === 'submit' || a.t === 'rollcall' || a.t === 'profile')) {
       try {
         await api.playerAction(cred, a);
         await refresh();
