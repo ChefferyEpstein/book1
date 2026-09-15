@@ -1589,7 +1589,7 @@ function MyPage({
     }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("b", null, o), g.slot && /*#__PURE__*/React.createElement("span", {
       className: "small muted"
     }, " · ", g.slot === 'mongoff' ? 'mong off' : g.slot + ' final')), played(g) ? /*#__PURE__*/React.createElement("span", {
-      className: "stamp ok"
+      className: 'stamp ' + (won(g, me) ? 'ok' : 'bad')
     }, won(g, me) ? 'won ' + (g.p1 === me ? g.s1 + '-' + g.s2 : g.s2 + '-' + g.s1) : 'lost ' + (g.p1 === me ? g.s1 + '-' + g.s2 : g.s2 + '-' + g.s1)) : g.status === 'disputed' ? /*#__PURE__*/React.createElement("span", {
       className: "stamp bad"
     }, "disputed") : my ? /*#__PURE__*/React.createElement("span", {
