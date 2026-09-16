@@ -726,25 +726,43 @@ function standings(w) {
       form: gs.map(g => won(g, p) ? 'W' : 'L')
     };
   });
+  const findG = (list, a, b) => list.find(g => played(g) && (g.p1 === a && g.p2 === b || g.p1 === b && g.p2 === a));
   const h2h = (a, b) => {
-    const g = w.fixtures.find(g => played(g) && (g.p1 === a && g.p2 === b || g.p1 === b && g.p2 === a));
+    const g = findG(w.fixtures, a, b);
+    return g ? winner(g) : null;
+  };
+  const decider = (a, b) => {
+    const g = findG(w.tiebreaks, a, b);
     return g ? winner(g) : null;
   };
   rows.sort((a, b) => b.w - a.w || b.d - a.d || 0);
-  // head-to-head only when level on wins and difference
+  // head-to-head only when level on wins and difference; a called decider settles it if they never met
   for (let i = 0; i < rows.length - 1; i++) {
     const a = rows[i],
       b = rows[i + 1];
     if (a.w === b.w && a.d === b.d) {
       const h = h2h(a.name, b.name);
-      a.tie = b.tie = h ? 'h2h' : 'playoff';
-      if (h === b.name) {
+      const dc = h ? null : decider(a.name, b.name);
+      const winnerName = h || dc;
+      a.tie = b.tie = h ? 'h2h' : dc ? 'decider' : 'playoff';
+      if (winnerName === b.name) {
         rows[i] = b;
         rows[i + 1] = a;
       }
     }
   }
   return rows;
+}
+function tiePairs(w) {
+  const st = standings(w);
+  const out = [];
+  const met = (a, b) => w.fixtures.concat(w.tiebreaks).some(g => played(g) && (g.p1 === a && g.p2 === b || g.p1 === b && g.p2 === a));
+  for (let i = 0; i < st.length - 1; i++) {
+    const a = st[i],
+      b = st[i + 1];
+    if (a.w === b.w && a.d === b.d && !met(a.name, b.name)) out.push([a.name, b.name]);
+  }
+  return out;
 }
 function allTime(store, incAll) {
   const P = {};
@@ -755,13 +773,14 @@ function allTime(store, incAll) {
     d: 0,
     weeks: 0,
     ko: 0,
+    koPaid: 0,
     winnings: 0,
     pf: 0,
     pa: 0
   });
   store.weeks.forEach(w => {
     w.players.forEach(p => get(p).weeks++);
-    const gs = incAll ? w.fixtures.concat(w.playoffs, w.tiebreaks) : w.fixtures;
+    const gs = incAll ? w.fixtures.concat(w.playoffs) : w.fixtures; // deciders never count here, whatever the toggle says
     gs.filter(played).forEach(g => {
       const a = get(winner(g)),
         b = get(loser(g));
@@ -791,12 +810,15 @@ function allTime(store, incAll) {
       });
       if (l.winner && l.prize) get(l.winner).winnings += l.prize;
     });
-    ent.forEach(p => get(p).ko++);
+    ent.forEach(p => {
+      get(p).ko++;
+      get(p).koPaid += Math.min(k.paid && k.paid[p] || 0, store.payouts.koEntry);
+    });
   });
   const po = store.payouts;
   return Object.values(P).map(r => ({
     ...r,
-    paidIn: r.weeks * po.entry + r.ko * po.koEntry
+    paidIn: r.weeks * po.entry + r.koPaid
   })).map(r => ({
     ...r,
     balance: r.winnings - r.paidIn
@@ -1397,7 +1419,8 @@ function drawKnockout(s, after) {
   return {
     season: s.knockouts.length + 1,
     after,
-    leagues: [lg('Champions', 0), lg('Europa', 4), lg('Conference', 8)]
+    leagues: [lg('Champions', 0), lg('Europa', 4), lg('Conference', 8)],
+    paid: {}
   };
 }
 
@@ -1461,13 +1484,19 @@ function TablePage({
     style: {
       marginLeft: 8
     }
-  }, "play-off"), r.tie === 'h2h' && /*#__PURE__*/React.createElement("span", {
+  }, "needs a decider"), r.tie === 'h2h' && /*#__PURE__*/React.createElement("span", {
     className: "small",
     style: {
       marginLeft: 8,
       opacity: .7
     }
-  }, "h2h")), /*#__PURE__*/React.createElement("td", {
+  }, "h2h"), r.tie === 'decider' && /*#__PURE__*/React.createElement("span", {
+    className: "small",
+    style: {
+      marginLeft: 8,
+      opacity: .7
+    }
+  }, "decider")), /*#__PURE__*/React.createElement("td", {
     className: "num"
   }, r.w), /*#__PURE__*/React.createElement("td", {
     className: "num"
@@ -1481,7 +1510,12 @@ function TablePage({
     f: r.form
   })))))), /*#__PURE__*/React.createElement("div", {
     className: "caption"
-  }, /*#__PURE__*/React.createElement("span", null, "Sorted on wins, then ball difference, then head to head."), /*#__PURE__*/React.createElement("span", null, "Level on both and never met: play-off."))), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("span", null, "Sorted on wins, then ball difference, then head to head."), /*#__PURE__*/React.createElement("span", null, "Level on both and never met: needs a decider."))), tiePairs(w).length > 0 && /*#__PURE__*/React.createElement("p", {
+    className: "small muted",
+    style: {
+      marginTop: 6
+    }
+  }, "Needs a decider: ", tiePairs(w).map(([a, b]) => a + ' v ' + b).join(', '), "."), /*#__PURE__*/React.createElement("div", {
     className: "grid g2",
     style: {
       marginTop: 18
@@ -1765,7 +1799,22 @@ function MyPage({
     className: "stamp warn"
   }, gbp(w.paid[me]), " paid, ", gbp(store.payouts.entry - w.paid[me]), " owed") : /*#__PURE__*/React.createElement("span", {
     className: "stamp bad"
-  }, "unpaid")))), /*#__PURE__*/React.createElement("div", {
+  }, "unpaid")), (() => {
+    const k = store.knockouts[store.knockouts.length - 1];
+    const inIt = k.leagues.some(l => l.games.some(g => g.p1 === me || g.p2 === me));
+    if (!inIt) return null;
+    const paid = k.paid && k.paid[me] || 0;
+    const need = store.payouts.koEntry;
+    return /*#__PURE__*/React.createElement("p", {
+      className: "small"
+    }, "Knockout (season ", k.season, "): ", paid >= need ? /*#__PURE__*/React.createElement("span", {
+      className: "stamp ok"
+    }, "paid") : paid > 0 ? /*#__PURE__*/React.createElement("span", {
+      className: "stamp warn"
+    }, gbp(paid), " paid, ", gbp(need - paid), " owed") : /*#__PURE__*/React.createElement("span", {
+      className: "stamp bad"
+    }, "unpaid"));
+  })())), /*#__PURE__*/React.createElement("div", {
     className: "panel",
     style: {
       marginTop: 18
@@ -1880,7 +1929,7 @@ function MasterPage({
     className: 'n ' + (r.balance >= 0 ? 'pos' : 'neg')
   }, r.balance >= 0 ? '+' : '-', gbp(Math.abs(r.balance))))))), /*#__PURE__*/React.createElement("p", {
     className: "small muted"
-  }, "Paid in counts ", gbp(store.payouts.entry), " per week on the table and ", gbp(store.payouts.koEntry), " per knockout entered. Treasury: The Dictator.")));
+  }, "Paid in counts ", gbp(store.payouts.entry), " per week on the table and ", gbp(store.payouts.koEntry), " per knockout entered. Treasury: The Dictator. Decider games settle a tied position on the table only, they never count here.")));
 }
 
 /* ---------- Stats ---------- */
@@ -2156,6 +2205,7 @@ function RegimePage({
   const allPlayed = w.fixtures.every(played);
   const [numbers, setNumbers] = useState({});
   const [swapSel, setSwapSel] = useState({});
+  const [koSeasonIdx, setKoSeasonIdx] = useState(null);
   const [newName, setNewName] = useState('');
   const outstanding = w.players.filter(p => (w.paid[p] || 0) < po.entry);
   const secs = [['queue', 'Approvals' + (queue.length ? ' (' + queue.length + ')' : '')], ['results', 'Enter results'], ['money', 'Treasury'], ['roll', 'Roll call'], ['week', 'Game week'], ['players', 'Players'], ['data', 'Backup']];
@@ -2259,6 +2309,47 @@ function RegimePage({
   }, /*#__PURE__*/React.createElement("div", {
     className: "panel"
   }, /*#__PURE__*/React.createElement("h2", null, "League games"), w.fixtures.map(g => /*#__PURE__*/React.createElement("div", {
+    key: g.id,
+    className: "fx"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "l"
+  }, g.p1), /*#__PURE__*/React.createElement("div", {
+    className: "row",
+    style: {
+      justifyContent: 'center'
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    className: "score",
+    value: scores[g.id]?.a ?? g.s1 ?? '',
+    onChange: e => setS(g.id, 'a', e.target.value)
+  }), /*#__PURE__*/React.createElement("span", null, "-"), /*#__PURE__*/React.createElement("input", {
+    className: "score",
+    value: scores[g.id]?.b ?? g.s2 ?? '',
+    onChange: e => setS(g.id, 'b', e.target.value)
+  }), /*#__PURE__*/React.createElement("button", {
+    className: "btn sm",
+    onClick: () => enter(g)
+  }, played(g) ? 'Fix' : 'Set')), /*#__PURE__*/React.createElement("div", {
+    className: "r"
+  }, g.p2)))), /*#__PURE__*/React.createElement("div", {
+    className: "panel"
+  }, /*#__PURE__*/React.createElement("h2", null, "Tie breaks"), /*#__PURE__*/React.createElement("p", {
+    className: "small muted"
+  }, "Settles a tied table position only. Never counts on the Master sheet."), tiePairs(w).filter(([a, b]) => !w.tiebreaks.some(g => !played(g) && (g.p1 === a && g.p2 === b || g.p1 === b && g.p2 === a))).map(([a, b]) => /*#__PURE__*/React.createElement("button", {
+    key: a + b,
+    className: "btn sm ghost",
+    style: {
+      marginRight: 6,
+      marginBottom: 6
+    },
+    onClick: () => dispatch({
+      t: 'addTiebreak',
+      p1: a,
+      p2: b
+    })
+  }, "Call a decider: ", a, " v ", b)), tiePairs(w).length === 0 && w.tiebreaks.every(played) && /*#__PURE__*/React.createElement("p", {
+    className: "muted small"
+  }, "Nothing tied that hasn't met."), w.tiebreaks.map(g => /*#__PURE__*/React.createElement("div", {
     key: g.id,
     className: "fx"
   }, /*#__PURE__*/React.createElement("div", {
@@ -2432,7 +2523,74 @@ function RegimePage({
     })
   }))), /*#__PURE__*/React.createElement("p", {
     className: "small muted"
-  }, "Current structure pays out ", gbp(po.gold[0] + po.gold[1] + po.silver[0] + po.silver[1] + po.bronze[0] + po.bronze[1] + po.mongoff), " of a ", gbp(12 * po.entry), " pot.")), sec === 'roll' && /*#__PURE__*/React.createElement("div", {
+  }, "Current structure pays out ", gbp(po.gold[0] + po.gold[1] + po.silver[0] + po.silver[1] + po.bronze[0] + po.bronze[1] + po.mongoff), " of a ", gbp(12 * po.entry), " pot."), (() => {
+    const idx = koSeasonIdx == null ? store.knockouts.length - 1 : koSeasonIdx;
+    const k = store.knockouts[idx];
+    const entrants = [...new Set(k.leagues.flatMap(l => l.games.flatMap(g => [g.p1, g.p2])).filter(Boolean))];
+    const paidMap = k.paid || {};
+    const collected = entrants.reduce((a, p) => a + Math.min(paidMap[p] || 0, po.koEntry), 0);
+    return /*#__PURE__*/React.createElement("div", {
+      style: {
+        marginTop: 22,
+        borderTop: '1px solid var(--smoke)',
+        paddingTop: 16
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "row spread"
+    }, /*#__PURE__*/React.createElement("h3", null, "Knockout buy-ins"), /*#__PURE__*/React.createElement("select", {
+      value: idx,
+      onChange: e => setKoSeasonIdx(+e.target.value)
+    }, store.knockouts.map((s, i) => /*#__PURE__*/React.createElement("option", {
+      key: s.season,
+      value: i
+    }, "Season ", s.season)))), /*#__PURE__*/React.createElement("p", {
+      className: "muted small"
+    }, gbp(po.koEntry), " each, winner takes all. Nothing here is assumed paid until it's ticked."), /*#__PURE__*/React.createElement("div", {
+      className: "row spread"
+    }, /*#__PURE__*/React.createElement("b", null, "Collected ", gbp(collected), " of ", gbp(entrants.length * po.koEntry)), /*#__PURE__*/React.createElement("button", {
+      className: "btn sm ghost",
+      onClick: () => dispatch({
+        t: 'koPayAll',
+        season: k.season,
+        entrants,
+        amt: po.koEntry
+      })
+    }, "Mark everyone paid")), /*#__PURE__*/React.createElement("table", {
+      className: "plain"
+    }, /*#__PURE__*/React.createElement("tbody", null, entrants.map(p => {
+      const paid = paidMap[p] || 0;
+      return /*#__PURE__*/React.createElement("tr", {
+        key: p
+      }, /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement(Nm, {
+        n: p,
+        size: 16
+      })), /*#__PURE__*/React.createElement("td", null, paid >= po.koEntry ? /*#__PURE__*/React.createElement("span", {
+        className: "stamp ok"
+      }, "paid") : paid > 0 ? /*#__PURE__*/React.createElement("span", {
+        className: "stamp warn"
+      }, gbp(paid), " in") : /*#__PURE__*/React.createElement("span", {
+        className: "stamp bad"
+      }, "unpaid")), /*#__PURE__*/React.createElement("td", {
+        className: "row"
+      }, /*#__PURE__*/React.createElement("button", {
+        className: "btn sm ghost",
+        onClick: () => dispatch({
+          t: 'koPay',
+          season: k.season,
+          p,
+          amt: po.koEntry
+        })
+      }, "Paid ", gbp(po.koEntry)), /*#__PURE__*/React.createElement("button", {
+        className: "btn sm ghost",
+        onClick: () => dispatch({
+          t: 'koPay',
+          season: k.season,
+          p,
+          amt: 0
+        })
+      }, "Clear")));
+    }))));
+  })()), sec === 'roll' && /*#__PURE__*/React.createElement("div", {
     className: "panel"
   }, /*#__PURE__*/React.createElement("h2", null, "Roll call for game week ", w.n + 1), /*#__PURE__*/React.createElement("p", {
     className: "muted small"
@@ -3021,6 +3179,49 @@ function reduce(store, a) {
         const left = Object.keys(g.sub);
         g.status = left.length === 0 ? 'open' : 'pending';
         log(`${a.by} recalled their report on ${g.p1} v ${g.p2}`);
+        break;
+      }
+    case 'koPay':
+      {
+        const k = s.knockouts.find(x => x.season === a.season);
+        if (k) {
+          k.paid = k.paid || {};
+          if (a.amt) k.paid[a.p] = a.amt;else delete k.paid[a.p];
+          log(`${a.by} set ${a.p}'s season ${a.season} knockout entry to £${a.amt}`);
+        }
+        break;
+      }
+    case 'koPayAll':
+      {
+        const k = s.knockouts.find(x => x.season === a.season);
+        if (k) {
+          k.paid = k.paid || {};
+          a.entrants.forEach(p => k.paid[p] = a.amt);
+          log(`${a.by} marked everyone paid for the season ${a.season} knockout`);
+        }
+        break;
+      }
+    case 'addTiebreak':
+      {
+        const w = s.weeks[s.weeks.length - 1];
+        const {
+          p1,
+          p2
+        } = a;
+        if (w.closed) throw new Error('GW' + w.n + ' is already closed.');
+        if (!w.players.includes(p1) || !w.players.includes(p2)) throw new Error('Both players need to be on the table this week.');
+        const existingTb = w.tiebreaks.find(g => g.p1 === p1 && g.p2 === p2 || g.p1 === p2 && g.p2 === p1);
+        if (existingTb) throw new Error(played(existingTb) ? 'That was already settled by a decider this week.' : 'That decider is already waiting to be scored.');
+        w.tiebreaks.push({
+          id: 'g' + s.nextId++,
+          p1,
+          p2,
+          s1: null,
+          s2: null,
+          status: 'open',
+          sub: {}
+        });
+        log(`${a.by} called a decider: ${p1} v ${p2}`);
         break;
       }
     case 'profile':
