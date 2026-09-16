@@ -1640,7 +1640,20 @@ function MyPage({
         setA(8);
         setB(0);
       }
-    }, my ? 'Amend' : 'Report result')));
+    }, my ? 'Amend' : 'Report result'), my && edit !== g.id && /*#__PURE__*/React.createElement("button", {
+      className: "btn sm ghost",
+      style: {
+        borderColor: 'var(--blood)',
+        color: 'var(--blood)'
+      },
+      onClick: () => {
+        if (confirm('Recall your report? It goes back to unplayed until one of you reports again.')) dispatch({
+          t: 'recall',
+          id: g.id,
+          by: me
+        });
+      }
+    }, "Recall")));
   }), /*#__PURE__*/React.createElement("p", {
     className: "small muted",
     style: {
@@ -2163,7 +2176,7 @@ function RegimePage({
     className: "panel"
   }, /*#__PURE__*/React.createElement("h2", null, "Awaiting a ruling"), queue.length === 0 && /*#__PURE__*/React.createElement("p", {
     className: "muted"
-  }, "Nothing disputed. The people are honest, for now."), queue.map(g => /*#__PURE__*/React.createElement("div", {
+  }, "Nothing waiting. The people are honest, for now."), queue.map(g => /*#__PURE__*/React.createElement("div", {
     key: g.id,
     style: {
       padding: '10px 0',
@@ -2171,7 +2184,13 @@ function RegimePage({
     }
   }, /*#__PURE__*/React.createElement("div", {
     className: "row spread"
-  }, /*#__PURE__*/React.createElement("b", null, g.p1, " v ", g.p2), g.status === 'disputed' ? /*#__PURE__*/React.createElement("span", {
+  }, /*#__PURE__*/React.createElement("b", null, /*#__PURE__*/React.createElement(Nm, {
+    n: g.p1,
+    size: 16
+  }), " v ", /*#__PURE__*/React.createElement(Nm, {
+    n: g.p2,
+    size: 16
+  })), g.status === 'disputed' ? /*#__PURE__*/React.createElement("span", {
     className: "stamp bad"
   }, "disputed") : /*#__PURE__*/React.createElement("span", {
     className: "stamp warn"
@@ -2184,8 +2203,13 @@ function RegimePage({
     style: {
       marginTop: 6
     }
-  }, Object.entries(g.sub).map(([p, s]) => /*#__PURE__*/React.createElement("button", {
+  }, Object.entries(g.sub).map(([p, s]) => /*#__PURE__*/React.createElement("span", {
     key: p,
+    className: "row",
+    style: {
+      gap: 4
+    }
+  }, /*#__PURE__*/React.createElement("button", {
     className: "btn sm ghost",
     onClick: () => dispatch({
       t: 'set',
@@ -2193,7 +2217,21 @@ function RegimePage({
       s,
       by: me
     })
-  }, "Rule for ", p, ": ", s[0], "-", s[1])), /*#__PURE__*/React.createElement("input", {
+  }, "Rule for ", p, ": ", s[0], "-", s[1]), /*#__PURE__*/React.createElement("button", {
+    className: "btn sm ghost",
+    style: {
+      borderColor: 'var(--blood)',
+      color: 'var(--blood)'
+    },
+    onClick: () => {
+      if (confirm('Reject ' + p + "'s report? They'll need to submit again.")) dispatch({
+        t: 'reject',
+        id: g.id,
+        player: p,
+        by: me
+      });
+    }
+  }, "Reject ", p, "'s report"))), /*#__PURE__*/React.createElement("input", {
     className: "score",
     placeholder: "8",
     value: scores[g.id]?.a ?? '',
@@ -2206,7 +2244,17 @@ function RegimePage({
   }), /*#__PURE__*/React.createElement("button", {
     className: "btn sm",
     onClick: () => enter(g)
-  }, "Rule"))))), sec === 'results' && /*#__PURE__*/React.createElement("div", {
+  }, "Rule"), Object.keys(g.sub).length > 1 && /*#__PURE__*/React.createElement("button", {
+    className: "btn sm ghost",
+    onClick: () => {
+      if (confirm('Reject both reports and reopen the game?')) dispatch({
+        t: 'reject',
+        id: g.id,
+        player: null,
+        by: me
+      });
+    }
+  }, "Reject both, reopen"))))), sec === 'results' && /*#__PURE__*/React.createElement("div", {
     className: "grid g2"
   }, /*#__PURE__*/React.createElement("div", {
     className: "panel"
@@ -2948,6 +2996,33 @@ function reduce(store, a) {
         log(`${a.by} voided GW${w.n}, nobody had played yet`);
         break;
       }
+    case 'reject':
+      {
+        const ctx = findGame(s, a.id);
+        const g = ctx.g;
+        if (a.player) {
+          delete g.sub[a.player];
+        } else {
+          g.sub = {};
+        }
+        const left = Object.keys(g.sub);
+        g.status = left.length === 0 ? 'open' : 'pending';
+        log(`${a.by} rejected ${a.player ? a.player + "'s report on" : 'both reports on'} ${g.p1} v ${g.p2}, back to ${g.status}`);
+        break;
+      }
+    case 'recall':
+      {
+        const ctx = findGame(s, a.id);
+        const g = ctx.g;
+        if (g.p1 !== a.by && g.p2 !== a.by) throw new Error('Not your game.');
+        if (played(g)) throw new Error('That game is already on the table. Ask the regime to change it.');
+        if (!g.sub[a.by]) throw new Error('You have not reported a score for this yet.');
+        delete g.sub[a.by];
+        const left = Object.keys(g.sub);
+        g.status = left.length === 0 ? 'open' : 'pending';
+        log(`${a.by} recalled their report on ${g.p1} v ${g.p2}`);
+        break;
+      }
     case 'profile':
       {
         s.profiles = s.profiles || {};
@@ -3114,7 +3189,7 @@ function App() {
           refresh();
         } else toast('Not saved: ' + e.message);
       }
-    } else if (cred && (a.t === 'submit' || a.t === 'rollcall' || a.t === 'profile')) {
+    } else if (cred && (a.t === 'submit' || a.t === 'rollcall' || a.t === 'profile' || a.t === 'recall')) {
       try {
         await api.playerAction(cred, a);
         await refresh();
