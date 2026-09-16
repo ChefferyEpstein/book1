@@ -2142,6 +2142,7 @@ function RegimePage({
   const st = standings(w);
   const allPlayed = w.fixtures.every(played);
   const [numbers, setNumbers] = useState({});
+  const [swapSel, setSwapSel] = useState({});
   const [newName, setNewName] = useState('');
   const outstanding = w.players.filter(p => (w.paid[p] || 0) < po.entry);
   const secs = [['queue', 'Approvals' + (queue.length ? ' (' + queue.length + ')' : '')], ['results', 'Enter results'], ['money', 'Treasury'], ['roll', 'Roll call'], ['week', 'Game week'], ['players', 'Players'], ['data', 'Backup']];
@@ -2442,6 +2443,58 @@ function RegimePage({
   })))), sec === 'week' && /*#__PURE__*/React.createElement("div", {
     className: "grid g2"
   }, /*#__PURE__*/React.createElement("div", {
+    className: "panel"
+  }, /*#__PURE__*/React.createElement("h2", null, "Fix game week ", w.n), w.closed ? /*#__PURE__*/React.createElement("p", {
+    className: "muted small"
+  }, "GW", w.n, " is closed. Nothing to fix here now.") : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("p", {
+    className: "small muted"
+  }, "Wrong player on the table? Swap them out. Anything of theirs already on the table, including a played game, moves across to the new name."), /*#__PURE__*/React.createElement("table", {
+    className: "plain"
+  }, /*#__PURE__*/React.createElement("tbody", null, w.players.map(p => /*#__PURE__*/React.createElement("tr", {
+    key: p
+  }, /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement(Nm, {
+    n: p,
+    size: 16
+  })), /*#__PURE__*/React.createElement("td", {
+    className: "row"
+  }, /*#__PURE__*/React.createElement("select", {
+    value: swapSel[p] || '',
+    onChange: e => setSwapSel(x => ({
+      ...x,
+      [p]: e.target.value
+    }))
+  }, /*#__PURE__*/React.createElement("option", {
+    value: ""
+  }, "swap in…"), store.players.filter(x => x.active && !w.players.includes(x.name)).map(x => /*#__PURE__*/React.createElement("option", {
+    key: x.name
+  }, x.name))), /*#__PURE__*/React.createElement("button", {
+    className: "btn sm ghost",
+    disabled: !swapSel[p],
+    onClick: () => {
+      const inP = swapSel[p];
+      dispatch({
+        t: 'swapPlayer',
+        out: p,
+        inP
+      });
+      setSwapSel(x => ({
+        ...x,
+        [p]: ''
+      }));
+    }
+  }, "Swap")))))), /*#__PURE__*/React.createElement("p", {
+    className: "small muted"
+  }, "Need someone new? Add them in Players first, then they'll show here."), w.fixtures.concat(w.playoffs).every(g => !played(g)) && /*#__PURE__*/React.createElement("button", {
+    className: "btn ghost sm",
+    style: {
+      marginTop: 10
+    },
+    onClick: () => {
+      if (confirm('Void GW' + w.n + ' completely? This undoes opening the week. Nobody has played yet.')) dispatch({
+        t: 'voidWeek'
+      });
+    }
+  }, "Void GW", w.n, " entirely (nobody has played yet)"))), /*#__PURE__*/React.createElement("div", {
     className: "panel"
   }, /*#__PURE__*/React.createElement("h2", null, "Start game week ", w.n + 1), !w.closed && /*#__PURE__*/React.createElement("div", {
     className: "warnbox"
@@ -2858,6 +2911,43 @@ function reduce(store, a) {
         }
         break;
       }
+    case 'swapPlayer':
+      {
+        const w = s.weeks[s.weeks.length - 1];
+        const {
+          out,
+          inP
+        } = a;
+        if (w.closed) throw new Error('GW' + w.n + ' is already closed. Fix a closed week by hand in Enter results, or ask the developer.');
+        if (!w.players.includes(out)) throw new Error(out + ' is not on the GW' + w.n + ' table.');
+        if (w.players.includes(inP)) throw new Error(inP + ' is already on the GW' + w.n + ' table.');
+        const rename = g => {
+          if (g.p1 === out) g.p1 = inP;
+          if (g.p2 === out) g.p2 = inP;
+        };
+        const already = w.fixtures.concat(w.playoffs, w.tiebreaks).filter(g => (g.p1 === out || g.p2 === out) && played(g)).length;
+        w.players = w.players.map(p => p === out ? inP : p);
+        w.fixtures.forEach(rename);
+        w.playoffs.forEach(rename);
+        w.tiebreaks.forEach(rename);
+        if (w.paid[out] != null) {
+          w.paid[inP] = w.paid[out];
+          delete w.paid[out];
+        }
+        log(`${a.by} swapped ${out} out and ${inP} in for GW${w.n}` + (already ? ` (${already} game${already > 1 ? 's' : ''} already on the table moved across to ${inP})` : ''));
+        break;
+      }
+    case 'voidWeek':
+      {
+        const w = s.weeks[s.weeks.length - 1];
+        if (w.closed) throw new Error('GW' + w.n + ' is already closed and paid out, it cannot be voided.');
+        if (w.fixtures.concat(w.playoffs).some(played)) throw new Error('Games have already been played this week. Use Swap to fix one player, or ask the developer.');
+        s.weeks.pop();
+        const lastKO = s.knockouts[s.knockouts.length - 1];
+        if (lastKO && lastKO.after === w.n - 1 && lastKO.leagues.every(l => l.games.every(g => !played(g)))) s.knockouts.pop();
+        log(`${a.by} voided GW${w.n}, nobody had played yet`);
+        break;
+      }
     case 'profile':
       {
         s.profiles = s.profiles || {};
@@ -3004,10 +3094,16 @@ function App() {
   const dispatch = async a => {
     if (!store) return;
     if (isAdmin) {
-      const next = a.t === 'replace' ? a.store : reduce(store, {
-        ...a,
-        by: a.by || me
-      });
+      let next;
+      try {
+        next = a.t === 'replace' ? a.store : reduce(store, {
+          ...a,
+          by: a.by || me
+        });
+      } catch (e) {
+        toast(e.message);
+        return;
+      }
       try {
         const v = await api.adminSave(cred, version, next);
         setStore(next);
