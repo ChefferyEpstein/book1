@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Book1.1</title>
+<title>Book1.2</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -22,14 +22,15 @@ a{color:inherit}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 
 .app{display:grid;grid-template-columns:220px 1fr;min-height:100vh}
-.rail{background:var(--coal);border-right:2px solid var(--felt);padding:20px 16px;position:sticky;top:0;height:100vh;display:flex;flex-direction:column;gap:6px}
+.rail{background:var(--coal);border-right:2px solid var(--felt);padding:20px 16px;position:sticky;top:0;height:100vh;display:flex;flex-direction:column;gap:6px;overflow:hidden}
+.nav{flex:1 1 auto;overflow-y:auto;min-height:0}
 .wordmark{font-family:Anton;font-size:44px;line-height:.9;color:var(--chalk);margin-bottom:4px}
 .wordmark span{color:var(--blood)}
 .decree{font-size:12px;color:var(--ash);border-top:1px solid var(--smoke);padding-top:8px;margin-bottom:14px;line-height:1.35}
 .nav button{display:block;width:100%;text-align:left;background:none;border:0;padding:10px 12px;color:var(--bone);font-size:17px;font-weight:600;border-left:3px solid transparent}
 .nav button.on{border-left-color:var(--blood);background:rgba(200,16,46,.12);color:var(--chalk)}
 .nav button:hover{background:rgba(255,255,255,.04)}
-.rail .who{margin-top:auto;font-size:14px;color:var(--ash);border-top:1px solid var(--smoke);padding-top:12px}
+.rail .who{margin-top:auto;flex:0 0 auto;font-size:14px;color:var(--ash);border-top:1px solid var(--smoke);padding-top:12px}
 .rail .who b{color:var(--bone);display:block;font-size:16px}
 .main{padding:28px 32px 90px;max-width:1180px;width:100%}
 .page-title{display:flex;align-items:baseline;gap:16px;flex-wrap:wrap;margin-bottom:22px}
@@ -101,6 +102,7 @@ label.f{display:block;font-size:13px;color:var(--ash);margin-bottom:4px}
 .pill.in{background:#173d1f;color:#9de6a8}
 .pill.out{background:#3d1717;color:#f0a0a8}
 .pill.req{background:#3d3117;color:#f0d48f}
+.pill.pri{background:#3d3117;color:#f0d48f;font-weight:800}
 
 .bracket{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .bracket .final{grid-column:1/3}
@@ -146,8 +148,9 @@ table.plain tr.me td{background:rgba(200,16,46,.1)}
   .main{padding:16px 14px 90px}
   .page-title h1{font-size:40px}
   .g2,.g3{grid-template-columns:1fr}
-  .tabbar{display:flex;position:fixed;bottom:0;left:0;right:0;background:var(--coal);border-top:2px solid var(--felt);z-index:40;padding-bottom:env(safe-area-inset-bottom)}
-  .tabbar button{flex:1;background:none;border:0;padding:10px 2px;color:var(--ash);font-size:12px;font-weight:700}
+  .tabbar{display:flex;overflow-x:auto;-webkit-overflow-scrolling:touch;position:fixed;bottom:0;left:0;right:0;background:var(--coal);border-top:2px solid var(--felt);z-index:40;padding-bottom:env(safe-area-inset-bottom);scrollbar-width:none}
+  .tabbar::-webkit-scrollbar{display:none}
+  .tabbar button{flex:0 0 auto;min-width:62px;background:none;border:0;padding:10px 9px;color:var(--ash);font-size:11.5px;font-weight:700;white-space:nowrap}
   .tabbar button.on{color:var(--chalk);border-top:3px solid var(--blood)}
   .felt td{font-size:15px;padding:6px 8px}
   .felt .fate{white-space:normal;font-size:12px}
@@ -485,7 +488,7 @@ const {
   useContext,
   createContext
 } = React;
-const STORE_KEY = 'book1.1-local';
+const STORE_KEY = 'book1.2-local';
 const CFG = window.BOOK_CONFIG || {};
 const CLOUD = !!(CFG.url && CFG.key);
 const ADMINS = ['Chef', 'Lorcan'];
@@ -587,7 +590,7 @@ function saveStore(s) {
 /* ---------- backend ---------- */
 const localPins = () => {
   try {
-    return JSON.parse(localStorage.getItem('book1.1-pins') || '{}');
+    return JSON.parse(localStorage.getItem('book1.2-pins') || '{}');
   } catch (e) {
     return {};
   }
@@ -670,6 +673,50 @@ const api = CLOUD ? {
       table: 'book'
     }, () => fn()).subscribe();
     return () => sb.removeChannel(ch);
+  },
+  async loadMessages(limit) {
+    const {
+      data,
+      error
+    } = await sb.from('chat_messages').select('id,author,body,created_at').order('id', {
+      ascending: false
+    }).limit(limit || 150);
+    if (error) throw error;
+    return data.reverse();
+  },
+  async sendMessage(cred, body, imageUrl) {
+    const {
+      data,
+      error
+    } = await sb.rpc('book_send_message', {
+      p_name: cred.name,
+      p_pin: cred.pin,
+      p_body: body,
+      p_image_url: imageUrl || null
+    });
+    if (error) throw error;
+    return data;
+  },
+  async uploadImage(file) {
+    const path = Date.now() + '-' + Math.random().toString(36).slice(2) + '.' + (file.name.split('.').pop() || 'jpg').toLowerCase();
+    const {
+      error
+    } = await sb.storage.from('chat-images').upload(path, file, {
+      contentType: file.type
+    });
+    if (error) throw error;
+    const {
+      data
+    } = sb.storage.from('chat-images').getPublicUrl(path);
+    return data.publicUrl;
+  },
+  subscribeChat(fn) {
+    const ch = sb.channel('chat').on('postgres_changes', {
+      event: 'INSERT',
+      schema: 'public',
+      table: 'chat_messages'
+    }, payload => fn(payload.new)).subscribe();
+    return () => sb.removeChannel(ch);
   }
 } : {
   mode: 'local',
@@ -701,16 +748,47 @@ const api = CLOUD ? {
   async setPin(cred, newPin) {
     const pins = localPins();
     pins[cred.name] = newPin;
-    localStorage.setItem('book1.1-pins', JSON.stringify(pins));
+    localStorage.setItem('book1.2-pins', JSON.stringify(pins));
     return true;
   },
   async resetPin(cred, target) {
     const pins = localPins();
     delete pins[target];
-    localStorage.setItem('book1.1-pins', JSON.stringify(pins));
+    localStorage.setItem('book1.2-pins', JSON.stringify(pins));
     return true;
   },
   subscribe() {
+    return () => {};
+  },
+  async loadMessages() {
+    try {
+      return JSON.parse(localStorage.getItem('book1.2-chat') || '[]');
+    } catch (e) {
+      return [];
+    }
+  },
+  async sendMessage(cred, body, imageUrl) {
+    const msgs = JSON.parse(localStorage.getItem('book1.2-chat') || '[]');
+    const m = {
+      id: Date.now(),
+      author: cred.name,
+      body,
+      image_url: imageUrl || null,
+      created_at: new Date().toISOString()
+    };
+    msgs.push(m);
+    localStorage.setItem('book1.2-chat', JSON.stringify(msgs));
+    return m.id;
+  },
+  async uploadImage(file) {
+    return new Promise((res, rej) => {
+      const r = new FileReader();
+      r.onload = () => res(r.result);
+      r.onerror = rej;
+      r.readAsDataURL(file);
+    });
+  },
+  subscribeChat() {
     return () => {};
   }
 };
@@ -1091,7 +1169,7 @@ function emblemSVG(e, size) {
     let g = GLYPHS[l.g] || '';
     g = g.split('__C__').join(l.c).split('__B__').join(e.bg || '#000');
     if (l.g === 'text') g = g.replace('>T<', '>' + String(l.t || '').replace(/[<>&]/g, '').slice(0, 3) + '<');
-    return `<g fill="${l.c}" transform="translate(${50 + (l.x || 0)} ${50 + (l.y || 0)}) rotate(${l.r || 0}) scale(${l.s || 1}) translate(-50 -50)">${g}</g>`;
+    return `<g fill="${l.c}" transform="translate(${50 + (l.x || 0)} ${50 + (l.y || 0)}) rotate(${l.r || 0}) scale(${l.sx ?? l.s ?? 1} ${l.sy ?? l.s ?? 1}) translate(-50 -50)">${g}</g>`;
   }).join('');
   return `<svg viewBox="0 0 100 100" width="${size}" height="${size}" xmlns="http://www.w3.org/2000/svg"><defs><clipPath id="${uid}">${clip}</clipPath></defs><g clip-path="url(#${uid})"><rect width="100" height="100" fill="${e.bg || '#000'}"/>${layers}</g></svg>`;
 }
@@ -1153,6 +1231,10 @@ function EmblemStudio({
   });
   const [sel, setSel] = useState(0);
   const L = e.layers[sel];
+  const [uni, setUni] = useState(1);
+  useEffect(() => {
+    setUni(e.layers[sel] ? e.layers[sel].sx ?? e.layers[sel].s ?? 1 : 1);
+  }, [sel]);
   const upd = patch => setE(x => ({
     ...x,
     layers: x.layers.map((l, i) => i === sel ? {
@@ -1172,7 +1254,8 @@ function EmblemStudio({
         c: '#C8102E',
         x: 0,
         y: 0,
-        s: 1,
+        sx: 1,
+        sy: 1,
         r: 0,
         t: 'A'
       }]
@@ -1197,6 +1280,24 @@ function EmblemStudio({
     });
     setSel(j);
   };
+  const dup = () => {
+    if (e.layers.length >= 8) {
+      toast('Eight layers is the limit.');
+      return;
+    }
+    setE(x => {
+      const copy = {
+        ...x.layers[sel],
+        x: (x.layers[sel].x || 0) + 4,
+        y: (x.layers[sel].y || 0) + 4
+      };
+      return {
+        ...x,
+        layers: [...x.layers, copy]
+      };
+    });
+    setSel(e.layers.length);
+  };
   const save = () => {
     if (!/^[A-Za-z0-9]{0,5}$/.test(tag)) {
       toast('Tag: up to 5 letters or numbers.');
@@ -1215,7 +1316,7 @@ function EmblemStudio({
     min: min,
     max: max,
     step: step,
-    value: L[k],
+    value: L[k] ?? (k === 'sx' || k === 'sy' ? L.s ?? 1 : k === 'r' ? 0 : 0),
     onChange: ev => upd({
       [k]: +ev.target.value
     }),
@@ -1406,7 +1507,36 @@ function EmblemStudio({
     style: {
       width: 56
     }
-  }, "Size"), sl('s', .15, 1.8, .05)), /*#__PURE__*/React.createElement("div", {
+  }, "Size"), /*#__PURE__*/React.createElement("input", {
+    type: "range",
+    min: ".15",
+    max: "1.8",
+    step: ".05",
+    value: uni,
+    onChange: ev => {
+      const v = +ev.target.value;
+      setUni(v);
+      upd({
+        sx: v,
+        sy: v
+      });
+    },
+    style: {
+      width: 120
+    }
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "row small"
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      width: 56
+    }
+  }, "Width"), sl('sx', .15, 1.8, .05)), /*#__PURE__*/React.createElement("div", {
+    className: "row small"
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      width: 56
+    }
+  }, "Height"), sl('sy', .15, 1.8, .05)), /*#__PURE__*/React.createElement("div", {
     className: "row small"
   }, /*#__PURE__*/React.createElement("span", {
     style: {
@@ -1436,6 +1566,9 @@ function EmblemStudio({
     className: "btn sm ghost",
     onClick: () => move(-1)
   }, "Send back"), /*#__PURE__*/React.createElement("button", {
+    className: "btn sm ghost",
+    onClick: dup
+  }, "Duplicate"), /*#__PURE__*/React.createElement("button", {
     className: "btn sm ghost",
     onClick: del
   }, "Delete layer"))))));
@@ -2072,12 +2205,118 @@ function CasinoPage({
 }
 
 /* ---------- Table page ---------- */
+function newsFor(store) {
+  const hashPick = (id, arr) => {
+    let h = 0;
+    for (const c of id) h = h * 31 + c.charCodeAt(0) >>> 0;
+    return arr[h % arr.length];
+  };
+  const blow = ['{w} OBLITERATES {l}, {a}-{b}', '{w} SENDS {l} HOME EARLY, {a}-{b}', 'A COMPLETE DISMANTLING: {w} {a}-{b} {l}'];
+  const close = ['{w} SURVIVES A SCARE AGAINST {l}, {a}-{b}', '{w} EDGES OUT {l} IN A NAIL-BITER, {a}-{b}', 'BARELY: {w} OVER {l}, {a}-{b}'];
+  const norm = ['{w} DEFEATS {l}, {a}-{b}', '{w} PUTS {l} IN THEIR PLACE, {a}-{b}', 'THE REGIME CONFIRMS: {w} BEATS {l}, {a}-{b}'];
+  const items = [];
+  const w = store.weeks[store.weeks.length - 1];
+  w.fixtures.filter(played).slice(-8).reverse().forEach(g => {
+    const diff = Math.abs(g.s1 - g.s2);
+    const pool = diff >= 6 ? blow : diff <= 2 ? close : norm;
+    const s1 = Math.max(g.s1, g.s2),
+      s2 = Math.min(g.s1, g.s2);
+    items.push(hashPick(g.id, pool).replace('{w}', winner(g).toUpperCase()).replace('{l}', loser(g).toUpperCase()).replace('{a}', s1).replace('{b}', s2));
+  });
+  const prev = store.weeks[store.weeks.length - 2];
+  if (prev && prev.closed) {
+    if (prev.prizes.length) {
+      const top = [...prev.prizes].sort((a, b) => b.amount - a.amount)[0];
+      items.unshift('REGIME DISTRIBUTES SPOILS: ' + top.player.toUpperCase() + ' TAKES £' + top.amount + ' FROM GW' + prev.n);
+    }
+    const st = standings(prev);
+    const worst = st[st.length - 1];
+    if (worst) items.push(worst.name.toUpperCase() + ' NAMED WORST PLAYER IN THE OFFICE FOR GW' + prev.n);
+  }
+  return items.slice(0, 8);
+}
+function PingBanner({
+  store,
+  me,
+  dispatch
+}) {
+  const [, force] = useState(0);
+  useEffect(() => {
+    const iv = setInterval(() => force(x => x + 1), 30000);
+    return () => clearInterval(iv);
+  }, []);
+  const avail = store.availability || {};
+  const now = Date.now();
+  const live = store.weeks[store.weeks.length - 1];
+  const myOpp = new Set(live.fixtures.filter(g => !played(g) && (g.p1 === me || g.p2 === me)).map(g => opp(g, me)));
+  const rows = Object.entries(avail).map(([n, until]) => ({
+    n,
+    mins: Math.round((until - now) / 60000)
+  })).filter(r => r.mins > 0).sort((a, b) => (myOpp.has(b.n) ? 1 : 0) - (myOpp.has(a.n) ? 1 : 0));
+  const mine = avail[me] && avail[me] > now;
+  return /*#__PURE__*/React.createElement("div", {
+    className: "panel",
+    style: {
+      marginBottom: 18
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "row spread"
+  }, /*#__PURE__*/React.createElement("h2", null, "Who's free"), me && /*#__PURE__*/React.createElement("div", {
+    className: "row"
+  }, mine ? /*#__PURE__*/React.createElement("button", {
+    className: "btn sm ghost",
+    onClick: () => dispatch({
+      t: 'ping',
+      minutes: 0,
+      by: me
+    })
+  }, "Cancel") : [30, 60, 120].map(m => /*#__PURE__*/React.createElement("button", {
+    key: m,
+    className: "btn sm ghost",
+    onClick: () => dispatch({
+      t: 'ping',
+      minutes: m,
+      by: me
+    })
+  }, m < 60 ? m + 'm' : m / 60 + 'h')))), rows.length === 0 ? /*#__PURE__*/React.createElement("p", {
+    className: "muted small"
+  }, "Nobody's flagged as free right now.") : /*#__PURE__*/React.createElement("div", {
+    className: "row"
+  }, rows.map(r => /*#__PURE__*/React.createElement("span", {
+    key: r.n,
+    className: 'pill' + (myOpp.has(r.n) ? ' pri' : '')
+  }, /*#__PURE__*/React.createElement(Nm, {
+    n: r.n,
+    size: 14,
+    noTag: true
+  }), " · ", r.mins, "m"))));
+}
+function NewsPanel({
+  store
+}) {
+  const items = newsFor(store);
+  if (items.length === 0) return null;
+  return /*#__PURE__*/React.createElement("div", {
+    className: "panel",
+    style: {
+      marginBottom: 18
+    }
+  }, /*#__PURE__*/React.createElement("h2", null, "The Regime Reports"), items.map((t, i) => /*#__PURE__*/React.createElement("p", {
+    key: i,
+    className: "small",
+    style: {
+      margin: '6px 0',
+      fontWeight: i === 0 ? 700 : 400
+    }
+  }, t)));
+}
 function TablePage({
   store,
   me,
   setTab,
   weekIdx,
-  setWeekIdx
+  setWeekIdx,
+  dispatch
 }) {
   const w = store.weeks[weekIdx];
   const st = standings(w);
@@ -2100,7 +2339,13 @@ function TablePage({
     value: i
   }, "Game week ", x.n, x.closed ? '' : ' (live)'))), /*#__PURE__*/React.createElement("span", {
     className: "sub"
-  }, playedN, "/", w.fixtures.length, " played, pot ", gbp(pot)))), /*#__PURE__*/React.createElement("div", {
+  }, playedN, "/", w.fixtures.length, " played, pot ", gbp(pot)))), weekIdx === store.weeks.length - 1 && /*#__PURE__*/React.createElement(NewsPanel, {
+    store: store
+  }), weekIdx === store.weeks.length - 1 && /*#__PURE__*/React.createElement(PingBanner, {
+    store: store,
+    me: me,
+    dispatch: dispatch
+  }), /*#__PURE__*/React.createElement("div", {
     className: "felt"
   }, /*#__PURE__*/React.createElement("table", null, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", null), /*#__PURE__*/React.createElement("th", null, "Player"), /*#__PURE__*/React.createElement("th", {
     style: {
@@ -2583,6 +2828,219 @@ function MasterPage({
 }
 
 /* ---------- Stats ---------- */
+function records(store) {
+  const players = store.players.map(p => p.name);
+  const streaks = {};
+  players.forEach(p => streaks[p] = {
+    cur: 0,
+    curL: 0,
+    best: 0,
+    bestL: 0
+  });
+  store.weeks.forEach(w => w.fixtures.filter(played).forEach(g => {
+    [[g.p1, g.p1 === winner(g)], [g.p2, g.p2 === winner(g)]].forEach(([p, won]) => {
+      const s = streaks[p];
+      if (!s) return;
+      if (won) {
+        s.cur++;
+        s.curL = 0;
+        s.best = Math.max(s.best, s.cur);
+      } else {
+        s.curL++;
+        s.cur = 0;
+        s.bestL = Math.max(s.bestL, s.curL);
+      }
+    });
+  }));
+  const bestStreak = Object.entries(streaks).map(([n, s]) => ({
+    n,
+    v: s.best
+  })).sort((a, b) => b.v - a.v)[0];
+  const worstStreak = Object.entries(streaks).map(([n, s]) => ({
+    n,
+    v: s.bestL
+  })).sort((a, b) => b.v - a.v)[0];
+  let biggest = null;
+  store.weeks.forEach(w => w.fixtures.concat(w.playoffs, w.tiebreaks).filter(played).forEach(g => {
+    const d = Math.abs(g.s1 - g.s2);
+    if (!biggest || d > biggest.d) biggest = {
+      d,
+      w: w.n,
+      winner: winner(g),
+      loser: loser(g),
+      s: [Math.max(g.s1, g.s2), Math.min(g.s1, g.s2)]
+    };
+  }));
+  let bestWeekDiff = null;
+  store.weeks.forEach(w => standings(w).forEach(r => {
+    if (!bestWeekDiff || r.d > bestWeekDiff.d) bestWeekDiff = {
+      d: r.d,
+      n: r.name,
+      w: w.n
+    };
+  }));
+  const at = allTime(store, false);
+  const qualifiers = at.filter(r => r.w + r.l >= 15);
+  const bestRate = [...qualifiers].sort((a, b) => b.w / (b.w + b.l) - a.w / (a.w + a.l))[0];
+  const richest = [...at].sort((a, b) => b.winnings - a.winnings)[0];
+  const mongKing = players.map(p => ({
+    n: p,
+    v: playerStats(store, p).mong
+  })).sort((a, b) => b.v - a.v)[0];
+  const worstKing = players.map(p => ({
+    n: p,
+    v: playerStats(store, p).worst
+  })).sort((a, b) => b.v - a.v)[0];
+  return {
+    bestStreak,
+    worstStreak,
+    biggest,
+    bestWeekDiff,
+    bestRate,
+    richest,
+    mongKing,
+    worstKing
+  };
+}
+function RecordsPanel({
+  store
+}) {
+  const r = records(store);
+  return /*#__PURE__*/React.createElement("div", {
+    className: "panel",
+    style: {
+      marginBottom: 18
+    }
+  }, /*#__PURE__*/React.createElement("h2", null, "Trophy cabinet"), /*#__PURE__*/React.createElement("div", {
+    className: "grid g3"
+  }, r.bestStreak && r.bestStreak.v > 0 && /*#__PURE__*/React.createElement(Stat, {
+    v: r.bestStreak.v,
+    l: 'longest win streak — ' + r.bestStreak.n
+  }), r.worstStreak && r.worstStreak.v > 0 && /*#__PURE__*/React.createElement(Stat, {
+    v: r.worstStreak.v,
+    l: 'longest losing streak — ' + r.worstStreak.n
+  }), r.biggest && /*#__PURE__*/React.createElement(Stat, {
+    v: r.biggest.winner + ' ' + r.biggest.s[0] + '-' + r.biggest.s[1],
+    l: 'biggest win, GW' + r.biggest.w + ' vs ' + r.biggest.loser
+  }), r.bestWeekDiff && /*#__PURE__*/React.createElement(Stat, {
+    v: '+' + r.bestWeekDiff.d,
+    l: 'best single-week diff — ' + r.bestWeekDiff.n + ', GW' + r.bestWeekDiff.w
+  }), r.bestRate && /*#__PURE__*/React.createElement(Stat, {
+    v: Math.round(100 * r.bestRate.w / (r.bestRate.w + r.bestRate.l)) + '%',
+    l: 'best win rate (15+ games) — ' + r.bestRate.name
+  }), r.richest && /*#__PURE__*/React.createElement(Stat, {
+    v: gbp(r.richest.winnings),
+    l: 'career winnings — ' + r.richest.name
+  }), r.mongKing && r.mongKing.v > 0 && /*#__PURE__*/React.createElement(Stat, {
+    v: r.mongKing.v,
+    l: 'most mong offs — ' + r.mongKing.n
+  }), r.worstKing && r.worstKing.v > 0 && /*#__PURE__*/React.createElement(Stat, {
+    v: r.worstKing.v,
+    l: 'most worst player trophies — ' + r.worstKing.n
+  })));
+}
+function headToHead(store, a, b) {
+  const meetings = [];
+  store.weeks.forEach(w => w.fixtures.concat(w.playoffs, w.tiebreaks).filter(played).forEach(g => {
+    if (g.p1 === a && g.p2 === b || g.p1 === b && g.p2 === a) meetings.push({
+      week: w.n,
+      p1: g.p1,
+      p2: g.p2,
+      s1: g.s1,
+      s2: g.s2,
+      ctx: null
+    });
+  }));
+  store.knockouts.forEach(k => k.leagues.forEach(l => l.games.filter(played).forEach(g => {
+    if (g.p1 === a && g.p2 === b || g.p1 === b && g.p2 === a) meetings.push({
+      week: 'KO S' + k.season,
+      p1: g.p1,
+      p2: g.p2,
+      s1: g.s1,
+      s2: g.s2,
+      ctx: l.name
+    });
+  })));
+  (store.tournaments || []).forEach(t => {
+    if (!t.bracket) return;
+    ['qf', 'sf', 'final'].forEach(k => t.bracket[k].filter(played).forEach(g => {
+      if (g.p1 === a && g.p2 === b || g.p1 === b && g.p2 === a) meetings.push({
+        week: t.name,
+        p1: g.p1,
+        p2: g.p2,
+        s1: g.s1,
+        s2: g.s2,
+        ctx: k
+      });
+    }));
+  });
+  let aw = 0,
+    bw = 0;
+  meetings.forEach(m => {
+    if ((m.s1 > m.s2 ? m.p1 : m.p2) === a) aw++;else bw++;
+  });
+  return {
+    aw,
+    bw,
+    meetings
+  };
+}
+function H2HPanel({
+  store
+}) {
+  const names = store.players.map(p => p.name);
+  const [a, setA] = useState(names[0]);
+  const [b, setB] = useState(names[1] || names[0]);
+  const h = headToHead(store, a, b);
+  return /*#__PURE__*/React.createElement("div", {
+    className: "panel",
+    style: {
+      marginBottom: 18
+    }
+  }, /*#__PURE__*/React.createElement("h2", null, "Head to head"), /*#__PURE__*/React.createElement("div", {
+    className: "row"
+  }, /*#__PURE__*/React.createElement("select", {
+    value: a,
+    onChange: e => setA(e.target.value)
+  }, names.map(n => /*#__PURE__*/React.createElement("option", {
+    key: n
+  }, n))), /*#__PURE__*/React.createElement("span", null, "vs"), /*#__PURE__*/React.createElement("select", {
+    value: b,
+    onChange: e => setB(e.target.value)
+  }, names.map(n => /*#__PURE__*/React.createElement("option", {
+    key: n
+  }, n)))), a === b ? /*#__PURE__*/React.createElement("p", {
+    className: "muted small"
+  }, "Pick two different players.") : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("p", {
+    style: {
+      marginTop: 8
+    }
+  }, /*#__PURE__*/React.createElement(Nm, {
+    n: a,
+    size: 20
+  }), " ", /*#__PURE__*/React.createElement("b", {
+    className: "display",
+    style: {
+      fontSize: 22
+    }
+  }, h.aw), " — ", /*#__PURE__*/React.createElement("b", {
+    className: "display",
+    style: {
+      fontSize: 22
+    }
+  }, h.bw), " ", /*#__PURE__*/React.createElement(Nm, {
+    n: b,
+    size: 20
+  }), " ", /*#__PURE__*/React.createElement("span", {
+    className: "small muted"
+  }, "(", h.meetings.length, " meeting", h.meetings.length === 1 ? '' : 's', ")")), h.meetings.length > 0 && /*#__PURE__*/React.createElement("table", {
+    className: "plain"
+  }, /*#__PURE__*/React.createElement("tbody", null, h.meetings.map((m, i) => /*#__PURE__*/React.createElement("tr", {
+    key: i
+  }, /*#__PURE__*/React.createElement("td", {
+    className: "small muted"
+  }, typeof m.week === 'number' ? 'GW' + m.week : m.week, m.ctx ? ' · ' + m.ctx : ''), /*#__PURE__*/React.createElement("td", null, m.p1, " ", m.s1, "-", m.s2, " ", m.p2)))))));
+}
 function StatsPage({
   store,
   me,
@@ -2620,7 +3078,11 @@ function StatsPage({
     size: 54
   }), /*#__PURE__*/React.createElement("div", {
     className: "nm"
-  }, PROF[x.name] && PROF[x.name].tag ? '[' + PROF[x.name].tag + '] ' : '', x.name))))), /*#__PURE__*/React.createElement("div", {
+  }, PROF[x.name] && PROF[x.name].tag ? '[' + PROF[x.name].tag + '] ' : '', x.name))))), /*#__PURE__*/React.createElement(RecordsPanel, {
+    store: store
+  }), /*#__PURE__*/React.createElement(H2HPanel, {
+    store: store
+  }), /*#__PURE__*/React.createElement("div", {
     className: "page-title"
   }, /*#__PURE__*/React.createElement("h1", null, /*#__PURE__*/React.createElement(Nm, {
     n: p,
@@ -2759,6 +3221,358 @@ function StatsPage({
 }
 
 /* ---------- Knockout ---------- */
+function PredictionsPage({
+  store,
+  me,
+  dispatch,
+  toast
+}) {
+  const live = store.weeks[store.weeks.length - 1];
+  const preds = store.predictions || {};
+  const mine = g => preds[g.id] && preds[g.id][me];
+  const unplayed = live.fixtures.filter(g => !played(g));
+  const donePlayed = live.fixtures.filter(g => played(g) && preds[g.id]);
+  const board = {};
+  Object.entries(preds).forEach(([gid, picks]) => {
+    const loc = findGame(store, gid);
+    const g = loc.g;
+    if (!g || !played(g)) return;
+    Object.entries(picks).forEach(([player, pick]) => {
+      board[player] = board[player] || {
+        correct: 0,
+        total: 0
+      };
+      board[player].total++;
+      if (pick === winner(g)) board[player].correct++;
+    });
+  });
+  const rows = Object.entries(board).map(([n, v]) => ({
+    n,
+    ...v
+  })).sort((a, b) => b.correct - a.correct || b.total - a.total);
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "page-title"
+  }, /*#__PURE__*/React.createElement("h1", null, "Predictions"), /*#__PURE__*/React.createElement("span", {
+    className: "sub"
+  }, "Call the winners before the results land.")), /*#__PURE__*/React.createElement("div", {
+    className: "grid g2"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "panel"
+  }, /*#__PURE__*/React.createElement("h2", null, "This week's calls"), unplayed.length === 0 && /*#__PURE__*/React.createElement("p", {
+    className: "muted"
+  }, "Nothing left to call this week."), unplayed.map(g => {
+    const mp = mine(g);
+    return /*#__PURE__*/React.createElement("div", {
+      key: g.id,
+      style: {
+        padding: '8px 0',
+        borderBottom: '1px solid var(--smoke)'
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "row spread"
+    }, /*#__PURE__*/React.createElement("span", null, g.p1, " v ", g.p2), mp && /*#__PURE__*/React.createElement("span", {
+      className: "small muted"
+    }, "you say ", mp)), /*#__PURE__*/React.createElement("div", {
+      className: "row",
+      style: {
+        marginTop: 4
+      }
+    }, /*#__PURE__*/React.createElement("button", {
+      className: 'chip' + (mp === g.p1 ? ' on' : ''),
+      disabled: !me,
+      onClick: () => dispatch({
+        t: 'predict',
+        id: g.id,
+        pick: g.p1,
+        by: me
+      })
+    }, g.p1), /*#__PURE__*/React.createElement("button", {
+      className: 'chip' + (mp === g.p2 ? ' on' : ''),
+      disabled: !me,
+      onClick: () => dispatch({
+        t: 'predict',
+        id: g.id,
+        pick: g.p2,
+        by: me
+      })
+    }, g.p2)));
+  }), donePlayed.length > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("h3", null, "Results are in"), donePlayed.map(g => {
+    const picks = preds[g.id];
+    const w = winner(g);
+    return /*#__PURE__*/React.createElement("div", {
+      key: g.id,
+      style: {
+        padding: '6px 0',
+        borderBottom: '1px solid var(--smoke)'
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "row spread"
+    }, /*#__PURE__*/React.createElement("b", null, g.p1, " ", g.s1, "-", g.s2, " ", g.p2)), /*#__PURE__*/React.createElement("div", {
+      className: "row small muted"
+    }, Object.entries(picks).map(([p, pick]) => /*#__PURE__*/React.createElement("span", {
+      key: p
+    }, p, ": ", pick, " ", pick === w ? '✓' : '✗'))));
+  }))), /*#__PURE__*/React.createElement("div", {
+    className: "panel"
+  }, /*#__PURE__*/React.createElement("h2", null, "Leaderboard"), rows.length === 0 ? /*#__PURE__*/React.createElement("p", {
+    className: "muted small"
+  }, "Nobody's called anything yet.") : /*#__PURE__*/React.createElement("table", {
+    className: "plain"
+  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", null), /*#__PURE__*/React.createElement("th", null, "Player"), /*#__PURE__*/React.createElement("th", {
+    style: {
+      textAlign: 'right'
+    }
+  }, "Correct"), /*#__PURE__*/React.createElement("th", {
+    style: {
+      textAlign: 'right'
+    }
+  }, "%"))), /*#__PURE__*/React.createElement("tbody", null, rows.map((r, i) => /*#__PURE__*/React.createElement("tr", {
+    key: r.n,
+    className: r.n === me ? 'me' : ''
+  }, /*#__PURE__*/React.createElement("td", {
+    className: "n muted"
+  }, i + 1), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement(Nm, {
+    n: r.n,
+    size: 16
+  })), /*#__PURE__*/React.createElement("td", {
+    className: "n"
+  }, r.correct, "/", r.total), /*#__PURE__*/React.createElement("td", {
+    className: "n"
+  }, Math.round(100 * r.correct / r.total), "%"))))))));
+}
+function ChatPage({
+  me,
+  cred,
+  toast
+}) {
+  const [msgs, setMsgs] = useState([]);
+  const [body, setBody] = useState('');
+  const [sending, setSending] = useState(false);
+  const bottomRef = useRef(null);
+  const fileRef = useRef(null);
+  const load = async () => {
+    try {
+      const m = await api.loadMessages();
+      setMsgs(m);
+    } catch (e) {
+      toast('Could not load chat: ' + e.message);
+    }
+  };
+  useEffect(() => {
+    load();
+    const off = api.subscribeChat(m => setMsgs(x => x.some(y => y.id === m.id) ? x : [...x, m]));
+    const iv = setInterval(load, 15000);
+    return () => {
+      off();
+      clearInterval(iv);
+    };
+  }, []);
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({
+      block: 'nearest'
+    });
+  }, [msgs.length]);
+  const send = async () => {
+    const b = body.trim();
+    if (!b || !me || !cred) return;
+    setSending(true);
+    try {
+      await api.sendMessage(cred, b);
+      setBody('');
+      await load();
+    } catch (e) {
+      toast(e.message);
+    }
+    setSending(false);
+  };
+  const pickImage = () => fileRef.current && fileRef.current.click();
+  const onFile = async e => {
+    const f = e.target.files[0];
+    e.target.value = '';
+    if (!f || !me || !cred) return;
+    if (f.size > 5 * 1024 * 1024) {
+      toast('Images are capped at 5MB.');
+      return;
+    }
+    setSending(true);
+    try {
+      const url = await api.uploadImage(f);
+      await api.sendMessage(cred, body.trim(), url);
+      setBody('');
+      await load();
+    } catch (err) {
+      toast('Could not send image: ' + err.message);
+    }
+    setSending(false);
+  };
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "page-title"
+  }, /*#__PURE__*/React.createElement("h1", null, "Chat"), /*#__PURE__*/React.createElement("span", {
+    className: "sub"
+  }, "The office, in writing.")), /*#__PURE__*/React.createElement("div", {
+    className: "panel",
+    style: {
+      display: 'flex',
+      flexDirection: 'column',
+      height: 520
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: 1,
+      overflowY: 'auto',
+      marginBottom: 10,
+      paddingRight: 4
+    }
+  }, msgs.length === 0 && /*#__PURE__*/React.createElement("p", {
+    className: "muted small"
+  }, "Nobody's said anything yet."), msgs.map(m => /*#__PURE__*/React.createElement("div", {
+    key: m.id,
+    style: {
+      marginBottom: 10
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "row",
+    style: {
+      gap: 6
+    }
+  }, /*#__PURE__*/React.createElement("b", null, /*#__PURE__*/React.createElement(Nm, {
+    n: m.author,
+    size: 16
+  })), /*#__PURE__*/React.createElement("span", {
+    className: "small muted"
+  }, new Date(m.created_at).toLocaleString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit'
+  }))), m.body && /*#__PURE__*/React.createElement("div", null, m.body), m.image_url && /*#__PURE__*/React.createElement("img", {
+    src: m.image_url,
+    alt: "",
+    style: {
+      maxWidth: 240,
+      maxHeight: 240,
+      borderRadius: 6,
+      display: 'block',
+      marginTop: 4,
+      border: '1px solid var(--smoke)'
+    }
+  }))), /*#__PURE__*/React.createElement("div", {
+    ref: bottomRef
+  })), me ? /*#__PURE__*/React.createElement("div", {
+    className: "row"
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "file",
+    accept: "image/png,image/jpeg,image/gif,image/webp",
+    ref: fileRef,
+    style: {
+      display: 'none'
+    },
+    onChange: onFile
+  }), /*#__PURE__*/React.createElement("button", {
+    className: "btn ghost sm",
+    disabled: sending,
+    onClick: pickImage,
+    title: "Attach an image"
+  }, "📎"), /*#__PURE__*/React.createElement("input", {
+    style: {
+      flex: 1
+    },
+    value: body,
+    maxLength: 500,
+    disabled: sending,
+    onChange: e => setBody(e.target.value),
+    onKeyDown: e => e.key === 'Enter' && send(),
+    placeholder: "Say something..."
+  }), /*#__PURE__*/React.createElement("button", {
+    className: "btn",
+    disabled: sending || !body.trim(),
+    onClick: send
+  }, "Send")) : /*#__PURE__*/React.createElement("p", {
+    className: "muted small"
+  }, "Log in to chat.")));
+}
+function EightManPage({
+  store,
+  me,
+  dispatch,
+  toast
+}) {
+  const list = [...(store.tournaments || [])].reverse();
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "page-title"
+  }, /*#__PURE__*/React.createElement("h1", null, "8 Man"), /*#__PURE__*/React.createElement("span", {
+    className: "sub"
+  }, "Ad hoc knockout. Vote in, the regime locks the draw and enters the scores.")), list.length === 0 && /*#__PURE__*/React.createElement("div", {
+    className: "panel"
+  }, /*#__PURE__*/React.createElement("p", {
+    className: "muted"
+  }, "Nothing on the go. The regime opens these from Regime > 8 Man.")), list.map(t => {
+    const myVote = t.votes[me];
+    return /*#__PURE__*/React.createElement("div", {
+      key: t.id,
+      className: "panel",
+      style: {
+        marginBottom: 18
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "row spread"
+    }, /*#__PURE__*/React.createElement("h2", null, t.name), /*#__PURE__*/React.createElement("span", {
+      className: "stamp warn"
+    }, "£", t.entry, " entry")), t.status === 'voting' && (() => {
+      const ins = Object.entries(t.votes).filter(([, v]) => v === 'in').map(([n]) => n);
+      return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("p", {
+        className: "small muted"
+      }, ins.length, " in so far", ins.length ? ': ' + ins.join(', ') : '', "."), /*#__PURE__*/React.createElement("div", {
+        className: "row"
+      }, /*#__PURE__*/React.createElement("button", {
+        className: "btn",
+        disabled: !me || myVote === 'in',
+        onClick: () => dispatch({
+          t: 'tourneyVote',
+          id: t.id,
+          v: 'in',
+          by: me
+        })
+      }, "I'm in"), /*#__PURE__*/React.createElement("button", {
+        className: "btn ghost",
+        disabled: !me || myVote === 'out',
+        onClick: () => dispatch({
+          t: 'tourneyVote',
+          id: t.id,
+          v: 'out',
+          by: me
+        })
+      }, "I'm out")));
+    })(), t.bracket && /*#__PURE__*/React.createElement(React.Fragment, null, ['qf', 'sf', 'final'].map(k => /*#__PURE__*/React.createElement("div", {
+      key: k
+    }, /*#__PURE__*/React.createElement("h3", null, /*#__PURE__*/React.createElement("span", {
+      className: "kt"
+    }, k === 'qf' ? 'Quarter-finals' : k === 'sf' ? 'Semi-finals' : 'Final')), t.bracket[k].map(g => /*#__PURE__*/React.createElement(Fixture, {
+      key: g.id,
+      g: g
+    })))), t.winner && /*#__PURE__*/React.createElement("p", {
+      style: {
+        marginTop: 8
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "stamp ok"
+    }, "winner"), " ", /*#__PURE__*/React.createElement("b", null, /*#__PURE__*/React.createElement(Nm, {
+      n: t.winner,
+      size: 18
+    })), " ", tourneyPot(t) ? ' £' + tourneyPot(t) : ''), t.players.includes(me) && /*#__PURE__*/React.createElement("p", {
+      className: "small",
+      style: {
+        marginTop: 8
+      }
+    }, "Your entry: ", (t.paid && t.paid[me]) >= t.entry ? /*#__PURE__*/React.createElement("span", {
+      className: "stamp ok"
+    }, "paid") : t.paid && t.paid[me] ? /*#__PURE__*/React.createElement("span", {
+      className: "stamp warn"
+    }, "£", t.paid[me], " paid, £", t.entry - t.paid[me], " owed") : /*#__PURE__*/React.createElement("span", {
+      className: "stamp bad"
+    }, "unpaid"))));
+  }));
+}
 function KOPage({
   store
 }) {
@@ -2883,9 +3697,13 @@ function RegimePage({
   const [numbers, setNumbers] = useState({});
   const [swapSel, setSwapSel] = useState({});
   const [koSeasonIdx, setKoSeasonIdx] = useState(null);
+  const [newTName, setNewTName] = useState('');
+  const [newTEntry, setNewTEntry] = useState(10);
+  const [lockPicks, setLockPicks] = useState({});
+  const [tScores, setTScores] = useState({});
   const [newName, setNewName] = useState('');
   const outstanding = w.players.filter(p => (w.paid[p] || 0) < po.entry);
-  const secs = [['queue', 'Approvals' + (queue.length ? ' (' + queue.length + ')' : '')], ['results', 'Enter results'], ['money', 'Treasury'], ['roll', 'Roll call'], ['week', 'Game week'], ['players', 'Players'], ['data', 'Backup']];
+  const secs = [['queue', 'Approvals' + (queue.length ? ' (' + queue.length + ')' : '')], ['results', 'Enter results'], ['money', 'Treasury'], ['roll', 'Roll call'], ['week', 'Game week'], ['eightman', '8 Man'], ['players', 'Players'], ['data', 'Backup']];
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: "page-title"
   }, /*#__PURE__*/React.createElement("h1", null, "The regime"), /*#__PURE__*/React.createElement("span", {
@@ -3538,7 +4356,192 @@ function RegimePage({
     key: p.name
   }, p.name, p.active ? '' : ' (retired)')))))))), /*#__PURE__*/React.createElement("p", {
     className: "small muted"
-  }, "Injured or missing? Change a name in an unplayed semi. Finals fill in automatically from the semis. The winner's ", gbp(po.koPrize), " is recorded when the final is set."))), sec === 'players' && /*#__PURE__*/React.createElement("div", {
+  }, "Injured or missing? Change a name in an unplayed semi. Finals fill in automatically from the semis. The winner's ", gbp(po.koPrize), " is recorded when the final is set."))), sec === 'eightman' && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "panel",
+    style: {
+      marginBottom: 18
+    }
+  }, /*#__PURE__*/React.createElement("h2", null, "Open a new 8-man"), /*#__PURE__*/React.createElement("div", {
+    className: "row"
+  }, /*#__PURE__*/React.createElement("label", {
+    className: "f"
+  }, "Name", /*#__PURE__*/React.createElement("br", null), /*#__PURE__*/React.createElement("input", {
+    value: newTName,
+    onChange: e => setNewTName(e.target.value),
+    placeholder: '8-Man #' + ((store.tournaments || []).length + 1)
+  })), /*#__PURE__*/React.createElement("label", {
+    className: "f"
+  }, "Entry £", /*#__PURE__*/React.createElement("br", null), /*#__PURE__*/React.createElement("input", {
+    className: "score",
+    value: newTEntry,
+    onChange: e => setNewTEntry(+e.target.value || 0)
+  })), /*#__PURE__*/React.createElement("button", {
+    className: "btn",
+    style: {
+      alignSelf: 'flex-end'
+    },
+    onClick: () => {
+      dispatch({
+        t: 'newTournament',
+        name: newTName.trim(),
+        entry: newTEntry,
+        by: me
+      });
+      setNewTName('');
+    }
+  }, "Open voting"))), [...(store.tournaments || [])].reverse().map(tt => {
+    const ins = Object.entries(tt.votes).filter(([, v]) => v === 'in').map(([n]) => n);
+    const picks = lockPicks[tt.id] || ins.slice(0, 8);
+    const togglePick = p => setLockPicks(x => {
+      const cur = x[tt.id] || ins.slice(0, 8);
+      const has = cur.includes(p);
+      return {
+        ...x,
+        [tt.id]: has ? cur.filter(n => n !== p) : cur.length < 8 ? [...cur, p] : cur
+      };
+    });
+    const setTS = (id, k, v) => setTScores(s => ({
+      ...s,
+      [id]: {
+        ...(s[id] || {}),
+        [k]: v
+      }
+    }));
+    const enterT = g => {
+      const s = tScores[g.id] || {};
+      const s1 = +s.a,
+        s2 = +s.b;
+      if (!(Math.max(s1, s2) === 8 && Math.min(s1, s2) < 8 && s1 !== s2)) {
+        toast('Race to 8.');
+        return;
+      }
+      dispatch({
+        t: 'set',
+        id: g.id,
+        s: [s1, s2],
+        by: me
+      });
+    };
+    return /*#__PURE__*/React.createElement("div", {
+      key: tt.id,
+      className: "panel",
+      style: {
+        marginBottom: 18
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "row spread"
+    }, /*#__PURE__*/React.createElement("h2", null, tt.name), /*#__PURE__*/React.createElement("div", {
+      className: "row"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "stamp warn"
+    }, "£", tt.entry, " entry"), /*#__PURE__*/React.createElement("button", {
+      className: "btn ghost sm",
+      onClick: () => {
+        const bad = tt.status !== 'voting';
+        if (confirm(bad ? 'Delete ' + tt.name + '? It has real games or entries recorded, this cannot be undone.' : 'Cancel ' + tt.name + '?')) dispatch({
+          t: 'deleteTournament',
+          id: tt.id,
+          by: me
+        });
+      }
+    }, "Delete"))), tt.status === 'voting' && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("p", {
+      className: "small muted"
+    }, ins.length, " voted in", ins.length ? ': ' + ins.join(', ') : '', "."), /*#__PURE__*/React.createElement("p", {
+      className: "small muted"
+    }, "Tick exactly 8 to lock (defaults to the first 8 who volunteered):"), /*#__PURE__*/React.createElement("div", {
+      className: "row",
+      style: {
+        marginBottom: 8
+      }
+    }, store.players.filter(p => p.active).map(p => /*#__PURE__*/React.createElement("button", {
+      key: p.name,
+      className: 'chip' + (picks.includes(p.name) ? ' on' : ''),
+      onClick: () => togglePick(p.name)
+    }, p.name, tt.votes[p.name] === 'in' ? ' ✓' : ''))), /*#__PURE__*/React.createElement("div", {
+      className: "row"
+    }, /*#__PURE__*/React.createElement("button", {
+      className: "btn",
+      disabled: picks.length !== 8,
+      onClick: () => dispatch({
+        t: 'lockTournament',
+        id: tt.id,
+        players: picks,
+        by: me
+      })
+    }, "Lock the 8 (", picks.length, "/8)"))), tt.bracket && /*#__PURE__*/React.createElement(React.Fragment, null, ['qf', 'sf', 'final'].map(k => /*#__PURE__*/React.createElement("div", {
+      key: k
+    }, /*#__PURE__*/React.createElement("h3", null, /*#__PURE__*/React.createElement("span", {
+      className: "kt"
+    }, k === 'qf' ? 'Quarter-finals' : k === 'sf' ? 'Semi-finals' : 'Final')), tt.bracket[k].map(g => /*#__PURE__*/React.createElement("div", {
+      key: g.id,
+      className: "fx"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "l"
+    }, g.p1 || '?'), /*#__PURE__*/React.createElement("div", {
+      className: "row",
+      style: {
+        justifyContent: 'center'
+      }
+    }, /*#__PURE__*/React.createElement("input", {
+      className: "score",
+      disabled: !g.p1 || !g.p2,
+      value: tScores[g.id]?.a ?? g.s1 ?? '',
+      onChange: e => setTS(g.id, 'a', e.target.value)
+    }), /*#__PURE__*/React.createElement("span", null, "-"), /*#__PURE__*/React.createElement("input", {
+      className: "score",
+      disabled: !g.p1 || !g.p2,
+      value: tScores[g.id]?.b ?? g.s2 ?? '',
+      onChange: e => setTS(g.id, 'b', e.target.value)
+    }), /*#__PURE__*/React.createElement("button", {
+      className: "btn sm",
+      disabled: !g.p1 || !g.p2,
+      onClick: () => enterT(g)
+    }, played(g) ? 'Fix' : 'Set')), /*#__PURE__*/React.createElement("div", {
+      className: "r"
+    }, g.p2 || '?'))))), tt.winner && /*#__PURE__*/React.createElement("p", null, /*#__PURE__*/React.createElement("span", {
+      className: "stamp ok"
+    }, "winner"), " ", /*#__PURE__*/React.createElement("b", null, tt.winner), " ", tourneyPot(tt) ? '£' + tourneyPot(tt) : '', " ", /*#__PURE__*/React.createElement("span", {
+      className: "small muted"
+    }, "(pot updates live as entries are paid)")), /*#__PURE__*/React.createElement("h3", null, "Entry"), /*#__PURE__*/React.createElement("table", {
+      className: "plain"
+    }, /*#__PURE__*/React.createElement("tbody", null, tt.players.map(p => {
+      const paid = tt.paid && tt.paid[p] || 0;
+      return /*#__PURE__*/React.createElement("tr", {
+        key: p
+      }, /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement(Nm, {
+        n: p,
+        size: 16
+      })), /*#__PURE__*/React.createElement("td", null, paid >= tt.entry ? /*#__PURE__*/React.createElement("span", {
+        className: "stamp ok"
+      }, "paid") : paid > 0 ? /*#__PURE__*/React.createElement("span", {
+        className: "stamp warn"
+      }, "£", paid, " in") : /*#__PURE__*/React.createElement("span", {
+        className: "stamp bad"
+      }, "unpaid")), /*#__PURE__*/React.createElement("td", {
+        className: "row"
+      }, /*#__PURE__*/React.createElement("button", {
+        className: "btn sm ghost",
+        onClick: () => dispatch({
+          t: 'tourneyPay',
+          id: tt.id,
+          p,
+          amt: tt.entry,
+          by: me
+        })
+      }, "Paid £", tt.entry), /*#__PURE__*/React.createElement("button", {
+        className: "btn sm ghost",
+        onClick: () => dispatch({
+          t: 'tourneyPay',
+          id: tt.id,
+          p,
+          amt: 0,
+          by: me
+        })
+      }, "Clear")));
+    })))));
+  }), (!store.tournaments || store.tournaments.length === 0) && /*#__PURE__*/React.createElement("p", {
+    className: "muted"
+  }, "Nothing on the go.")), sec === 'players' && /*#__PURE__*/React.createElement("div", {
     className: "panel"
   }, /*#__PURE__*/React.createElement("h2", null, "Players"), /*#__PURE__*/React.createElement("div", {
     className: "row"
@@ -3658,6 +4661,16 @@ function findGame(store, id) {
       league: l
     };
   }
+  for (const t of store.tournaments || []) {
+    if (!t.bracket) continue;
+    for (const k of ['qf', 'sf', 'final']) {
+      const g = t.bracket[k].find(g => g.id === id);
+      if (g) return {
+        g,
+        tourney: t
+      };
+    }
+  }
   return {};
 }
 function afterSet(store, ctx) {
@@ -3665,7 +4678,8 @@ function afterSet(store, ctx) {
     w,
     ko,
     league,
-    g
+    g,
+    tourney
   } = ctx;
   const po = store.payouts;
   if (w && w.playoffs.includes(g)) {
@@ -3684,6 +4698,50 @@ function afterSet(store, ctx) {
       league.prize = league.prize || po.koPrize;
     }
   }
+  if (tourney && played(g)) {
+    const br = tourney.bracket;
+    const qfIdx = br.qf.indexOf(g);
+    if (qfIdx > -1) {
+      const sfIdx = Math.floor(qfIdx / 2);
+      br.sf[sfIdx][qfIdx % 2 === 0 ? 'p1' : 'p2'] = winner(g);
+    }
+    const sfIdx = br.sf.indexOf(g);
+    if (sfIdx > -1) {
+      br.final[0][sfIdx === 0 ? 'p1' : 'p2'] = winner(g);
+    }
+    if (br.final[0] === g) {
+      tourney.winner = winner(g);
+      tourney.status = 'closed';
+    }
+  }
+}
+function tourneyPot(t) {
+  return Object.values(t.paid || {}).reduce((a, b) => a + Math.min(b, t.entry), 0);
+}
+function shuffleNames(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+function buildBracket8(store, players) {
+  const order = shuffleNames(players);
+  const mk = (p1, p2) => ({
+    id: 'g' + store.nextId++,
+    p1: p1 || null,
+    p2: p2 || null,
+    s1: null,
+    s2: null,
+    status: p1 && p2 ? 'open' : 'open',
+    sub: {}
+  });
+  return {
+    qf: [mk(order[0], order[1]), mk(order[2], order[3]), mk(order[4], order[5]), mk(order[6], order[7])],
+    sf: [mk(null, null), mk(null, null)],
+    final: [mk(null, null)]
+  };
 }
 function reduce(store, a) {
   const s = JSON.parse(JSON.stringify(store));
@@ -3958,6 +5016,30 @@ function reduce(store, a) {
         log(`${a.by} called a decider: ${p1} v ${p2}`);
         break;
       }
+    case 'ping':
+      {
+        s.availability = s.availability || {};
+        if (!a.minutes) {
+          delete s.availability[a.by];
+        } else {
+          s.availability[a.by] = Date.now() + a.minutes * 60000;
+        }
+        log(`${a.by}${a.minutes ? ' pinged free for ' + a.minutes + ' minutes' : ' cancelled their free ping'}`);
+        break;
+      }
+    case 'predict':
+      {
+        const live = s.weeks[s.weeks.length - 1];
+        const g = live.fixtures.find(x => x.id === a.id);
+        if (!g) throw new Error("Only this week's fixtures can be predicted.");
+        if (played(g)) throw new Error('That game has already been played.');
+        if (a.pick !== g.p1 && a.pick !== g.p2) throw new Error('Pick one of the two players in that game.');
+        s.predictions = s.predictions || {};
+        s.predictions[a.id] = s.predictions[a.id] || {};
+        s.predictions[a.id][a.by] = a.pick;
+        log(`${a.by} predicted ${a.pick} to win`);
+        break;
+      }
     case 'casino':
       {
         s.chips = s.chips || {};
@@ -3975,6 +5057,64 @@ function reduce(store, a) {
         const cur = s.chips[a.p] != null ? s.chips[a.p] : 1000;
         s.chips[a.p] = Math.max(0, cur + a.delta);
         log(`${a.by} ${a.delta >= 0 ? 'gave' : 'took'} ${Math.abs(a.delta)} chips ${a.delta >= 0 ? 'to' : 'from'} ${a.p}`);
+        break;
+      }
+    case 'newTournament':
+      {
+        s.tournaments = s.tournaments || [];
+        s.tournaments.push({
+          id: 't' + s.nextId++,
+          name: a.name || '8-Man #' + (s.tournaments.length + 1),
+          entry: a.entry,
+          status: 'voting',
+          votes: {},
+          players: [],
+          paid: {},
+          bracket: null,
+          winner: null,
+          prize: null
+        });
+        log(`${a.by} opened voting for an 8-man (entry £${a.entry})`);
+        break;
+      }
+    case 'deleteTournament':
+      {
+        const idx = s.tournaments.findIndex(t => t.id === a.id);
+        if (idx > -1) {
+          log(`${a.by} deleted ${s.tournaments[idx].name}`);
+          s.tournaments.splice(idx, 1);
+        }
+        break;
+      }
+    case 'tourneyVote':
+      {
+        const t = s.tournaments.find(t => t.id === a.id);
+        if (!t) throw new Error('Tournament not found.');
+        if (t.status !== 'voting') throw new Error('Voting is closed for that one.');
+        t.votes[a.by] = a.v;
+        log(`${a.by} voted ${a.v} for ${t.name}`);
+        break;
+      }
+    case 'lockTournament':
+      {
+        const t = s.tournaments.find(t => t.id === a.id);
+        if (!t) throw new Error('Tournament not found.');
+        if (a.players.length !== 8) throw new Error('Need exactly 8 players.');
+        if (new Set(a.players).size !== 8) throw new Error('Duplicate player in the 8.');
+        t.players = a.players;
+        t.bracket = buildBracket8(s, a.players);
+        t.status = 'live';
+        log(`${a.by} locked the 8 for ${t.name}: ${a.players.join(', ')}`);
+        break;
+      }
+    case 'tourneyPay':
+      {
+        const t = s.tournaments.find(t => t.id === a.id);
+        if (t) {
+          t.paid = t.paid || {};
+          if (a.amt) t.paid[a.p] = a.amt;else delete t.paid[a.p];
+          log(`${a.by} set ${a.p}'s entry for ${t.name} to £${a.amt}`);
+        }
         break;
       }
     case 'profile':
@@ -4037,7 +5177,7 @@ function Login({
     style: {
       fontSize: 96
     }
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.1")), /*#__PURE__*/React.createElement("p", {
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.2")), /*#__PURE__*/React.createElement("p", {
     className: "muted"
   }, "Twelve players. Six games. One office. Report to the table."), /*#__PURE__*/React.createElement("div", {
     className: "pinbox"
@@ -4145,7 +5285,7 @@ function App() {
           refresh();
         } else toast('Not saved: ' + e.message);
       }
-    } else if (cred && (a.t === 'submit' || a.t === 'rollcall' || a.t === 'profile' || a.t === 'recall' || a.t === 'casino')) {
+    } else if (cred && (a.t === 'submit' || a.t === 'rollcall' || a.t === 'profile' || a.t === 'recall' || a.t === 'casino' || a.t === 'tourneyVote' || a.t === 'ping' || a.t === 'predict')) {
       try {
         await api.playerAction(cred, a);
         await refresh();
@@ -4198,7 +5338,7 @@ function App() {
     style: {
       fontSize: 96
     }
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.1"));
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.2"));
   if (!store) return /*#__PURE__*/React.createElement("div", {
     className: "login"
   }, mark, /*#__PURE__*/React.createElement("p", {
@@ -4232,7 +5372,7 @@ function App() {
     onClick: () => persistCred(undefined)
   }, "Log out")));
   const wIdx = weekIdx == null ? store.weeks.length - 1 : Math.min(weekIdx, store.weeks.length - 1);
-  const tabs = [['table', 'Table'], ['me', 'My book'], ['casino', 'Casino'], ['master', 'Master'], ['stats', 'Dossier'], ['ko', 'Knockout']];
+  const tabs = [['table', 'Table'], ['me', 'My book'], ['casino', 'Casino'], ['eightman', '8 Man'], ['predict', 'Predictions'], ['chat', 'Chat'], ['master', 'Master'], ['stats', 'Dossier'], ['ko', 'Knockout']];
   if (isAdmin) tabs.push(['regime', 'Regime']);
   const live = store.weeks[store.weeks.length - 1];
   const pending = isAdmin ? live.fixtures.concat(live.playoffs).filter(g => g.status === 'disputed').length : 0;
@@ -4241,7 +5381,8 @@ function App() {
     me: me,
     setTab: setTab,
     weekIdx: wIdx,
-    setWeekIdx: setWeekIdx
+    setWeekIdx: setWeekIdx,
+    dispatch: dispatch
   }) : tab === 'me' ? me ? /*#__PURE__*/React.createElement(MyPage, {
     store: store,
     me: me,
@@ -4263,7 +5404,21 @@ function App() {
   }, /*#__PURE__*/React.createElement("h2", null, "Log in to play."), /*#__PURE__*/React.createElement("button", {
     className: "btn",
     onClick: () => persistCred(undefined)
-  }, "Log in")) : tab === 'master' ? /*#__PURE__*/React.createElement(MasterPage, {
+  }, "Log in")) : tab === 'eightman' ? /*#__PURE__*/React.createElement(EightManPage, {
+    store: store,
+    me: me,
+    dispatch: dispatch,
+    toast: toast
+  }) : tab === 'predict' ? /*#__PURE__*/React.createElement(PredictionsPage, {
+    store: store,
+    me: me,
+    dispatch: dispatch,
+    toast: toast
+  }) : tab === 'chat' ? /*#__PURE__*/React.createElement(ChatPage, {
+    me: me,
+    cred: cred,
+    toast: toast
+  }) : tab === 'master' ? /*#__PURE__*/React.createElement(MasterPage, {
     store: store,
     me: me
   }) : tab === 'stats' ? /*#__PURE__*/React.createElement(StatsPage, {
@@ -4281,6 +5436,12 @@ function App() {
   });
   const nav = tabs.map(([k, l]) => /*#__PURE__*/React.createElement("button", {
     key: k,
+    ref: el => {
+      if (tab === k && el) el.scrollIntoView({
+        inline: 'center',
+        block: 'nearest'
+      });
+    },
     className: tab === k ? 'on' : '',
     onClick: () => setTab(k)
   }, l, k === 'regime' && pending > 0 ? ' (' + pending + ')' : ''));
@@ -4292,7 +5453,7 @@ function App() {
     className: "rail"
   }, /*#__PURE__*/React.createElement("div", {
     className: "wordmark"
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.1")), /*#__PURE__*/React.createElement("div", {
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.2")), /*#__PURE__*/React.createElement("div", {
     className: "decree"
   }, decree), /*#__PURE__*/React.createElement("div", {
     className: "nav"
