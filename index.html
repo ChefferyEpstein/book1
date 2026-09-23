@@ -104,8 +104,10 @@ label.f{display:block;font-size:13px;color:var(--ash);margin-bottom:4px}
 .pill.req{background:#3d3117;color:#f0d48f}
 .pill.pri{background:#3d3117;color:#f0d48f;font-weight:800}
 
-.bracket{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.bracket .final{grid-column:1/3}
+.bracket{display:flex;flex-direction:column;gap:4px}
+.bracket .final{border-top:1px dashed var(--smoke);padding-top:6px;margin-top:2px}
+.fx .l,.fx .r{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fx .l .nm-click,.fx .r .nm-click{max-width:100%;overflow:hidden;text-overflow:ellipsis}
 .kt{font-family:Anton;font-size:15px;color:var(--brass);letter-spacing:.05em}
 
 .login{max-width:420px;margin:60px auto;text-align:center}
@@ -490,6 +492,7 @@ const {
 } = React;
 const STORE_KEY = 'book1.2-local';
 const CFG = window.BOOK_CONFIG || {};
+const APP_SQL_VERSION = 15; // bump this whenever a new SQL script adds or changes a server function
 const CLOUD = !!(CFG.url && CFG.key);
 const ADMINS = ['Chef', 'Lorcan'];
 const DECREES = ['Abstention is not permitted.', 'The Book sees all results.', 'Ball difference is destiny.', 'The Dictator collects. The Dictator distributes.', 'Report your score. Report it honestly.', 'Twelfth place is a service to the office.', 'The mong off is not optional.', 'Disputes are settled by the regime.'];
@@ -717,6 +720,18 @@ const api = CLOUD ? {
       table: 'chat_messages'
     }, payload => fn(payload.new)).subscribe();
     return () => sb.removeChannel(ch);
+  },
+  async getServerVersion() {
+    try {
+      const {
+        data,
+        error
+      } = await sb.rpc('book_version');
+      if (error) return 0;
+      return data;
+    } catch (e) {
+      return 0;
+    }
   }
 } : {
   mode: 'local',
@@ -790,6 +805,9 @@ const api = CLOUD ? {
   },
   subscribeChat() {
     return () => {};
+  },
+  async getServerVersion() {
+    return APP_SQL_VERSION;
   }
 };
 
@@ -1046,7 +1064,12 @@ function Score({
   }, g.status === 'pending' ? 'awaiting' : g.status === 'disputed' ? 'disputed' : 'v');
   return /*#__PURE__*/React.createElement("span", {
     className: "s"
-  }, g.s1, /*#__PURE__*/React.createElement("span", {
+  }, g.golden && /*#__PURE__*/React.createElement("span", {
+    title: "Golden break",
+    style: {
+      marginRight: 4
+    }
+  }, "🌟"), g.s1, /*#__PURE__*/React.createElement("span", {
     className: "muted"
   }, " - "), g.s2);
 }
@@ -1079,6 +1102,39 @@ function Stat({
   return /*#__PURE__*/React.createElement("div", {
     className: "stat"
   }, /*#__PURE__*/React.createElement("b", null, v), /*#__PURE__*/React.createElement("span", null, l));
+}
+function ConfirmButton({
+  onConfirm,
+  children,
+  confirmText,
+  className,
+  disabled,
+  style
+}) {
+  const [armed, setArmed] = useState(false);
+  useEffect(() => {
+    if (!armed) return;
+    const t = setTimeout(() => setArmed(false), 4000);
+    return () => clearTimeout(t);
+  }, [armed]);
+  if (armed) return /*#__PURE__*/React.createElement("button", {
+    className: className || 'btn sm ghost',
+    style: {
+      ...style,
+      borderColor: 'var(--blood)',
+      color: 'var(--blood)'
+    },
+    onClick: () => {
+      setArmed(false);
+      onConfirm();
+    }
+  }, confirmText || 'Click again to confirm');
+  return /*#__PURE__*/React.createElement("button", {
+    className: className || 'btn sm ghost',
+    style: style,
+    disabled: disabled,
+    onClick: () => setArmed(true)
+  }, children);
 }
 function Form({
   f
@@ -2134,6 +2190,8 @@ function CasinoPage({
 }) {
   const [game, setGame] = useState('roulette');
   const balance = chipsOf(store, me);
+  const cap = store.payouts.casinoMaxBet || 500;
+  const betLimit = Math.min(balance, cap);
   const onResult = (g, bet, net) => dispatch({
     t: 'casino',
     game: g,
@@ -2156,7 +2214,7 @@ function CasinoPage({
     className: "page-title"
   }, /*#__PURE__*/React.createElement("h1", null, "The Casino"), /*#__PURE__*/React.createElement("span", {
     className: "sub"
-  }, "Virtual chips only. Never real money, never touches the Master sheet.")), /*#__PURE__*/React.createElement("div", {
+  }, "Virtual chips only. Never real money, never touches the Master sheet. Max bet ", cap.toLocaleString(), " chips.")), /*#__PURE__*/React.createElement("div", {
     className: "grid g2"
   }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: "panel",
@@ -2179,7 +2237,7 @@ function CasinoPage({
   }, l))), balance <= 0 ? /*#__PURE__*/React.createElement("p", {
     className: "muted"
   }, "Skint. Wait for the next game week's top-up.") : /*#__PURE__*/React.createElement(GameComp, {
-    balance: balance,
+    balance: betLimit,
     onResult: onResult,
     toast: toast
   }))), /*#__PURE__*/React.createElement("div", {
@@ -2569,19 +2627,17 @@ function MyPage({
         setA(8);
         setB(0);
       }
-    }, my ? 'Amend' : 'Report result'), my && edit !== g.id && /*#__PURE__*/React.createElement("button", {
-      className: "btn sm ghost",
+    }, my ? 'Amend' : 'Report result'), my && edit !== g.id && /*#__PURE__*/React.createElement(ConfirmButton, {
       style: {
         borderColor: 'var(--blood)',
         color: 'var(--blood)'
       },
-      onClick: () => {
-        if (confirm('Recall your report? It goes back to unplayed until one of you reports again.')) dispatch({
-          t: 'recall',
-          id: g.id,
-          by: me
-        });
-      }
+      confirmText: "Really recall? Click again",
+      onConfirm: () => dispatch({
+        t: 'recall',
+        id: g.id,
+        by: me
+      })
     }, "Recall")));
   }), /*#__PURE__*/React.createElement("p", {
     className: "small muted",
@@ -2860,17 +2916,26 @@ function records(store) {
     n,
     v: s.bestL
   })).sort((a, b) => b.v - a.v)[0];
-  let biggest = null;
+  const wash = {};
+  const golden = {};
   store.weeks.forEach(w => w.fixtures.concat(w.playoffs, w.tiebreaks).filter(played).forEach(g => {
-    const d = Math.abs(g.s1 - g.s2);
-    if (!biggest || d > biggest.d) biggest = {
-      d,
-      w: w.n,
-      winner: winner(g),
-      loser: loser(g),
-      s: [Math.max(g.s1, g.s2), Math.min(g.s1, g.s2)]
-    };
+    if (Math.min(g.s1, g.s2) === 0) {
+      const w8 = winner(g);
+      wash[w8] = (wash[w8] || 0) + 1;
+    }
+    if (g.golden) {
+      const w8 = winner(g);
+      golden[w8] = (golden[w8] || 0) + 1;
+    }
   }));
+  const washKing = Object.entries(wash).map(([n, v]) => ({
+    n,
+    v
+  })).sort((a, b) => b.v - a.v)[0];
+  const goldenKing = Object.entries(golden).map(([n, v]) => ({
+    n,
+    v
+  })).sort((a, b) => b.v - a.v)[0];
   let bestWeekDiff = null;
   store.weeks.forEach(w => standings(w).forEach(r => {
     if (!bestWeekDiff || r.d > bestWeekDiff.d) bestWeekDiff = {
@@ -2894,7 +2959,8 @@ function records(store) {
   return {
     bestStreak,
     worstStreak,
-    biggest,
+    washKing,
+    goldenKing,
     bestWeekDiff,
     bestRate,
     richest,
@@ -2919,9 +2985,12 @@ function RecordsPanel({
   }), r.worstStreak && r.worstStreak.v > 0 && /*#__PURE__*/React.createElement(Stat, {
     v: r.worstStreak.v,
     l: 'longest losing streak — ' + r.worstStreak.n
-  }), r.biggest && /*#__PURE__*/React.createElement(Stat, {
-    v: r.biggest.winner + ' ' + r.biggest.s[0] + '-' + r.biggest.s[1],
-    l: 'biggest win, GW' + r.biggest.w + ' vs ' + r.biggest.loser
+  }), r.washKing && r.washKing.v > 0 && /*#__PURE__*/React.createElement(Stat, {
+    v: r.washKing.v,
+    l: 'most 8-0 whitewashes — ' + r.washKing.n
+  }), r.goldenKing && r.goldenKing.v > 0 && /*#__PURE__*/React.createElement(Stat, {
+    v: r.goldenKing.v,
+    l: 'most golden breaks — ' + r.goldenKing.n
   }), r.bestWeekDiff && /*#__PURE__*/React.createElement(Stat, {
     v: '+' + r.bestWeekDiff.d,
     l: 'best single-week diff — ' + r.bestWeekDiff.n + ', GW' + r.bestWeekDiff.w
@@ -3633,15 +3702,24 @@ function KOPage({
   }, /*#__PURE__*/React.createElement("h2", null, "Season ", k.season, " ", /*#__PURE__*/React.createElement("span", {
     className: "muted small"
   }, "after game week ", k.after)), /*#__PURE__*/React.createElement("div", {
-    className: "grid g3"
+    className: "grid",
+    style: {
+      gridTemplateColumns: '1fr',
+      gap: 18
+    }
   }, k.leagues.map(l => /*#__PURE__*/React.createElement("div", {
-    key: l.name
+    key: l.name,
+    style: {
+      borderTop: '1px solid var(--smoke)',
+      paddingTop: 12
+    }
   }, /*#__PURE__*/React.createElement("div", {
     className: "kt"
   }, l.name, " League"), /*#__PURE__*/React.createElement("div", {
     className: "bracket"
   }, l.games.slice(0, 2).map(g => /*#__PURE__*/React.createElement("div", {
-    key: g.id
+    key: g.id,
+    className: "semi"
   }, /*#__PURE__*/React.createElement(Fixture, {
     g: g
   }))), /*#__PURE__*/React.createElement("div", {
@@ -3663,7 +3741,8 @@ function RegimePage({
   dispatch,
   me,
   toast,
-  resetPin
+  resetPin,
+  dbVersion
 }) {
   const w = store.weeks[store.weeks.length - 1];
   const [sec, setSec] = useState('queue');
@@ -3689,6 +3768,7 @@ function RegimePage({
       t: 'set',
       id: g.id,
       s: [s1, s2],
+      golden: !!s.golden,
       by: me
     });
   };
@@ -3762,20 +3842,18 @@ function RegimePage({
       s,
       by: me
     })
-  }, "Rule for ", p, ": ", s[0], "-", s[1]), /*#__PURE__*/React.createElement("button", {
-    className: "btn sm ghost",
+  }, "Rule for ", p, ": ", s[0], "-", s[1]), /*#__PURE__*/React.createElement(ConfirmButton, {
     style: {
       borderColor: 'var(--blood)',
       color: 'var(--blood)'
     },
-    onClick: () => {
-      if (confirm('Reject ' + p + "'s report? They'll need to submit again.")) dispatch({
-        t: 'reject',
-        id: g.id,
-        player: p,
-        by: me
-      });
-    }
+    confirmText: "Really reject " + p + "'s report? Click again",
+    onConfirm: () => dispatch({
+      t: 'reject',
+      id: g.id,
+      player: p,
+      by: me
+    })
   }, "Reject ", p, "'s report"))), /*#__PURE__*/React.createElement("input", {
     className: "score",
     placeholder: "8",
@@ -3789,16 +3867,14 @@ function RegimePage({
   }), /*#__PURE__*/React.createElement("button", {
     className: "btn sm",
     onClick: () => enter(g)
-  }, "Rule"), Object.keys(g.sub).length > 1 && /*#__PURE__*/React.createElement("button", {
-    className: "btn sm ghost",
-    onClick: () => {
-      if (confirm('Reject both reports and reopen the game?')) dispatch({
-        t: 'reject',
-        id: g.id,
-        player: null,
-        by: me
-      });
-    }
+  }, "Rule"), Object.keys(g.sub).length > 1 && /*#__PURE__*/React.createElement(ConfirmButton, {
+    confirmText: "Really reject both? Click again",
+    onConfirm: () => dispatch({
+      t: 'reject',
+      id: g.id,
+      player: null,
+      by: me
+    })
   }, "Reject both, reopen"))))), sec === 'results' && /*#__PURE__*/React.createElement("div", {
     className: "grid g2"
   }, /*#__PURE__*/React.createElement("div", {
@@ -3822,6 +3898,14 @@ function RegimePage({
     value: scores[g.id]?.b ?? g.s2 ?? '',
     onChange: e => setS(g.id, 'b', e.target.value)
   }), /*#__PURE__*/React.createElement("button", {
+    className: 'chip' + (scores[g.id]?.golden || g.golden ? ' on' : ''),
+    title: "Golden break: won it on the break",
+    style: {
+      padding: '4px 7px',
+      fontSize: 16
+    },
+    onClick: () => setS(g.id, 'golden', !(scores[g.id]?.golden ?? g.golden))
+  }, "🌟"), /*#__PURE__*/React.createElement("button", {
     className: "btn sm",
     onClick: () => enter(g)
   }, played(g) ? 'Fix' : 'Set')), /*#__PURE__*/React.createElement("div", {
@@ -4014,6 +4098,16 @@ function RegimePage({
     onChange: e => dispatch({
       t: 'payout',
       k: 'entry',
+      v: +e.target.value
+    })
+  })), /*#__PURE__*/React.createElement("label", {
+    className: "f"
+  }, "casino max bet", /*#__PURE__*/React.createElement("br", null), /*#__PURE__*/React.createElement("input", {
+    className: "score",
+    value: po.casinoMaxBet || 500,
+    onChange: e => dispatch({
+      t: 'payout',
+      k: 'casinoMaxBet',
       v: +e.target.value
     })
   }))), /*#__PURE__*/React.createElement("p", {
@@ -4231,16 +4325,15 @@ function RegimePage({
     }
   }, "Swap")))))), /*#__PURE__*/React.createElement("p", {
     className: "small muted"
-  }, "Need someone new? Add them in Players first, then they'll show here."), w.fixtures.concat(w.playoffs).every(g => !played(g)) && /*#__PURE__*/React.createElement("button", {
+  }, "Need someone new? Add them in Players first, then they'll show here."), w.fixtures.concat(w.playoffs).every(g => !played(g)) && /*#__PURE__*/React.createElement(ConfirmButton, {
     className: "btn ghost sm",
     style: {
       marginTop: 10
     },
-    onClick: () => {
-      if (confirm('Void GW' + w.n + ' completely? This undoes opening the week. Nobody has played yet.')) dispatch({
-        t: 'voidWeek'
-      });
-    }
+    confirmText: "Really void GW" + w.n + "? Click again",
+    onConfirm: () => dispatch({
+      t: 'voidWeek'
+    })
   }, "Void GW", w.n, " entirely (nobody has played yet)"))), /*#__PURE__*/React.createElement("div", {
     className: "panel"
   }, /*#__PURE__*/React.createElement("h2", null, "Start game week ", w.n + 1), !w.closed && /*#__PURE__*/React.createElement("div", {
@@ -4290,13 +4383,12 @@ function RegimePage({
   }, "Season ", store.knockouts.length, " is drawn after game week ", store.knockouts[store.knockouts.length - 1].after, ". Results are entered here."), (() => {
     const k = store.knockouts[store.knockouts.length - 1];
     const untouched = k.leagues.every(l => l.games.every(g => !played(g)));
-    return untouched && /*#__PURE__*/React.createElement("button", {
+    return untouched && /*#__PURE__*/React.createElement(ConfirmButton, {
       className: "btn ghost sm",
-      onClick: () => {
-        if (confirm('Redraw season ' + k.season + ' from the last four weeks of form?')) dispatch({
-          t: 'redrawKO'
-        });
-      }
+      confirmText: "Really redraw? Click again",
+      onConfirm: () => dispatch({
+        t: 'redrawKO'
+      })
     }, "Redraw season ", k.season, " from form");
   })(), store.knockouts[store.knockouts.length - 1].leagues.map((l, li) => /*#__PURE__*/React.createElement("div", {
     key: l.name
@@ -4434,16 +4526,14 @@ function RegimePage({
       className: "row"
     }, /*#__PURE__*/React.createElement("span", {
       className: "stamp warn"
-    }, "£", tt.entry, " entry"), /*#__PURE__*/React.createElement("button", {
+    }, "£", tt.entry, " entry"), /*#__PURE__*/React.createElement(ConfirmButton, {
       className: "btn ghost sm",
-      onClick: () => {
-        const bad = tt.status !== 'voting';
-        if (confirm(bad ? 'Delete ' + tt.name + '? It has real games or entries recorded, this cannot be undone.' : 'Cancel ' + tt.name + '?')) dispatch({
-          t: 'deleteTournament',
-          id: tt.id,
-          by: me
-        });
-      }
+      confirmText: tt.status !== 'voting' ? "Delete for good? Click again" : "Really cancel? Click again",
+      onConfirm: () => dispatch({
+        t: 'deleteTournament',
+        id: tt.id,
+        by: me
+      })
     }, "Delete"))), tt.status === 'voting' && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("p", {
       className: "small muted"
     }, ins.length, " voted in", ins.length ? ': ' + ins.join(', ') : '', "."), /*#__PURE__*/React.createElement("p", {
@@ -4566,11 +4656,9 @@ function RegimePage({
     key: p.name
   }, /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("b", null, p.name), !p.active && /*#__PURE__*/React.createElement("span", {
     className: "small muted"
-  }, " (former)")), /*#__PURE__*/React.createElement("td", null, p.role), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("button", {
-    className: "btn sm ghost",
-    onClick: () => {
-      if (confirm('Reset ' + p.name + "'s PIN to 0000?")) resetPin(p.name);
-    }
+  }, " (former)")), /*#__PURE__*/React.createElement("td", null, p.role), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement(ConfirmButton, {
+    confirmText: "Click again to reset",
+    onConfirm: () => resetPin(p.name)
   }, "Reset to 0000")), /*#__PURE__*/React.createElement("td", {
     className: "row"
   }, /*#__PURE__*/React.createElement("button", {
@@ -4584,7 +4672,13 @@ function RegimePage({
     className: "small muted"
   }, "New players start on PIN 0000 and change it from My book. Chef and Lorcan started on 1917.")), sec === 'data' && /*#__PURE__*/React.createElement("div", {
     className: "panel"
-  }, /*#__PURE__*/React.createElement("h2", null, "Backup"), api.mode === 'cloud' ? /*#__PURE__*/React.createElement("p", {
+  }, /*#__PURE__*/React.createElement("h2", null, "Backup"), /*#__PURE__*/React.createElement("p", {
+    className: "small muted"
+  }, "Database functions: v", dbVersion == null ? 'checking…' : dbVersion, " ", dbVersion != null && (dbVersion >= APP_SQL_VERSION ? /*#__PURE__*/React.createElement("span", {
+    className: "stamp ok"
+  }, "up to date") : /*#__PURE__*/React.createElement("span", {
+    className: "stamp bad"
+  }, "needs v", APP_SQL_VERSION, ", run the latest SQL update"))), api.mode === 'cloud' ? /*#__PURE__*/React.createElement("p", {
     className: "small muted"
   }, "The book lives in the shared database. Export a copy whenever you like; import replaces the live book for everyone.") : /*#__PURE__*/React.createElement("p", {
     className: "small muted"
@@ -4621,16 +4715,13 @@ function RegimePage({
         }
       });
     }
-  })), /*#__PURE__*/React.createElement("button", {
+  })), /*#__PURE__*/React.createElement(ConfirmButton, {
     className: "btn ghost",
-    onClick: () => {
-      if (confirm('Reset to the spreadsheet import? Everything entered since is lost, for everyone.')) {
-        dispatch({
-          t: 'replace',
-          store: buildStore()
-        });
-      }
-    }
+    confirmText: "This erases everything since. Click again",
+    onConfirm: () => dispatch({
+      t: 'replace',
+      store: buildStore()
+    })
   }, "Reset to spreadsheet")), /*#__PURE__*/React.createElement("h3", null, "Log"), /*#__PURE__*/React.createElement("div", {
     className: "small muted",
     style: {
@@ -4785,7 +4876,8 @@ function reduce(store, a) {
         g.s2 = a.s[1];
         g.status = 'played';
         g.sub = {};
-        log(`${a.by} set ${g.p1} ${g.s1}-${g.s2} ${g.p2}`);
+        if (a.golden) g.golden = true;else delete g.golden;
+        log(`${a.by} set ${g.p1} ${g.s1}-${g.s2} ${g.p2}` + (a.golden ? ' (golden break)' : ''));
         afterSet(s, ctx);
         break;
       }
@@ -5044,7 +5136,9 @@ function reduce(store, a) {
       {
         s.chips = s.chips || {};
         const cur = s.chips[a.by] != null ? s.chips[a.by] : 1000;
+        const cap = s.payouts.casinoMaxBet || 500;
         if (!(a.bet > 0)) throw new Error('Bad bet amount.');
+        if (a.bet > cap) throw new Error('Max bet is ' + cap + ' chips.');
         if (a.net < -a.bet || a.net > a.bet * 36) throw new Error('That result is outside what any of these games can pay out.');
         if (a.bet > cur) throw new Error('You cannot bet more than your chip balance.');
         s.chips[a.by] = cur + a.net;
@@ -5228,6 +5322,7 @@ function App() {
   const [focus, setFocus] = useState(null);
   const [jumpTo, setJumpTo] = useState(null);
   const [msg, setMsg] = useState('');
+  const [dbVersion, setDbVersion] = useState(null);
   const decree = useMemo(() => DECREES[Math.floor(Math.random() * DECREES.length)], []);
   const toast = t => {
     setMsg(t);
@@ -5247,6 +5342,7 @@ function App() {
     refresh();
     const off = api.subscribe(refresh);
     const iv = setInterval(refresh, 60000);
+    api.getServerVersion().then(setDbVersion);
     return () => {
       off();
       clearInterval(iv);
@@ -5258,6 +5354,7 @@ function App() {
   const cloudEmpty = !!(store && !store.weeks);
   const persistCred = c => {
     setCred(c);
+    setTab('table');
     try {
       if (c === undefined) sessionStorage.removeItem('book1.cred');else sessionStorage.setItem('book1.cred', JSON.stringify(c));
     } catch (e) {}
@@ -5427,12 +5524,20 @@ function App() {
     jump: jumpTo
   }) : tab === 'ko' ? /*#__PURE__*/React.createElement(KOPage, {
     store: store
-  }) : /*#__PURE__*/React.createElement(RegimePage, {
+  }) : isAdmin ? /*#__PURE__*/React.createElement(RegimePage, {
     store: store,
     dispatch: dispatch,
     me: me,
     toast: toast,
-    resetPin: resetPin
+    resetPin: resetPin,
+    dbVersion: dbVersion
+  }) : /*#__PURE__*/React.createElement(TablePage, {
+    store: store,
+    me: me,
+    setTab: setTab,
+    weekIdx: wIdx,
+    setWeekIdx: setWeekIdx,
+    dispatch: dispatch
   });
   const nav = tabs.map(([k, l]) => /*#__PURE__*/React.createElement("button", {
     key: k,
@@ -5467,7 +5572,12 @@ function App() {
     onClick: () => persistCred(undefined)
   }, me ? 'Log out' : 'Log in'))), /*#__PURE__*/React.createElement("main", {
     className: "main"
-  }, page), /*#__PURE__*/React.createElement("nav", {
+  }, dbVersion != null && dbVersion < APP_SQL_VERSION && /*#__PURE__*/React.createElement("div", {
+    className: "warnbox",
+    style: {
+      marginBottom: 18
+    }
+  }, isAdmin ? /*#__PURE__*/React.createElement(React.Fragment, null, "The database is behind what this app expects (running v", dbVersion, ", needs v", APP_SQL_VERSION, "). Run the latest SQL update from the developer, some features will error with \"Players cannot do that\" until you do.") : /*#__PURE__*/React.createElement(React.Fragment, null, "The book's database needs a quick update from Chef or Lorcan before some newer features (like Who's free or Predictions) will work. Give them a nudge.")), page), /*#__PURE__*/React.createElement("nav", {
     className: "tabbar"
   }, nav), msg && /*#__PURE__*/React.createElement("div", {
     className: "toast"
