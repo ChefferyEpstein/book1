@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Book1.3.1</title>
+<title>Book1.3.2</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -499,7 +499,7 @@ const {
 } = React;
 const STORE_KEY = 'book1.2-local';
 const CFG = window.BOOK_CONFIG || {};
-const APP_SQL_VERSION = 17; // bump this whenever a new SQL script adds or changes a server function
+const APP_SQL_VERSION = 18; // bump this whenever a new SQL script adds or changes a server function
 const CLOUD = !!(CFG.url && CFG.key);
 const ADMINS = ['Chef', 'Lorcan'];
 const DECREES = ['Abstention is not permitted.', 'The Book sees all results.', 'Ball difference is destiny.', 'The Dictator collects. The Dictator distributes.', 'Report your score. Report it honestly.', 'Twelfth place is a service to the office.', 'The mong off is not optional.', 'Disputes are settled by the regime.'];
@@ -875,8 +875,8 @@ const api = CLOUD ? {
     if (bal < cost) throw new Error('Not enough chips for a case.');
     const roll = Math.random() * 100;
     const rarity = roll < 1 ? 'legendary' : roll < 5 ? 'epic' : roll < 15 ? 'rare' : roll < 40 ? 'uncommon' : 'common';
-    let pool = (s.cardCatalog || []).filter(c => c.rarity === rarity);
-    if (!pool.length) pool = (s.cardCatalog || []).filter(c => c.rarity === 'common');
+    let pool = (s.cardCatalog && s.cardCatalog.length ? s.cardCatalog : defaultCardCatalog()).filter(c => c.rarity === rarity);
+    if (!pool.length) pool = (s.cardCatalog && s.cardCatalog.length ? s.cardCatalog : defaultCardCatalog()).filter(c => c.rarity === 'common');
     const picked = pool[Math.floor(Math.random() * pool.length)];
     s.chips = s.chips || {};
     s.chips[cred.name] = bal - cost;
@@ -2483,7 +2483,7 @@ function CaseOpener({
     const card = await openCaseFn();
     setTimeout(() => {
       setOpening(false);
-      if (card) setResult(card);
+      if (card) setResult(CATALOG.find(c => c.id === card.id) || card);
     }, 900);
   };
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", {
@@ -2527,7 +2527,7 @@ function CaseOpener({
     }
   }, "Your calling cards"), /*#__PURE__*/React.createElement("div", {
     className: "crest-grid"
-  }, (store.cardCatalog || []).map(c => {
+  }, CATALOG.map(c => {
     const has = owned.includes(c.id);
     const eq = mine.equipped === c.id;
     return /*#__PURE__*/React.createElement("button", {
@@ -5954,7 +5954,7 @@ function Login({
     style: {
       fontSize: 96
     }
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.3.1")), /*#__PURE__*/React.createElement("p", {
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.3.2")), /*#__PURE__*/React.createElement("p", {
     className: "muted"
   }, "Twelve players. Six games. One office. Report to the table."), /*#__PURE__*/React.createElement("div", {
     className: "pinbox"
@@ -6027,7 +6027,7 @@ function App() {
   }, []);
   PROF = store && store.profiles || {};
   CARDS = store && store.cards || {};
-  CATALOG = store && store.cardCatalog || [];
+  CATALOG = store && store.cardCatalog && store.cardCatalog.length ? store.cardCatalog : defaultCardCatalog();
   const me = cred ? cred.name : cred;
   const isAdmin = !!(cred && cred.role === 'admin');
   const cloudEmpty = !!(store && !store.weeks);
@@ -6134,7 +6134,7 @@ function App() {
     style: {
       fontSize: 96
     }
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.3.1"));
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.3.2"));
   if (!store) return /*#__PURE__*/React.createElement("div", {
     className: "login"
   }, mark, /*#__PURE__*/React.createElement("p", {
@@ -6271,7 +6271,7 @@ function App() {
     className: "rail"
   }, /*#__PURE__*/React.createElement("div", {
     className: "wordmark"
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.3.1")), /*#__PURE__*/React.createElement("div", {
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.3.2")), /*#__PURE__*/React.createElement("div", {
     className: "decree"
   }, decree), /*#__PURE__*/React.createElement("div", {
     className: "nav"
