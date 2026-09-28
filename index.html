@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Book1.3.0</title>
+<title>Book1.3.1</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -138,6 +138,12 @@ table.plain tr.me td{background:rgba(200,16,46,.1)}
 .pcard{display:inline-flex;align-items:center;justify-content:center;width:38px;height:54px;background:var(--bone);color:#000;border-radius:4px;font-family:Anton;font-size:15px;margin:0 3px 6px 0;box-shadow:0 2px 0 rgba(0,0,0,.4)}
 .pcard.red{color:var(--blood)}
 .pcard.back{background:var(--felt-deep);color:var(--brass);border:2px solid var(--brass)}
+@keyframes dealIn{0%{transform:translateY(-16px) rotate(-8deg) scale(.7);opacity:0}60%{transform:translateY(3px) rotate(2deg) scale(1.05);opacity:1}100%{transform:translateY(0) rotate(0) scale(1);opacity:1}}
+.dealt-in{animation:dealIn .35s ease-out}
+@keyframes spinPulse{0%{transform:scale(1)}50%{transform:scale(1.05)}100%{transform:scale(1)}}
+.spin-pulse{animation:spinPulse .5s ease-in-out infinite}
+@keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-4px) rotate(-2deg)}40%{transform:translateX(4px) rotate(2deg)}60%{transform:translateX(-3px) rotate(-1deg)}80%{transform:translateX(3px) rotate(1deg)}}
+.dice-shake{animation:shake .12s linear infinite}
 .chipbadge{background:var(--brass);color:#000;font-family:Anton;font-size:15px;padding:4px 10px;border-radius:3px}
 .red-num{color:var(--blood)}.black-num{color:var(--chalk)}.green-num{color:var(--ok)}
 .form{display:flex;gap:3px}
@@ -493,7 +499,7 @@ const {
 } = React;
 const STORE_KEY = 'book1.2-local';
 const CFG = window.BOOK_CONFIG || {};
-const APP_SQL_VERSION = 15; // bump this whenever a new SQL script adds or changes a server function
+const APP_SQL_VERSION = 17; // bump this whenever a new SQL script adds or changes a server function
 const CLOUD = !!(CFG.url && CFG.key);
 const ADMINS = ['Chef', 'Lorcan'];
 const DECREES = ['Abstention is not permitted.', 'The Book sees all results.', 'Ball difference is destiny.', 'The Dictator collects. The Dictator distributes.', 'Report your score. Report it honestly.', 'Twelfth place is a service to the office.', 'The mong off is not optional.', 'Disputes are settled by the regime.'];
@@ -889,8 +895,12 @@ const api = CLOUD ? {
       const waitMins = Math.ceil((30 * 60000 - (now - last)) / 60000);
       throw new Error('Not ready yet, ' + waitMins + ' minute' + (waitMins === 1 ? '' : 's') + ' left.');
     }
-    const roll2 = Math.random() * 100;
-    const amt = roll2 < 1 ? 1500 : roll2 < 3 ? 750 : roll2 < 7 ? 400 : roll2 < 15 ? 250 : roll2 < 27 ? 150 : roll2 < 45 ? 100 : roll2 < 70 ? 75 : 50;
+    const segs0 = s.wheelSegments && s.wheelSegments.length ? s.wheelSegments : [{amount:1500,weight:1},{amount:750,weight:2},{amount:400,weight:4},{amount:250,weight:8},{amount:150,weight:12},{amount:100,weight:18},{amount:75,weight:25},{amount:50,weight:30}];
+    const totalW = segs0.reduce((a, x) => a + (+x.weight || 0), 0) || 1;
+    const roll2 = Math.random() * totalW;
+    let amt = null, cum = 0;
+    for (const x of segs0) { cum += +x.weight || 0; if (amt == null && roll2 < cum) amt = +x.amount; }
+    if (amt == null) amt = +segs0[segs0.length - 1].amount;
     s.chips = s.chips || {};
     const bal2 = s.chips[cred.name] != null ? s.chips[cred.name] : 1000;
     s.chips[cred.name] = bal2 + amt;
@@ -1894,12 +1904,12 @@ function Card({
   hidden
 }) {
   if (hidden) return /*#__PURE__*/React.createElement("span", {
-    className: "pcard back"
+    className: "pcard back dealt-in"
   }, "?");
   const suit = c.slice(-1);
   const red = suit === '♥' || suit === '♦';
   return /*#__PURE__*/React.createElement("span", {
-    className: 'pcard' + (red ? ' red' : '')
+    className: 'pcard dealt-in' + (red ? ' red' : '')
   }, c.slice(0, -1), suit);
 }
 function ChipBadge({
@@ -1951,10 +1961,12 @@ function Roulette({
   const [num, setNum] = useState(0);
   const [spinning, setSpinning] = useState(false);
   const [result, setResult] = useState(null);
+  const [angle, setAngle] = useState(0);
   const spin = () => {
     if (bet <= 0 || bet > balance) return;
     setSpinning(true);
     setResult(null);
+    setAngle(a => a + 360 * 5 + Math.floor(Math.random() * 360));
     setTimeout(() => {
       const n = Math.floor(Math.random() * 37);
       const win = pick === 'straight' ? n === num : pick === 'red' ? isRed(n) : pick === 'black' ? n !== 0 && !isRed(n) : pick === 'odd' ? n !== 0 && n % 2 === 1 : n !== 0 && n % 2 === 0;
@@ -1966,14 +1978,52 @@ function Roulette({
       });
       setSpinning(false);
       onResult('roulette', bet, net);
-    }, 700);
+    }, 1300);
   };
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", {
     className: "small muted"
   }, "Pick red, black, odd, even (pays 1:1), or a single number straight-up (pays 35:1)."), /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: 0,
+      height: 0,
+      margin: '4px auto -6px',
+      borderLeft: '7px solid transparent',
+      borderRight: '7px solid transparent',
+      borderTop: '10px solid var(--brass)',
+      position: 'relative',
+      zIndex: 2
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: 110,
+      height: 110,
+      margin: '6px auto 12px',
+      borderRadius: '50%',
+      position: 'relative',
+      overflow: 'hidden',
+      border: '4px solid var(--brass)',
+      transition: spinning ? 'transform 1.3s cubic-bezier(.15,.65,.3,1.4)' : 'none',
+      transform: 'rotate(' + angle + 'deg)',
+      background: 'repeating-conic-gradient(#111 0deg 9.7deg, var(--blood) 9.7deg 19.4deg)'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: 'absolute',
+      left: '50%',
+      top: 6,
+      width: 12,
+      height: 12,
+      marginLeft: -6,
+      borderRadius: '50%',
+      background: '#fff',
+      border: '2px solid var(--ok)',
+      boxShadow: '0 0 4px rgba(0,0,0,.6)'
+    }
+  })), /*#__PURE__*/React.createElement("div", {
     className: "row",
     style: {
-      marginBottom: 8
+      marginBottom: 8,
+      justifyContent: 'center'
     }
   }, ['red', 'black', 'odd', 'even', 'straight'].map(o => /*#__PURE__*/React.createElement("button", {
     key: o,
@@ -2188,7 +2238,7 @@ function ThreeCardPoker({
   };
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", {
     className: "small muted"
-  }, "Ante up. See your three cards, then Play (matches your ante) or Fold. Dealer needs Queen-high or better to qualify; if they don't, ante pays and the play bet just comes back."), phase === 'bet' && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(BetBar, {
+  }, "Ante up. See your three cards, then Play (matches your ante) or Fold. Dealer needs Queen-high or better to qualify; if they don't, ante pays and the play bet just comes back. The max bet applies to your ante; playing doubles what is on the table."), phase === 'bet' && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(BetBar, {
     bet: ante,
     setBet: setAnte,
     max: balance,
@@ -2240,16 +2290,20 @@ function DiceGame({
   const [pick, setPick] = useState('under');
   const [rolling, setRolling] = useState(false);
   const [result, setResult] = useState(null);
+  const [faces, setFaces] = useState([1, 1]);
   const roll = () => {
     if (bet <= 0 || bet > balance) return;
     setRolling(true);
     setResult(null);
+    const iv = setInterval(() => setFaces([1 + Math.floor(Math.random() * 6), 1 + Math.floor(Math.random() * 6)]), 80);
     setTimeout(() => {
+      clearInterval(iv);
       const a = 1 + Math.floor(Math.random() * 6),
         b = 1 + Math.floor(Math.random() * 6);
       const total = a + b;
       const win = pick === 'under' ? total < 7 : pick === 'over' ? total > 7 : total === 7;
       const net = win ? pick === 'seven' ? bet * 4 : bet : -bet;
+      setFaces([a, b]);
       setResult({
         a,
         b,
@@ -2259,7 +2313,7 @@ function DiceGame({
       });
       setRolling(false);
       onResult('dice', bet, net);
-    }, 500);
+    }, 700);
   };
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", {
     className: "small muted"
@@ -2272,7 +2326,19 @@ function DiceGame({
     key: k,
     className: 'chip' + (pick === k ? ' on' : ''),
     onClick: () => setPick(k)
-  }, l))), /*#__PURE__*/React.createElement(BetBar, {
+  }, l))), /*#__PURE__*/React.createElement("div", {
+    className: "row",
+    style: {
+      justifyContent: 'center',
+      margin: '10px 0'
+    }
+  }, faces.map((f, i) => /*#__PURE__*/React.createElement("span", {
+    key: i,
+    className: rolling ? 'pcard dice-shake' : 'pcard',
+    style: {
+      fontSize: 22
+    }
+  }, f))), /*#__PURE__*/React.createElement(BetBar, {
     bet: bet,
     setBet: setBet,
     max: balance,
@@ -2296,8 +2362,7 @@ function DiceGame({
       marginRight: 10
     }
   }, result.a, " + ", result.b, " = ", result.total), result.win ? 'Won ' + result.net + ' chips' : 'Lost ' + bet + ' chips'));
-}
-function WheelSpin({
+}function WheelSpin({
   store,
   me,
   spinFn,
@@ -2317,6 +2382,28 @@ function WheelSpin({
   const ready = remain <= 0;
   const mins = Math.floor(remain / 60000),
     secs = Math.floor(remain % 60000 / 1000);
+  const raw = store.wheelSegments && store.wheelSegments.length ? store.wheelSegments : [{
+    amount: 1500
+  }, {
+    amount: 750
+  }, {
+    amount: 400
+  }, {
+    amount: 250
+  }, {
+    amount: 150
+  }, {
+    amount: 100
+  }, {
+    amount: 75
+  }, {
+    amount: 50
+  }];
+  const segs = [...raw].map(x => +x.amount || 0).sort((a, b) => a - b);
+  const n = segs.length,
+    step = 360 / n;
+  const colour = i => n % 2 === 1 && i === n - 1 ? '#3b0710' : i % 2 ? 'var(--felt-deep)' : 'var(--felt)';
+  const grad = 'conic-gradient(' + segs.map((_, i) => colour(i) + ' ' + i * step + 'deg ' + (i + 1) * step + 'deg').join(', ') + ')';
   const spin = async () => {
     if (!ready || spinning) return;
     setSpinning(true);
@@ -2328,7 +2415,6 @@ function WheelSpin({
       if (r) setResult(r.amount);
     }, 1300);
   };
-  const segs = [50, 75, 100, 150, 250, 400, 750, 1500];
   return /*#__PURE__*/React.createElement("div", {
     style: {
       textAlign: 'center'
@@ -2346,7 +2432,7 @@ function WheelSpin({
       border: '4px solid var(--brass)',
       transition: spinning ? 'transform 1.3s cubic-bezier(.17,.67,.32,1.4)' : 'none',
       transform: 'rotate(' + angle + 'deg)',
-      background: 'conic-gradient(var(--felt) 0deg 45deg, var(--felt-deep) 45deg 90deg, var(--felt) 90deg 135deg, var(--felt-deep) 135deg 180deg, var(--felt) 180deg 225deg, var(--felt-deep) 225deg 270deg, var(--felt) 270deg 315deg, var(--felt-deep) 315deg 360deg)'
+      background: grad
     }
   }, segs.map((v, i) => /*#__PURE__*/React.createElement("span", {
     key: i,
@@ -2354,8 +2440,8 @@ function WheelSpin({
       position: 'absolute',
       left: '50%',
       top: '50%',
-      transform: 'rotate(' + (i * 45 + 22.5) + 'deg) translate(0,-68px) rotate(-' + (i * 45 + 22.5) + 'deg) translate(-50%,-50%)',
-      fontSize: 12,
+      transform: 'rotate(' + (i * step + step / 2) + 'deg) translate(0,-68px) rotate(-' + (i * step + step / 2) + 'deg) translate(-50%,-50%)',
+      fontSize: n > 12 ? 9 : 12,
       fontWeight: 700,
       color: '#fff'
     }
@@ -2473,6 +2559,46 @@ function CaseOpener({
     }, "equipped"));
   })));
 }
+function CasinoPaywall({
+  cost,
+  balance,
+  dispatch,
+  me
+}) {
+  const [busy, setBusy] = useState(false);
+  return /*#__PURE__*/React.createElement("div", {
+    className: "panel",
+    style: {
+      textAlign: 'center',
+      padding: '30px 20px'
+    }
+  }, /*#__PURE__*/React.createElement("h2", null, "The Casino is locked"), /*#__PURE__*/React.createElement("p", {
+    className: "muted"
+  }, "One-off ", cost.toLocaleString(), " chips unlocks it for good."), /*#__PURE__*/React.createElement(ChipBadge, {
+    n: balance
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 14
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "btn",
+    disabled: busy || balance < cost,
+    onClick: () => {
+      setBusy(true);
+      dispatch({
+        t: 'unlock',
+        area: 'casino',
+        by: me
+      });
+      setBusy(false);
+    }
+  }, "Unlock for ", cost.toLocaleString(), " chips")), balance < cost && /*#__PURE__*/React.createElement("p", {
+    className: "small muted",
+    style: {
+      marginTop: 10
+    }
+  }, "Not enough chips yet."));
+}
 function CasinoPage({
   store,
   me,
@@ -2486,6 +2612,8 @@ function CasinoPage({
   const balance = chipsOf(store, me);
   const cap = store.payouts.casinoMaxBet || 500;
   const betLimit = Math.min(balance, cap);
+  const unlockCost = store.payouts.casinoUnlockCost || 0;
+  const unlocked = !unlockCost || store.unlocks && store.unlocks[me] && store.unlocks[me].casino;
   const onResult = (g, bet, net) => dispatch({
     t: 'casino',
     game: g,
@@ -2517,7 +2645,12 @@ function CasinoPage({
     className: "sub"
   }, "Virtual chips only. Never real money, never touches the Master sheet. Max bet ", cap.toLocaleString(), " chips.")), /*#__PURE__*/React.createElement("div", {
     className: "grid g2"
-  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("div", null, !unlocked ? /*#__PURE__*/React.createElement(CasinoPaywall, {
+    cost: unlockCost,
+    balance: balance,
+    dispatch: dispatch,
+    me: me
+  }) : /*#__PURE__*/React.createElement("div", {
     className: "panel",
     style: {
       marginBottom: 18
@@ -2551,7 +2684,7 @@ function CasinoPage({
   }) : balance <= 0 ? /*#__PURE__*/React.createElement("p", {
     className: "muted"
   }, "Skint. Wait for the next game week's top-up.") : /*#__PURE__*/React.createElement(GameComp, {
-    balance: betLimit,
+    balance: game === 'threeCardPoker' ? Math.min(Math.floor(balance / 2), cap) : betLimit,
     onResult: onResult,
     toast: toast
   }))), /*#__PURE__*/React.createElement("div", {
@@ -2575,9 +2708,108 @@ function CasinoPage({
     }
   }, "Chips top up when the regime closes a game week: ", cb, " base, +", cw, " per win, +", cd, " per point of positive ball difference. Nothing here is real money."))));
 }
-
-/* ---------- Table page ---------- */
-function newsFor(store) {
+function WheelPrizesEditor({
+  store,
+  dispatch,
+  me
+}) {
+  const initial = store.wheelSegments && store.wheelSegments.length ? store.wheelSegments : [{
+    amount: 1500,
+    weight: 1
+  }, {
+    amount: 750,
+    weight: 2
+  }, {
+    amount: 400,
+    weight: 4
+  }, {
+    amount: 250,
+    weight: 8
+  }, {
+    amount: 150,
+    weight: 12
+  }, {
+    amount: 100,
+    weight: 18
+  }, {
+    amount: 75,
+    weight: 25
+  }, {
+    amount: 50,
+    weight: 30
+  }];
+  const [segs, setSegs] = useState(initial);
+  const upd = (i, k, v) => setSegs(s => s.map((x, j) => j === i ? {
+    ...x,
+    [k]: +v || 0
+  } : x));
+  const totalW = segs.reduce((a, s) => a + (+s.weight || 0), 0);
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 22,
+      borderTop: '1px solid var(--smoke)',
+      paddingTop: 16
+    }
+  }, /*#__PURE__*/React.createElement("h3", null, "Wheel prizes"), /*#__PURE__*/React.createElement("p", {
+    className: "muted small"
+  }, "Amount in chips, weight is relative odds (bigger number, more likely). Weights don't need to add up to anything in particular."), segs.map((s, i) => /*#__PURE__*/React.createElement("div", {
+    key: i,
+    className: "row",
+    style: {
+      marginBottom: 6
+    }
+  }, /*#__PURE__*/React.createElement("label", {
+    className: "f",
+    style: {
+      margin: 0
+    }
+  }, "Amount", /*#__PURE__*/React.createElement("br", null), /*#__PURE__*/React.createElement("input", {
+    className: "score",
+    style: {
+      width: 80
+    },
+    value: s.amount,
+    onChange: e => upd(i, 'amount', e.target.value)
+  })), /*#__PURE__*/React.createElement("label", {
+    className: "f",
+    style: {
+      margin: 0
+    }
+  }, "Weight", /*#__PURE__*/React.createElement("br", null), /*#__PURE__*/React.createElement("input", {
+    className: "score",
+    style: {
+      width: 70
+    },
+    value: s.weight,
+    onChange: e => upd(i, 'weight', e.target.value)
+  })), /*#__PURE__*/React.createElement("span", {
+    className: "small muted",
+    style: {
+      alignSelf: 'center'
+    }
+  }, totalW ? Math.round(1000 * s.weight / totalW) / 10 : 0, "% chance"), /*#__PURE__*/React.createElement("button", {
+    className: "btn sm ghost",
+    style: {
+      alignSelf: 'center'
+    },
+    onClick: () => setSegs(x => x.filter((_, j) => j !== i))
+  }, "Remove"))), /*#__PURE__*/React.createElement("div", {
+    className: "row"
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "btn sm ghost",
+    onClick: () => setSegs(x => [...x, {
+      amount: 100,
+      weight: 10
+    }])
+  }, "Add a prize"), /*#__PURE__*/React.createElement("button", {
+    className: "btn sm",
+    onClick: () => dispatch({
+      t: 'setWheelSegments',
+      segments: segs,
+      by: me
+    })
+  }, "Save wheel prizes")));
+}function newsFor(store) {
   const hashPick = (id, arr) => {
     let h = 0;
     for (const c of id) h = h * 31 + c.charCodeAt(0) >>> 0;
@@ -3295,31 +3527,31 @@ function RecordsPanel({
     className: "grid g3"
   }, r.bestStreak && r.bestStreak.v > 0 && /*#__PURE__*/React.createElement(Stat, {
     v: r.bestStreak.v,
-    l: 'longest win streak — ' + r.bestStreak.n
+    l: 'longest win streak - ' + r.bestStreak.n
   }), r.worstStreak && r.worstStreak.v > 0 && /*#__PURE__*/React.createElement(Stat, {
     v: r.worstStreak.v,
-    l: 'longest losing streak — ' + r.worstStreak.n
+    l: 'longest losing streak - ' + r.worstStreak.n
   }), r.washKing && r.washKing.v > 0 && /*#__PURE__*/React.createElement(Stat, {
     v: r.washKing.v,
-    l: 'most 8-0 whitewashes — ' + r.washKing.n
+    l: 'most 8-0 whitewashes - ' + r.washKing.n
   }), r.goldenKing && r.goldenKing.v > 0 && /*#__PURE__*/React.createElement(Stat, {
     v: r.goldenKing.v,
-    l: 'most golden breaks — ' + r.goldenKing.n
+    l: 'most golden breaks - ' + r.goldenKing.n
   }), r.bestWeekDiff && /*#__PURE__*/React.createElement(Stat, {
     v: '+' + r.bestWeekDiff.d,
-    l: 'best single-week diff — ' + r.bestWeekDiff.n + ', GW' + r.bestWeekDiff.w
+    l: 'best single-week diff - ' + r.bestWeekDiff.n + ', GW' + r.bestWeekDiff.w
   }), r.bestRate && /*#__PURE__*/React.createElement(Stat, {
     v: Math.round(100 * r.bestRate.w / (r.bestRate.w + r.bestRate.l)) + '%',
-    l: 'best win rate (15+ games) — ' + r.bestRate.name
+    l: 'best win rate (15+ games) - ' + r.bestRate.name
   }), r.richest && /*#__PURE__*/React.createElement(Stat, {
     v: gbp(r.richest.winnings),
-    l: 'career winnings — ' + r.richest.name
+    l: 'career winnings - ' + r.richest.name
   }), r.mongKing && r.mongKing.v > 0 && /*#__PURE__*/React.createElement(Stat, {
     v: r.mongKing.v,
-    l: 'most mong offs — ' + r.mongKing.n
+    l: 'most mong offs - ' + r.mongKing.n
   }), r.worstKing && r.worstKing.v > 0 && /*#__PURE__*/React.createElement(Stat, {
     v: r.worstKing.v,
-    l: 'most worst player trophies — ' + r.worstKing.n
+    l: 'most worst player trophies - ' + r.worstKing.n
   })));
 }
 function headToHead(store, a, b) {
@@ -3406,7 +3638,7 @@ function H2HPanel({
     style: {
       fontSize: 22
     }
-  }, h.aw), " — ", /*#__PURE__*/React.createElement("b", {
+  }, h.aw), " - ", /*#__PURE__*/React.createElement("b", {
     className: "display",
     style: {
       fontSize: 22
@@ -4101,6 +4333,7 @@ function RegimePage({
   const allPlayed = w.fixtures.every(played);
   const [numbers, setNumbers] = useState({});
   const [swapSel, setSwapSel] = useState({});
+  const [suspendMsg, setSuspendMsg] = useState('');
   const [koSeasonIdx, setKoSeasonIdx] = useState(null);
   const [newTName, setNewTName] = useState('');
   const [newTEntry, setNewTEntry] = useState(10);
@@ -4475,7 +4708,23 @@ function RegimePage({
       k: 'caseCost',
       v: +e.target.value
     })
+  })), /*#__PURE__*/React.createElement("label", {
+    className: "f"
+  }, "casino unlock cost", /*#__PURE__*/React.createElement("br", null), /*#__PURE__*/React.createElement("input", {
+    className: "score",
+    value: po.casinoUnlockCost || 0,
+    onChange: e => dispatch({
+      t: 'payout',
+      k: 'casinoUnlockCost',
+      v: +e.target.value
+    })
   }))), /*#__PURE__*/React.createElement("p", {
+    className: "small muted"
+  }, "0 means the Casino is free for everyone. Set a number to paywall it, one-off, per player."), /*#__PURE__*/React.createElement(WheelPrizesEditor, {
+    store: store,
+    dispatch: dispatch,
+    me: me
+  }), /*#__PURE__*/React.createElement("p", {
     className: "small muted"
   }, "Current structure pays out ", gbp(po.gold[0] + po.gold[1] + po.silver[0] + po.silver[1] + po.bronze[0] + po.bronze[1] + po.mongoff), " of a ", gbp(12 * po.entry), " pot."), (() => {
     const idx = koSeasonIdx == null ? store.knockouts.length - 1 : koSeasonIdx;
@@ -5015,13 +5264,28 @@ function RegimePage({
         setNewName('');
       }
     }
-  }, "Add to the book")), /*#__PURE__*/React.createElement("table", {
+  }, "Add to the book")), /*#__PURE__*/React.createElement("div", {
+    className: "row",
+    style: {
+      margin: "10px 0"
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    style: {
+      flex: 1
+    },
+    placeholder: "Message shown when you suspend someone (e.g. Owes £20 for GW14)",
+    value: suspendMsg,
+    onChange: e => setSuspendMsg(e.target.value)
+  })), /*#__PURE__*/React.createElement("table", {
     className: "plain"
   }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", null, "Name"), /*#__PURE__*/React.createElement("th", null, "Role"), /*#__PURE__*/React.createElement("th", null, "PIN"), /*#__PURE__*/React.createElement("th", null))), /*#__PURE__*/React.createElement("tbody", null, store.players.map(p => /*#__PURE__*/React.createElement("tr", {
     key: p.name
   }, /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("b", null, p.name), !p.active && /*#__PURE__*/React.createElement("span", {
     className: "small muted"
-  }, " (former)")), /*#__PURE__*/React.createElement("td", null, p.role), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement(ConfirmButton, {
+  }, " (former)"), p.suspended && /*#__PURE__*/React.createElement("span", {
+    className: "small",
+    style: { color: 'var(--blood)' }
+  }, " (suspended)")), /*#__PURE__*/React.createElement("td", null, p.role), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement(ConfirmButton, {
     confirmText: "Click again to reset",
     onConfirm: () => resetPin(p.name)
   }, "Reset to 0000")), /*#__PURE__*/React.createElement("td", {
@@ -5033,7 +5297,16 @@ function RegimePage({
       p: p.name,
       v: !p.active
     })
-  }, p.active ? 'Retire' : 'Reinstate')))))), /*#__PURE__*/React.createElement("p", {
+  }, p.active ? 'Retire' : 'Reinstate'), /*#__PURE__*/React.createElement("button", {
+    className: "btn sm ghost",
+    style: p.suspended ? { borderColor: 'var(--blood)', color: 'var(--blood)' } : undefined,
+    onClick: () => dispatch({
+      t: 'suspend',
+      p: p.name,
+      v: !p.suspended,
+      reason: suspendMsg
+    })
+  }, p.suspended ? 'Lift suspension' : 'Suspend')))))), /*#__PURE__*/React.createElement("p", {
     className: "small muted"
   }, "New players start on PIN 0000 and change it from My book. Chef and Lorcan started on 1917.")), sec === 'data' && /*#__PURE__*/React.createElement("div", {
     className: "panel"
@@ -5369,6 +5642,16 @@ function reduce(store, a) {
         }
         break;
       }
+    case 'suspend':
+      {
+        const p = s.players.find(p => p.name === a.p);
+        if (p) {
+          p.suspended = a.v;
+          p.suspendReason = a.v ? a.reason || '' : '';
+          log(`${a.by} ${a.v ? 'suspended' : 'lifted the suspension on'} ${a.p}`);
+        }
+        break;
+      }
     case 'swapPlayer':
       {
         const w = s.weeks[s.weeks.length - 1];
@@ -5504,13 +5787,20 @@ function reduce(store, a) {
       {
         s.chips = s.chips || {};
         const cur = s.chips[a.by] != null ? s.chips[a.by] : 1000;
-        const cap = s.payouts.casinoMaxBet || 500;
+        const baseCap = s.payouts.casinoMaxBet || 500;
+        const cap = a.game === 'threeCardPoker' ? baseCap * 2 : baseCap;
         if (!(a.bet > 0)) throw new Error('Bad bet amount.');
-        if (a.bet > cap) throw new Error('Max bet is ' + cap + ' chips.');
+        if (a.bet > cap) throw new Error(a.game === 'threeCardPoker' ? 'Max ante is ' + baseCap + ' chips.' : 'Max bet is ' + cap + ' chips.');
         if (a.net < -a.bet || a.net > a.bet * 36) throw new Error('That result is outside what any of these games can pay out.');
         if (a.bet > cur) throw new Error('You cannot bet more than your chip balance.');
         s.chips[a.by] = cur + a.net;
         log(`${a.by} ${a.net >= 0 ? 'won' : 'lost'} ${Math.abs(a.net)} chips at ${a.game}`);
+        break;
+      }
+    case 'setWheelSegments':
+      {
+        s.wheelSegments = a.segments;
+        log(`${a.by} updated the wheel prizes`);
         break;
       }
     case 'chipsAdjust':
@@ -5519,6 +5809,22 @@ function reduce(store, a) {
         const cur = s.chips[a.p] != null ? s.chips[a.p] : 1000;
         s.chips[a.p] = Math.max(0, cur + a.delta);
         log(`${a.by} ${a.delta >= 0 ? 'gave' : 'took'} ${Math.abs(a.delta)} chips ${a.delta >= 0 ? 'to' : 'from'} ${a.p}`);
+        break;
+      }
+    case 'unlock':
+      {
+        s.payouts = s.payouts || {};
+        const cost = s.payouts[a.area + 'UnlockCost'] || 0;
+        if (cost <= 0) throw new Error('Nothing to unlock there.');
+        s.unlocks = s.unlocks || {};
+        s.unlocks[a.by] = s.unlocks[a.by] || {};
+        if (s.unlocks[a.by][a.area]) throw new Error('Already unlocked.');
+        s.chips = s.chips || {};
+        const cur = s.chips[a.by] != null ? s.chips[a.by] : 1000;
+        if (cur < cost) throw new Error('Not enough chips to unlock that.');
+        s.chips[a.by] = cur - cost;
+        s.unlocks[a.by][a.area] = true;
+        log(`${a.by} unlocked ${a.area} for ${cost} chips`);
         break;
       }
     case 'equipCard':
@@ -5648,7 +5954,7 @@ function Login({
     style: {
       fontSize: 96
     }
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.3.0")), /*#__PURE__*/React.createElement("p", {
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.3.1")), /*#__PURE__*/React.createElement("p", {
     className: "muted"
   }, "Twelve players. Six games. One office. Report to the table."), /*#__PURE__*/React.createElement("div", {
     className: "pinbox"
@@ -5672,13 +5978,7 @@ function Login({
     className: "btn",
     disabled: busy,
     onClick: go
-  }, busy ? 'Checking' : 'Enter'), /*#__PURE__*/React.createElement("p", null, /*#__PURE__*/React.createElement("button", {
-    className: "btn ghost sm",
-    style: {
-      marginTop: 14
-    },
-    onClick: () => onLogin(null)
-  }, "Just look at the table")), api.mode === 'local' && /*#__PURE__*/React.createElement("p", {
+  }, busy ? 'Checking' : 'Enter'), api.mode === 'local' && /*#__PURE__*/React.createElement("p", {
     className: "small muted"
   }, "Not connected to a database: this browser is the book."));
 }
@@ -5761,7 +6061,7 @@ function App() {
           refresh();
         } else toast('Not saved: ' + e.message);
       }
-    } else if (cred && (a.t === 'submit' || a.t === 'rollcall' || a.t === 'profile' || a.t === 'recall' || a.t === 'casino' || a.t === 'tourneyVote' || a.t === 'ping' || a.t === 'predict' || a.t === 'equipCard')) {
+    } else if (cred && (a.t === 'submit' || a.t === 'rollcall' || a.t === 'profile' || a.t === 'recall' || a.t === 'casino' || a.t === 'tourneyVote' || a.t === 'ping' || a.t === 'predict' || a.t === 'equipCard' || a.t === 'unlock')) {
       try {
         await api.playerAction(cred, a);
         await refresh();
@@ -5834,7 +6134,7 @@ function App() {
     style: {
       fontSize: 96
     }
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.3.0"));
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.3.1"));
   if (!store) return /*#__PURE__*/React.createElement("div", {
     className: "login"
   }, mark, /*#__PURE__*/React.createElement("p", {
@@ -5867,6 +6167,17 @@ function App() {
     },
     onClick: () => persistCred(undefined)
   }, "Log out")));
+  const myRow = me && !isAdmin && store.players.find(p => p.name === me);
+  if (myRow && myRow.suspended) return /*#__PURE__*/React.createElement("div", {
+    className: "login"
+  }, mark, /*#__PURE__*/React.createElement("div", {
+    className: "warnbox",
+    style: { textAlign: "left" }
+  }, /*#__PURE__*/React.createElement("b", null, "Access suspended."), /*#__PURE__*/React.createElement("p", null, myRow.suspendReason || "Talk to Chef or Lorcan to sort this out."), /*#__PURE__*/React.createElement("p", { className: "small" }, "You won't be able to see or do anything else until this is lifted.")), /*#__PURE__*/React.createElement("button", {
+    className: "btn ghost sm",
+    style: { marginTop: 14 },
+    onClick: () => persistCred(undefined)
+  }, "Log out"));
   const wIdx = weekIdx == null ? store.weeks.length - 1 : Math.min(weekIdx, store.weeks.length - 1);
   const tabs = [['table', 'Table'], ['me', 'My book'], ['casino', 'Casino'], ['eightman', '8 Man'], ['predict', 'Predictions'], ['chat', 'Chat'], ['master', 'Master'], ['stats', 'Dossier'], ['ko', 'Knockout']];
   if (isAdmin) tabs.push(['regime', 'Regime']);
@@ -5960,7 +6271,7 @@ function App() {
     className: "rail"
   }, /*#__PURE__*/React.createElement("div", {
     className: "wordmark"
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.3.0")), /*#__PURE__*/React.createElement("div", {
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.3.1")), /*#__PURE__*/React.createElement("div", {
     className: "decree"
   }, decree), /*#__PURE__*/React.createElement("div", {
     className: "nav"
