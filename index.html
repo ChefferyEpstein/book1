@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Book1.5.0</title>
+<title>Book1.5.1</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -3134,28 +3134,31 @@ function HogsPage({
   const cap = store.payouts.casinoMaxBet || 500;
   const balance = chipsOf(store, me);
   const [card, setCard] = useState(null);
+  const [cardErr, setCardErr] = useState('');
+  const [again, setAgain] = useState(0);
   const [table, setTable] = useState(null);
   const [opp, setOpp] = useState('');
   const [stat, setStat] = useState('length');
   const [stake, setStake] = useState(Math.min(50, balance || 0));
   useEffect(() => {
     let stop = false;
+    setCardErr('');
     (async () => {
       try {
         const c = await api.hogCard(cred);
-        const t = await api.hogTable();
-        if (!stop) {
-          setCard(c);
-          setTable(t);
-        }
+        if (!stop) setCard(c);
       } catch (e) {
-        if (!stop) toast(e.message);
+        if (!stop) setCardErr(e.message || 'Something went wrong.');
       }
+      try {
+        const t = await api.hogTable();
+        if (!stop) setTable(t);
+      } catch (e) {}
     })();
     return () => {
       stop = true;
     };
-  }, [weekN, me]);
+  }, [weekN, me, again]);
   const others = live.players.filter(p => p !== me);
   const target = others.includes(opp) ? opp : others[0] || '';
   const duels = store.hogDuels || [];
@@ -3165,13 +3168,14 @@ function HogsPage({
   const order = table && table.order || [];
   const rank = order.indexOf(me) + 1;
   const statName = k => (HOG_STATS.find(x => x.k === k) || {}).name || k;
+  const shortName = k => statName(k).replace(' (higher is fresher)', '');
   const maxStake = Math.max(0, Math.min(balance, cap));
   const resultLine = d => {
     const mine = d.challenger === me || d.opponent === me;
-    if (!d.winner) return d.challenger + ' and ' + d.opponent + ' drew on ' + statName(d.stat) + ', stakes returned';
+    if (!d.winner) return d.challenger + ' and ' + d.opponent + ' drew on ' + shortName(d.stat) + ', stakes returned';
     const loser = d.winner === d.challenger ? d.opponent : d.challenger;
     const nums = mine ? ' (' + hogShow(d.stat, d.vc) + ' v ' + hogShow(d.stat, d.vo) + ', ' + d.challenger + ' first)' : '';
-    return d.winner + ' out-hogged ' + loser + ' on ' + statName(d.stat) + ' and took ' + d.stake + ' chips' + nums;
+    return d.winner + ' out-hogged ' + loser + ' on ' + shortName(d.stat) + ' and took ' + d.stake + ' chips' + nums;
   };
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: "page-title"
@@ -3195,15 +3199,23 @@ function HogsPage({
     className: "stamp warn"
   }, "rank ", rank, " of ", order.length)), /*#__PURE__*/React.createElement("p", {
     className: "small muted"
-  }, rank > 0 ? hogTitle(rank, order.length) + '. ' : '', "Only you can see these numbers. Tap a stat to pick it for a challenge."), !card && /*#__PURE__*/React.createElement("p", {
+  }, rank > 0 ? hogTitle(rank, order.length) + '. ' : '', "Only you can see these numbers. Tap any stat to pick it for a challenge."), !card && !cardErr && /*#__PURE__*/React.createElement("p", {
     className: "muted"
-  }, "Measuring…"), card && card.in && HOG_STATS.map(s => {
+  }, "Measuring…"), cardErr && /*#__PURE__*/React.createElement("div", {
+    className: "warnbox"
+  }, "Could not load your card: ", cardErr, " ", /*#__PURE__*/React.createElement("button", {
+    className: "btn sm ghost",
+    style: {
+      marginLeft: 8
+    },
+    onClick: () => setAgain(x => x + 1)
+  }, "Try again")), card && card.in && HOG_STATS.map(s => {
     const v = card.card[s.k];
     return /*#__PURE__*/React.createElement("button", {
       key: s.k,
       className: 'hogstat' + (stat === s.k ? ' on' : ''),
       onClick: () => setStat(s.k)
-    }, /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, s.name), " ", hogShow(s.k, v)), /*#__PURE__*/React.createElement("span", {
+    }, /*#__PURE__*/React.createElement("span", null, stat === s.k ? '\u25C9 ' : '\u25CB ', /*#__PURE__*/React.createElement("b", null, s.name), " ", hogShow(s.k, v)), /*#__PURE__*/React.createElement("span", {
       className: "small"
     }, hogLine(s.k, v)));
   })), inWeek && /*#__PURE__*/React.createElement("div", {
@@ -3213,17 +3225,27 @@ function HogsPage({
     }
   }, /*#__PURE__*/React.createElement("h2", null, "Challenge someone"), /*#__PURE__*/React.createElement("p", {
     className: "small muted"
-  }, "Pick a stat above, pick a victim, set a stake. If they accept, the higher number takes the pot. Only that one stat is ever revealed, and only to the two of you."), /*#__PURE__*/React.createElement("div", {
+  }, "Pick the stat to fight on, pick a victim, set a stake. If they accept, the higher number takes the pot. Only that one stat is ever revealed, and only to the two of you."), /*#__PURE__*/React.createElement("div", {
+    className: "row",
+    style: {
+      flexWrap: 'wrap',
+      marginBottom: 10
+    }
+  }, HOG_STATS.map(s => /*#__PURE__*/React.createElement("button", {
+    key: s.k,
+    className: 'chip' + (stat === s.k ? ' on' : ''),
+    onClick: () => setStat(s.k)
+  }, shortName(s.k), card && card.in ? ', ' + hogShow(s.k, card.card[s.k]).replace(/ \(.*\)/, '') : ''))), /*#__PURE__*/React.createElement("div", {
     className: "row",
     style: {
       marginBottom: 8
     }
-  }, /*#__PURE__*/React.createElement("select", {
+  }, /*#__PURE__*/React.createElement("span", null, "Victim:"), /*#__PURE__*/React.createElement("select", {
     value: target,
     onChange: e => setOpp(e.target.value)
   }, others.map(p => /*#__PURE__*/React.createElement("option", {
     key: p
-  }, p))), /*#__PURE__*/React.createElement("span", null, "on ", /*#__PURE__*/React.createElement("b", null, statName(stat)))), /*#__PURE__*/React.createElement(BetBar, {
+  }, p)))), /*#__PURE__*/React.createElement(BetBar, {
     bet: stake,
     setBet: setStake,
     max: maxStake
@@ -3240,7 +3262,7 @@ function HogsPage({
       stake,
       by: me
     })
-  }, "Challenge ", target, " for ", stake)), incoming.length > 0 && /*#__PURE__*/React.createElement("div", {
+  }, "Challenge ", target, " on ", shortName(stat), " for ", stake)), incoming.length > 0 && /*#__PURE__*/React.createElement("div", {
     className: "panel",
     style: {
       marginBottom: 18
@@ -3252,7 +3274,7 @@ function HogsPage({
       padding: '6px 0',
       borderBottom: '1px solid var(--smoke)'
     }
-  }, /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, d.challenger), " wants a hog off on ", /*#__PURE__*/React.createElement("b", null, statName(d.stat)), " for ", d.stake, " chips"), /*#__PURE__*/React.createElement("span", {
+  }, /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, d.challenger), " wants a hog off on ", /*#__PURE__*/React.createElement("b", null, shortName(d.stat)), " for ", d.stake, " chips"), /*#__PURE__*/React.createElement("span", {
     className: "row"
   }, /*#__PURE__*/React.createElement("button", {
     className: "btn sm",
@@ -3281,7 +3303,7 @@ function HogsPage({
       padding: '6px 0',
       borderBottom: '1px solid var(--smoke)'
     }
-  }, /*#__PURE__*/React.createElement("span", null, "You challenged ", /*#__PURE__*/React.createElement("b", null, d.opponent), " on ", statName(d.stat), " for ", d.stake, " chips"), /*#__PURE__*/React.createElement("button", {
+  }, /*#__PURE__*/React.createElement("span", null, "You challenged ", /*#__PURE__*/React.createElement("b", null, d.opponent), " on ", shortName(d.stat), " for ", d.stake, " chips"), /*#__PURE__*/React.createElement("button", {
     className: "btn sm ghost",
     onClick: () => act({
       t: 'hogCancel',
@@ -7213,7 +7235,7 @@ function Login({
     style: {
       fontSize: 96
     }
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.5.0")), /*#__PURE__*/React.createElement("p", {
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.5.1")), /*#__PURE__*/React.createElement("p", {
     className: "muted"
   }, "Twelve players. Six games. One office. Report to the table."), /*#__PURE__*/React.createElement("div", {
     className: "pinbox"
@@ -7325,7 +7347,7 @@ function App() {
     const off = api.subscribeChat(check, 'chat-badge');
     return () => { alive = false; clearInterval(iv); off(); };
   }, [me, tab]);
-  useEffect(() => { document.title = (chatUnread > 0 ? '(' + chatUnread + ') ' : '') + 'Book1.5.0'; }, [chatUnread]);
+  useEffect(() => { document.title = (chatUnread > 0 ? '(' + chatUnread + ') ' : '') + 'Book1.5.1'; }, [chatUnread]);
   const cloudEmpty = !!(store && !store.weeks);
   const persistCred = c => {
     setCred(c);
@@ -7438,7 +7460,7 @@ function App() {
     style: {
       fontSize: 96
     }
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.5.0"));
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.5.1"));
   if (!store) return /*#__PURE__*/React.createElement("div", {
     className: "login"
   }, mark, /*#__PURE__*/React.createElement("p", {
@@ -7583,7 +7605,7 @@ function App() {
     className: "rail"
   }, /*#__PURE__*/React.createElement("div", {
     className: "wordmark"
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.5.0")), /*#__PURE__*/React.createElement("div", {
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.5.1")), /*#__PURE__*/React.createElement("div", {
     className: "decree"
   }, decree), /*#__PURE__*/React.createElement("div", {
     className: "nav"
