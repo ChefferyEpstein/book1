@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Book1.3.2</title>
+<title>Book1.4.0</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -499,7 +499,7 @@ const {
 } = React;
 const STORE_KEY = 'book1.2-local';
 const CFG = window.BOOK_CONFIG || {};
-const APP_SQL_VERSION = 18; // bump this whenever a new SQL script adds or changes a server function
+const APP_SQL_VERSION = 19; // bump this whenever a new SQL script adds or changes a server function
 const CLOUD = !!(CFG.url && CFG.key);
 const ADMINS = ['Chef', 'Lorcan'];
 const DECREES = ['Abstention is not permitted.', 'The Book sees all results.', 'Ball difference is destiny.', 'The Dictator collects. The Dictator distributes.', 'Report your score. Report it honestly.', 'Twelfth place is a service to the office.', 'The mong off is not optional.', 'Disputes are settled by the regime.'];
@@ -593,22 +593,41 @@ function defaultCardCatalog() {
     emblem: { bg, shape, layers: [{ g, c, x: 0, y: 0, sx: sx || 1, sy: sy || 1, r: 0 }] }
   });
   return [
-    mk('c1', 'Conscript', 'common', '#2A2626', 'circle', 'circle', '#9CA3AF'),
-    mk('c2', 'Ration Card', 'common', '#2A2626', 'square', 'cross', '#9CA3AF'),
-    mk('c3', 'Standard Issue', 'common', '#2A2626', 'circle', 'bar', '#9CA3AF'),
-    mk('c4', 'Grunt', 'common', '#2A2626', 'circle', 'triangle', '#9CA3AF'),
-    mk('u1', "Enlisted Star", 'uncommon', '#102a15', 'circle', 'star', '#3FA34D'),
-    mk('u2', 'Field Medal', 'uncommon', '#102a15', 'circle', 'shield', '#3FA34D'),
-    mk('u3', 'Veteran Stripe', 'uncommon', '#102a15', 'square', 'bolt', '#3FA34D'),
-    mk('r1', "Officer's Crest", 'rare', '#0d1b33', 'shield', 'shield', '#1F6FEB'),
-    mk('r2', 'Cue Master', 'rare', '#0d1b33', 'circle', 'cue', '#1F6FEB'),
-    mk('r3', 'Table Tactician', 'rare', '#0d1b33', 'circle', 'diamond', '#1F6FEB'),
-    mk('e1', "Commissar's Seal", 'epic', '#1f1029', 'circle', 'crown', '#8E44AD'),
-    mk('e2', 'Party Elite', 'epic', '#1f1029', 'hexagon', 'star', '#8E44AD'),
-    mk('e3', 'Iron Discipline', 'epic', '#1f1029', 'circle', 'bolt', '#8E44AD', 1.3, 1.3),
-    mk('l1', 'Supreme Leader', 'legendary', '#000000', 'shield', 'crown', '#C9A227'),
-    mk('l2', 'Eight Ball Emperor', 'legendary', '#000000', 'shield', 'eightball', '#C9A227'),
-    mk('l3', "The Dictator's Own", 'legendary', '#6B0512', 'shield', 'skull', '#C9A227')
+    mk("c1", "Conscript", "common", "#2A2626", "circle", "circle", "#9CA3AF"),
+    mk("c2", "Ration Card", "common", "#2A2626", "square", "cross", "#9CA3AF"),
+    mk("c3", "Standard Issue", "common", "#2A2626", "circle", "bar", "#9CA3AF"),
+    mk("c4", "Grunt", "common", "#2A2626", "circle", "triangle", "#9CA3AF"),
+    mk("c5", "Cue Chalk", "common", "#2A2626", "square", "square", "#9CA3AF"),
+    mk("c6", "Bar Rat", "common", "#2A2626", "circle", "ring", "#9CA3AF"),
+    mk("c7", "Rookie", "common", "#2A2626", "circle", "diamond", "#9CA3AF"),
+    mk("c8", "Cannon Fodder", "common", "#2A2626", "square", "hexagon", "#9CA3AF"),
+    mk("u1", "Enlisted Star", "uncommon", "#102a15", "circle", "star", "#3FA34D"),
+    mk("u2", "Field Medal", "uncommon", "#102a15", "circle", "shield", "#3FA34D"),
+    mk("u3", "Veteran Stripe", "uncommon", "#102a15", "square", "bolt", "#3FA34D"),
+    mk("u4", "Clean Break", "uncommon", "#102a15", "circle", "crescent", "#3FA34D"),
+    mk("u5", "Safe Player", "uncommon", "#102a15", "circle", "heart", "#3FA34D"),
+    mk("u6", "Banker", "uncommon", "#102a15", "square", "diamond", "#3FA34D"),
+    mk("u7", "Sharpshooter", "uncommon", "#102a15", "circle", "cross", "#3FA34D"),
+    mk("u8", "Rack Master", "uncommon", "#102a15", "circle", "hexagon", "#3FA34D"),
+    mk("r1", "Officer's Crest", "rare", "#0d1b33", "shield", "shield", "#1F6FEB"),
+    mk("r2", "Cue Master", "rare", "#0d1b33", "circle", "cue", "#1F6FEB"),
+    mk("r3", "Table Tactician", "rare", "#0d1b33", "circle", "diamond", "#1F6FEB"),
+    mk("r4", "Cold Blooded", "rare", "#0d1b33", "circle", "crescent", "#1F6FEB"),
+    mk("r5", "Ball Wizard", "rare", "#0d1b33", "shield", "star", "#1F6FEB"),
+    mk("r6", "Pocket Rocket", "rare", "#0d1b33", "circle", "bolt", "#1F6FEB"),
+    mk("r7", "Snooker Loopy", "rare", "#0d1b33", "circle", "ring", "#1F6FEB"),
+    mk("r8", "Hustler", "rare", "#0d1b33", "shield", "splat", "#1F6FEB"),
+    mk("e1", "Commissar's Seal", "epic", "#1f1029", "circle", "crown", "#8E44AD"),
+    mk("e2", "Party Elite", "epic", "#1f1029", "shield", "star", "#8E44AD"),
+    mk("e3", "Iron Discipline", "epic", "#1f1029", "circle", "bolt", "#8E44AD", 1.3, 1.3),
+    mk("e4", "The Enforcer", "epic", "#1f1029", "shield", "shield", "#8E44AD"),
+    mk("e5", "Table Terror", "epic", "#1f1029", "circle", "flame", "#8E44AD"),
+    mk("e6", "Heartbreaker", "epic", "#1f1029", "shield", "heart", "#8E44AD"),
+    mk("l1", "Supreme Leader", "legendary", "#000000", "shield", "crown", "#C9A227"),
+    mk("l2", "Eight Ball Emperor", "legendary", "#000000", "shield", "eightball", "#C9A227"),
+    mk("l3", "The Dictator's Own", "legendary", "#6B0512", "shield", "skull", "#C9A227"),
+    mk("l4", "Golden Break", "legendary", "#000000", "shield", "star", "#C9A227", 1.2, 1.2),
+    mk("l5", "The Untouchable", "legendary", "#000000", "shield", "flame", "#C9A227")
   ];
 }
 function loadStore() {
@@ -873,10 +892,14 @@ const api = CLOUD ? {
     const cost = s.payouts.caseCost || 300;
     const bal = s.chips && s.chips[cred.name] != null ? s.chips[cred.name] : 1000;
     if (bal < cost) throw new Error('Not enough chips for a case.');
-    const roll = Math.random() * 100;
-    const rarity = roll < 1 ? 'legendary' : roll < 5 ? 'epic' : roll < 15 ? 'rare' : roll < 40 ? 'uncommon' : 'common';
+    const od = Object.assign({ common: 60, uncommon: 25, rare: 10, epic: 4, legendary: 1 }, s.rarityOdds || {});
+    let tw = ['common', 'uncommon', 'rare', 'epic', 'legendary'].reduce((t, k) => t + (+od[k] || 0), 0);
+    if (tw <= 0) { od.common = 1; tw = 1; }
+    const roll = Math.random() * tw;
+    const rarity = roll < (+od.legendary || 0) ? 'legendary' : roll < (+od.legendary || 0) + (+od.epic || 0) ? 'epic' : roll < (+od.legendary || 0) + (+od.epic || 0) + (+od.rare || 0) ? 'rare' : roll < tw - (+od.common || 0) ? 'uncommon' : 'common';
     let pool = (s.cardCatalog && s.cardCatalog.length ? s.cardCatalog : defaultCardCatalog()).filter(c => c.rarity === rarity);
     if (!pool.length) pool = (s.cardCatalog && s.cardCatalog.length ? s.cardCatalog : defaultCardCatalog()).filter(c => c.rarity === 'common');
+    if (!pool.length) pool = s.cardCatalog && s.cardCatalog.length ? s.cardCatalog : defaultCardCatalog();
     const picked = pool[Math.floor(Math.random() * pool.length)];
     s.chips = s.chips || {};
     s.chips[cred.name] = bal - cost;
@@ -2473,6 +2496,15 @@ function CaseOpener({
     equipped: null
   };
   const owned = [...new Set(mine.owned || [])];
+  const od = Object.assign({
+    common: 60,
+    uncommon: 25,
+    rare: 10,
+    epic: 4,
+    legendary: 1
+  }, store.rarityOdds || {});
+  const tw = ['common', 'uncommon', 'rare', 'epic', 'legendary'].reduce((a, r) => a + (+od[r] || 0), 0) || 1;
+  const pct = r => Math.round(1000 * (+od[r] || 0) / tw) / 10 + '%';
   const open = async () => {
     if (balance < cost) {
       toast('Not enough chips for a case.');
@@ -2488,7 +2520,7 @@ function CaseOpener({
   };
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", {
     className: "small muted"
-  }, "Spend ", cost.toLocaleString(), " chips for a random calling card. Odds: ", RARITY_ODDS.legendary, " legendary, ", RARITY_ODDS.epic, " epic, ", RARITY_ODDS.rare, " rare, ", RARITY_ODDS.uncommon, " uncommon, ", RARITY_ODDS.common, " common."), /*#__PURE__*/React.createElement("button", {
+  }, "Spend ", cost.toLocaleString(), " chips for a random calling card. Odds: ", pct('legendary'), " legendary, ", pct('epic'), " epic, ", pct('rare'), " rare, ", pct('uncommon'), " uncommon, ", pct('common'), " common. You own ", owned.filter(id => CATALOG.some(c => c.id === id)).length, " of ", CATALOG.length, "."), /*#__PURE__*/React.createElement("button", {
     className: "btn",
     disabled: opening || balance < cost,
     onClick: open
@@ -2558,6 +2590,275 @@ function CaseOpener({
       }
     }, "equipped"));
   })));
+}
+function MatchBetting({
+  store,
+  me,
+  dispatch,
+  toast,
+  balance
+}) {
+  const cap = store.payouts.casinoMaxBet || 500;
+  const [slip, setSlip] = useState(null);
+  const [stake, setStake] = useState(Math.min(50, balance || 0));
+  const games = bettableGames(store).filter(g => g.p1 !== me && g.p2 !== me);
+  const mine = [...(store.bets || [])].filter(b => b.player === me).reverse();
+  const slipGame = slip && games.find(g => g.id === slip.game);
+  const slipOdds = slipGame ? betOdds(store, slipGame.p1, slipGame.p2)[slip.pick] : 0;
+  const staked = slip ? (store.bets || []).filter(b => b.player === me && b.game === slip.game && b.status === 'open').reduce((t, b) => t + b.stake, 0) : 0;
+  const maxStake = Math.max(0, Math.min(balance, cap - staked));
+  const place = () => {
+    if (!slipGame || stake <= 0) return;
+    dispatch({
+      t: 'placeBet',
+      game: slip.game,
+      pick: slip.pick,
+      stake,
+      by: me
+    });
+    setSlip(null);
+  };
+  const groups = {};
+  games.forEach(g => {
+    (groups[g.label] = groups[g.label] || []).push(g);
+  });
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", {
+    className: "small muted"
+  }, "Bet chips on other people's matches. Odds come from each player's record and recent form, and are locked in when you bet. You can't bet on your own match, and bets close once anyone reports a score. Max ", cap.toLocaleString(), " chips per match."), slip && slipGame && /*#__PURE__*/React.createElement("div", {
+    className: "okbox",
+    style: {
+      marginBottom: 12
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "row spread"
+  }, /*#__PURE__*/React.createElement("b", null, slipGame.p1, " v ", slipGame.p2), /*#__PURE__*/React.createElement("button", {
+    className: "btn sm ghost",
+    onClick: () => setSlip(null)
+  }, "Clear")), /*#__PURE__*/React.createElement("p", {
+    style: {
+      margin: '6px 0'
+    }
+  }, "You pick ", /*#__PURE__*/React.createElement("b", null, slip.pick), " at ", /*#__PURE__*/React.createElement("b", null, slipOdds.toFixed(2))), /*#__PURE__*/React.createElement(BetBar, {
+    bet: stake,
+    setBet: setStake,
+    max: maxStake
+  }), /*#__PURE__*/React.createElement("p", {
+    className: "small muted",
+    style: {
+      margin: '6px 0'
+    }
+  }, "Returns ", Math.round(stake * slipOdds), " chips if it lands."), /*#__PURE__*/React.createElement("button", {
+    className: "btn",
+    disabled: stake <= 0 || stake > maxStake,
+    onClick: place
+  }, "Place bet")), games.length === 0 && /*#__PURE__*/React.createElement("p", {
+    className: "muted"
+  }, "No open matches to bet on right now."), Object.entries(groups).map(([label, list]) => /*#__PURE__*/React.createElement("div", {
+    key: label
+  }, /*#__PURE__*/React.createElement("h3", null, /*#__PURE__*/React.createElement("span", {
+    className: "kt"
+  }, label)), list.map(g => {
+    const o = betOdds(store, g.p1, g.p2);
+    return /*#__PURE__*/React.createElement("div", {
+      key: g.id,
+      className: "row spread",
+      style: {
+        padding: '6px 0',
+        borderBottom: '1px solid var(--smoke)'
+      }
+    }, /*#__PURE__*/React.createElement("span", null, g.p1, " v ", g.p2), /*#__PURE__*/React.createElement("span", {
+      className: "row"
+    }, /*#__PURE__*/React.createElement("button", {
+      className: 'chip' + (slip && slip.game === g.id && slip.pick === g.p1 ? ' on' : ''),
+      onClick: () => setSlip({
+        game: g.id,
+        pick: g.p1
+      })
+    }, g.p1, " ", o[g.p1].toFixed(2)), /*#__PURE__*/React.createElement("button", {
+      className: 'chip' + (slip && slip.game === g.id && slip.pick === g.p2 ? ' on' : ''),
+      onClick: () => setSlip({
+        game: g.id,
+        pick: g.p2
+      })
+    }, g.p2, " ", o[g.p2].toFixed(2))));
+  }))), mine.length > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("h3", {
+    style: {
+      marginTop: 16
+    }
+  }, "Your bets"), mine.slice(0, 15).map(b => /*#__PURE__*/React.createElement("div", {
+    key: b.id,
+    className: "row spread small",
+    style: {
+      padding: '5px 0',
+      borderBottom: '1px solid var(--smoke)'
+    }
+  }, /*#__PURE__*/React.createElement("span", null, b.label, ": ", b.pick, " @ ", (+b.odds).toFixed(2), ", stake ", b.stake), /*#__PURE__*/React.createElement("span", {
+    className: 'stamp ' + (b.status === 'won' ? 'ok' : b.status === 'lost' ? 'bad' : b.status === 'void' ? 'grey' : 'warn')
+  }, b.status === 'open' ? 'open, returns ' + Math.round(b.stake * b.odds) : b.status === 'won' ? 'won ' + b.payout : b.status === 'lost' ? 'lost' : 'void, refunded')))));
+}
+function CardsEditor({
+  store,
+  dispatch,
+  me
+}) {
+  const RAR = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
+  const tint = {
+    common: '#2A2626',
+    uncommon: '#102a15',
+    rare: '#0d1b33',
+    epic: '#1f1029',
+    legendary: '#000000'
+  };
+  const base = store.cardCatalog && store.cardCatalog.length ? store.cardCatalog : defaultCardCatalog();
+  const [cards, setCards] = useState(base);
+  const [odds, setOdds] = useState(Object.assign({
+    common: 60,
+    uncommon: 25,
+    rare: 10,
+    epic: 4,
+    legendary: 1
+  }, store.rarityOdds || {}));
+  const [nn, setNn] = useState('');
+  const [nr, setNr] = useState('common');
+  const [ng, setNg] = useState('star');
+  const totalW = RAR.reduce((a, r) => a + (+odds[r] || 0), 0);
+  const rename = (i, v) => setCards(cs => cs.map((c, j) => j === i ? {
+    ...c,
+    name: v
+  } : c));
+  const reRarity = (i, r) => setCards(cs => cs.map((c, j) => j === i ? {
+    ...c,
+    rarity: r,
+    emblem: {
+      ...c.emblem,
+      bg: tint[r],
+      layers: c.emblem.layers.map(l => ({
+        ...l,
+        c: RARITY_COLORS[r]
+      }))
+    }
+  } : c));
+  const add = () => {
+    if (!nn.trim()) return;
+    setCards(cs => [...cs, {
+      id: 'x' + Date.now().toString(36),
+      name: nn.trim(),
+      rarity: nr,
+      emblem: {
+        bg: tint[nr],
+        shape: 'circle',
+        layers: [{
+          g: ng,
+          c: RARITY_COLORS[nr],
+          x: 0,
+          y: 0,
+          sx: 1,
+          sy: 1,
+          r: 0
+        }]
+      }
+    }]);
+    setNn('');
+  };
+  const count = r => cards.filter(c => c.rarity === r).length;
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "panel",
+    style: {
+      marginBottom: 18
+    }
+  }, /*#__PURE__*/React.createElement("h2", null, "Drop odds"), /*#__PURE__*/React.createElement("p", {
+    className: "muted small"
+  }, "Weights, not percentages: bigger means more likely. Set a tier to 0 and it never drops."), /*#__PURE__*/React.createElement("div", {
+    className: "row"
+  }, RAR.map(r => /*#__PURE__*/React.createElement("label", {
+    key: r,
+    className: "f",
+    style: {
+      margin: 0
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: RARITY_COLORS[r],
+      textTransform: 'capitalize'
+    }
+  }, r), " (", count(r), " cards)", /*#__PURE__*/React.createElement("br", null), /*#__PURE__*/React.createElement("input", {
+    className: "score",
+    style: {
+      width: 70
+    },
+    value: odds[r],
+    onChange: e => setOdds(o => ({
+      ...o,
+      [r]: +e.target.value || 0
+    }))
+  }), /*#__PURE__*/React.createElement("span", {
+    className: "small muted"
+  }, " ", totalW ? Math.round(1000 * (+odds[r] || 0) / totalW) / 10 : 0, "%"))))), /*#__PURE__*/React.createElement("div", {
+    className: "panel"
+  }, /*#__PURE__*/React.createElement("h2", null, "Cards (", cards.length, ")"), /*#__PURE__*/React.createElement("p", {
+    className: "muted small"
+  }, "Change a card's rarity and it recolours to match its tier. Removing a card hides it from the set, and from anyone wearing it. Nothing is live until you save."), /*#__PURE__*/React.createElement("table", {
+    className: "plain"
+  }, /*#__PURE__*/React.createElement("tbody", null, cards.map((c, i) => /*#__PURE__*/React.createElement("tr", {
+    key: c.id
+  }, /*#__PURE__*/React.createElement("td", {
+    style: {
+      width: 40
+    }
+  }, /*#__PURE__*/React.createElement(Emblem, {
+    e: c.emblem,
+    size: 30
+  })), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("input", {
+    style: {
+      width: '100%'
+    },
+    value: c.name,
+    onChange: e => rename(i, e.target.value)
+  })), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("select", {
+    value: c.rarity,
+    onChange: e => reRarity(i, e.target.value)
+  }, RAR.map(r => /*#__PURE__*/React.createElement("option", {
+    key: r
+  }, r)))), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("button", {
+    className: "btn sm ghost",
+    onClick: () => setCards(cs => cs.filter((_, j) => j !== i))
+  }, "Remove")))))), /*#__PURE__*/React.createElement("h3", null, "Add a card"), /*#__PURE__*/React.createElement("div", {
+    className: "row"
+  }, /*#__PURE__*/React.createElement("input", {
+    placeholder: "Card name",
+    value: nn,
+    onChange: e => setNn(e.target.value)
+  }), /*#__PURE__*/React.createElement("select", {
+    value: nr,
+    onChange: e => setNr(e.target.value)
+  }, RAR.map(r => /*#__PURE__*/React.createElement("option", {
+    key: r
+  }, r))), /*#__PURE__*/React.createElement("select", {
+    value: ng,
+    onChange: e => setNg(e.target.value)
+  }, Object.keys(GLYPHS).filter(g => g !== 'text').map(g => /*#__PURE__*/React.createElement("option", {
+    key: g
+  }, g))), /*#__PURE__*/React.createElement("button", {
+    className: "btn sm ghost",
+    onClick: add
+  }, "Add")), /*#__PURE__*/React.createElement("div", {
+    className: "row",
+    style: {
+      marginTop: 14
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "btn",
+    onClick: () => dispatch({
+      t: 'setCardCatalog',
+      cards,
+      odds,
+      by: me
+    })
+  }, "Save cards and odds"), /*#__PURE__*/React.createElement(ConfirmButton, {
+    className: "btn ghost sm",
+    confirmText: "Replace all with the built-in set? Click again",
+    onConfirm: () => setCards(defaultCardCatalog())
+  }, "Reset to the built-in set"))));
 }
 function CasinoPaywall({
   cost,
@@ -2631,10 +2932,12 @@ function CasinoPage({
     threeCardPoker: ['Three Card Poker', ThreeCardPoker],
     dice: ['Dice', DiceGame],
     cases: ['Cases', null],
-    wheel: ['Free Spin', null]
+    wheel: ['Free Spin', null],
+    bets: ['Match Betting', null]
   };
-  const isCases = game === 'cases';
-  const isWheel = game === 'wheel';
+  const isCases = game === 'cases',
+    isWheel = game === 'wheel',
+    isBets = game === 'bets';
   const [, GameComp] = games[game];
   const cb = store.payouts.chipBase || 500,
     cw = store.payouts.chipPerWin || 100,
@@ -2681,6 +2984,12 @@ function CasinoPage({
     me: me,
     spinFn: spinWheel,
     toast: toast
+  }) : isBets ? /*#__PURE__*/React.createElement(MatchBetting, {
+    store: store,
+    me: me,
+    dispatch: dispatch,
+    toast: toast,
+    balance: balance
   }) : balance <= 0 ? /*#__PURE__*/React.createElement("p", {
     className: "muted"
   }, "Skint. Wait for the next game week's top-up.") : /*#__PURE__*/React.createElement(GameComp, {
@@ -4341,7 +4650,7 @@ function RegimePage({
   const [tScores, setTScores] = useState({});
   const [newName, setNewName] = useState('');
   const outstanding = w.players.filter(p => (w.paid[p] || 0) < po.entry);
-  const secs = [['queue', 'Approvals' + (queue.length ? ' (' + queue.length + ')' : '')], ['results', 'Enter results'], ['money', 'Treasury'], ['roll', 'Roll call'], ['week', 'Game week'], ['eightman', '8 Man'], ['players', 'Players'], ['data', 'Backup']];
+  const secs = [['queue', 'Approvals' + (queue.length ? ' (' + queue.length + ')' : '')], ['results', 'Enter results'], ['money', 'Treasury'], ['roll', 'Roll call'], ['week', 'Game week'], ['eightman', '8 Man'], ['cards', 'Cards'], ['players', 'Players'], ['data', 'Backup']];
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: "page-title"
   }, /*#__PURE__*/React.createElement("h1", null, "The regime"), /*#__PURE__*/React.createElement("span", {
@@ -5245,7 +5554,11 @@ function RegimePage({
     })))));
   }), (!store.tournaments || store.tournaments.length === 0) && /*#__PURE__*/React.createElement("p", {
     className: "muted"
-  }, "Nothing on the go.")), sec === 'players' && /*#__PURE__*/React.createElement("div", {
+  }, "Nothing on the go.")), sec === 'cards' && /*#__PURE__*/React.createElement(CardsEditor, {
+    store: store,
+    dispatch: dispatch,
+    me: me
+  }), sec === 'players' && /*#__PURE__*/React.createElement("div", {
     className: "panel"
   }, /*#__PURE__*/React.createElement("h2", null, "Players"), /*#__PURE__*/React.createElement("div", {
     className: "row"
@@ -5372,6 +5685,78 @@ function RegimePage({
 }
 
 /* ---------- reducer ---------- */
+function betRating(store, x) {
+  let wa = 0, ga = 0, wr = 0, gr = 0;
+  const n = store.weeks.length;
+  store.weeks.forEach((w, i) => {
+    w.fixtures.forEach(g => {
+      if (g.s1 == null) return;
+      if (g.p1 !== x && g.p2 !== x) return;
+      const win = (g.s1 > g.s2 ? g.p1 : g.p2) === x;
+      ga++;
+      if (win) wa++;
+      if (i >= n - 4) {
+        gr++;
+        if (win) wr++;
+      }
+    });
+  });
+  return 0.6 * (wa + 4) / (ga + 8) + 0.4 * (wr + 2) / (gr + 4);
+}
+function betOdds(store, a, b) {
+  const ra = betRating(store, a), rb = betRating(store, b);
+  const pa = ra * (1 - rb) / (ra * (1 - rb) + rb * (1 - ra));
+  const m = (store.payouts && store.payouts.betMargin != null ? store.payouts.betMargin : 8) / 100;
+  const conv = p => Math.round(Math.max(1.05, Math.min(20, 1 / p * (1 - m))) * 100) / 100;
+  const out = {};
+  out[a] = conv(pa);
+  out[b] = conv(1 - pa);
+  return out;
+}
+function bettableGames(store) {
+  const out = [];
+  const add = (g, label) => {
+    if (g && g.p1 && g.p2 && g.s1 == null && g.status === 'open') out.push({ id: g.id, p1: g.p1, p2: g.p2, label });
+  };
+  const live = store.weeks[store.weeks.length - 1];
+  live.fixtures.forEach(g => add(g, 'GW' + live.n));
+  live.playoffs.forEach(g => add(g, 'GW' + live.n + ' play-off'));
+  const ko = store.knockouts[store.knockouts.length - 1];
+  if (ko) ko.leagues.forEach(l => l.games.forEach(g => add(g, 'Knockout, ' + l.name)));
+  (store.tournaments || []).forEach(t => {
+    if (t.bracket) ['qf', 'sf', 'final'].forEach(k => t.bracket[k].forEach(g => add(g, t.name)));
+  });
+  return out;
+}
+function settleBets(s, log) {
+  if (!s.bets || !s.bets.length) return;
+  s.chips = s.chips || {};
+  s.bets.forEach(b => {
+    if (b.status !== 'open') return;
+    const g = findGame(s, b.game).g;
+    const cur = s.chips[b.player] != null ? s.chips[b.player] : 1000;
+    if (!g || g.p1 !== b.pick && g.p2 !== b.pick) {
+      s.chips[b.player] = cur + b.stake;
+      b.status = 'void';
+      b.payout = b.stake;
+      log('Bet void, ' + b.stake + ' chips back to ' + b.player + ' (' + b.label + ')');
+      return;
+    }
+    if (g.s1 == null) return;
+    const winnerName = g.s1 > g.s2 ? g.p1 : g.p2;
+    if (winnerName === b.pick) {
+      const pay = Math.round(b.stake * b.odds);
+      s.chips[b.player] = cur + pay;
+      b.status = 'won';
+      b.payout = pay;
+      log(b.player + ' won ' + pay + ' chips betting on ' + b.pick + ' (' + b.label + ')');
+    } else {
+      b.status = 'lost';
+      b.payout = 0;
+      log(b.player + ' lost ' + b.stake + ' chips betting on ' + b.pick + ' (' + b.label + ')');
+    }
+  });
+}
 function findGame(store, id) {
   for (const w of store.weeks) {
     for (const k of ['fixtures', 'playoffs', 'tiebreaks']) {
@@ -5827,6 +6212,36 @@ function reduce(store, a) {
         log(`${a.by} unlocked ${a.area} for ${cost} chips`);
         break;
       }
+    case 'placeBet':
+      {
+        const g = findGame(s, a.game).g;
+        if (!g) throw new Error('That match no longer exists.');
+        if (!g.p1 || !g.p2) throw new Error('That match is not set yet.');
+        if (g.s1 != null || g.status !== 'open') throw new Error('Betting is closed on that match.');
+        if (a.by === g.p1 || a.by === g.p2) throw new Error("You can't bet on your own match.");
+        if (a.pick !== g.p1 && a.pick !== g.p2) throw new Error('Pick one of the two players.');
+        const stake = Math.floor(+a.stake);
+        if (!(stake > 0)) throw new Error('Bad stake.');
+        const cap = s.payouts.casinoMaxBet || 500;
+        s.bets = s.bets || [];
+        const already = s.bets.filter(x => x.player === a.by && x.game === g.id && x.status === 'open').reduce((t, x) => t + x.stake, 0);
+        if (stake > cap || stake + already > cap) throw new Error('Max ' + cap + ' chips on one match.');
+        s.chips = s.chips || {};
+        const cur = s.chips[a.by] != null ? s.chips[a.by] : 1000;
+        if (stake > cur) throw new Error('You cannot bet more than your chip balance.');
+        const od = betOdds(s, g.p1, g.p2)[a.pick];
+        s.chips[a.by] = cur - stake;
+        s.bets.push({ id: 'b' + Date.now(), player: a.by, game: g.id, pick: a.pick, label: g.p1 + ' v ' + g.p2, stake, odds: od, status: 'open', payout: 0, placedAt: Date.now() });
+        log(`${a.by} bet ${stake} chips on ${a.pick} (${g.p1} v ${g.p2}) at ${od}`);
+        break;
+      }
+    case 'setCardCatalog':
+      {
+        s.cardCatalog = a.cards;
+        s.rarityOdds = a.odds;
+        log(`${a.by} updated the calling cards`);
+        break;
+      }
     case 'equipCard':
       {
         s.cards = s.cards || {};
@@ -5924,6 +6339,7 @@ function reduce(store, a) {
     case 'replace':
       return a.store;
   }
+  settleBets(s, log);
   return s;
 }
 
@@ -5954,7 +6370,7 @@ function Login({
     style: {
       fontSize: 96
     }
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.3.2")), /*#__PURE__*/React.createElement("p", {
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.4.0")), /*#__PURE__*/React.createElement("p", {
     className: "muted"
   }, "Twelve players. Six games. One office. Report to the table."), /*#__PURE__*/React.createElement("div", {
     className: "pinbox"
@@ -6061,7 +6477,7 @@ function App() {
           refresh();
         } else toast('Not saved: ' + e.message);
       }
-    } else if (cred && (a.t === 'submit' || a.t === 'rollcall' || a.t === 'profile' || a.t === 'recall' || a.t === 'casino' || a.t === 'tourneyVote' || a.t === 'ping' || a.t === 'predict' || a.t === 'equipCard' || a.t === 'unlock')) {
+    } else if (cred && (a.t === 'submit' || a.t === 'rollcall' || a.t === 'profile' || a.t === 'recall' || a.t === 'casino' || a.t === 'tourneyVote' || a.t === 'ping' || a.t === 'predict' || a.t === 'equipCard' || a.t === 'unlock' || a.t === 'placeBet')) {
       try {
         await api.playerAction(cred, a);
         await refresh();
@@ -6134,7 +6550,7 @@ function App() {
     style: {
       fontSize: 96
     }
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.3.2"));
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.4.0"));
   if (!store) return /*#__PURE__*/React.createElement("div", {
     className: "login"
   }, mark, /*#__PURE__*/React.createElement("p", {
@@ -6271,7 +6687,7 @@ function App() {
     className: "rail"
   }, /*#__PURE__*/React.createElement("div", {
     className: "wordmark"
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.3.2")), /*#__PURE__*/React.createElement("div", {
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.4.0")), /*#__PURE__*/React.createElement("div", {
     className: "decree"
   }, decree), /*#__PURE__*/React.createElement("div", {
     className: "nav"
