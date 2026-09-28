@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Book1.4.0</title>
+<title>Book1.4.1</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -167,6 +167,8 @@ table.plain tr.me td{background:rgba(200,16,46,.1)}
   .felt .num{font-size:18px;width:50px}
   .bracket{grid-template-columns:1fr}.bracket .final{grid-column:auto}
 }
+.nav button.unread,.tabbar button.unread{color:#ff6b7d}
+.mention{border-left:3px solid var(--brass);padding-left:8px;background:rgba(201,162,39,.08)}
 </style>
 </head>
 <body>
@@ -499,7 +501,7 @@ const {
 } = React;
 const STORE_KEY = 'book1.2-local';
 const CFG = window.BOOK_CONFIG || {};
-const APP_SQL_VERSION = 19; // bump this whenever a new SQL script adds or changes a server function
+const APP_SQL_VERSION = 20; // bump this whenever a new SQL script adds or changes a server function
 const CLOUD = !!(CFG.url && CFG.key);
 const ADMINS = ['Chef', 'Lorcan'];
 const DECREES = ['Abstention is not permitted.', 'The Book sees all results.', 'Ball difference is destiny.', 'The Dictator collects. The Dictator distributes.', 'Report your score. Report it honestly.', 'Twelfth place is a service to the office.', 'The mong off is not optional.', 'Disputes are settled by the regime.'];
@@ -769,8 +771,8 @@ const api = CLOUD ? {
     } = sb.storage.from('chat-images').getPublicUrl(path);
     return data.publicUrl;
   },
-  subscribeChat(fn) {
-    const ch = sb.channel('chat').on('postgres_changes', {
+  subscribeChat(fn, name) {
+    const ch = sb.channel(name || 'chat').on('postgres_changes', {
       event: 'INSERT',
       schema: 'public',
       table: 'chat_messages'
@@ -2599,46 +2601,99 @@ function MatchBetting({
   balance
 }) {
   const cap = store.payouts.casinoMaxBet || 500;
-  const [slip, setSlip] = useState(null);
+  const [slip, setSlip] = useState([]);
   const [stake, setStake] = useState(Math.min(50, balance || 0));
   const games = bettableGames(store).filter(g => g.p1 !== me && g.p2 !== me);
+  const byId = {};
+  games.forEach(g => {
+    byId[g.id] = g;
+  });
   const mine = [...(store.bets || [])].filter(b => b.player === me).reverse();
-  const slipGame = slip && games.find(g => g.id === slip.game);
-  const slipOdds = slipGame ? betOdds(store, slipGame.p1, slipGame.p2)[slip.pick] : 0;
-  const staked = slip ? (store.bets || []).filter(b => b.player === me && b.game === slip.game && b.status === 'open').reduce((t, b) => t + b.stake, 0) : 0;
+  const legs = slip.filter(l => byId[l.game]).map(l => {
+    const g = byId[l.game];
+    return {
+      ...l,
+      label: g.p1 + ' v ' + g.p2,
+      odds: betOdds(store, g.p1, g.p2)[l.pick]
+    };
+  });
+  const isAcca = legs.length >= 2;
+  const prod = legs.reduce((t, l) => t * l.odds, 1);
+  const totalOdds = isAcca ? Math.round(Math.min(200, prod) * 100) / 100 : legs[0] ? legs[0].odds : 0;
+  const staked = !isAcca && legs[0] ? (store.bets || []).filter(b => b.player === me && b.game === legs[0].game && b.status === 'open').reduce((t, b) => t + b.stake, 0) : 0;
   const maxStake = Math.max(0, Math.min(balance, cap - staked));
+  const toggle = (g, pick) => {
+    const has = slip.find(l => l.game === g.id);
+    if (has && has.pick === pick) {
+      setSlip(slip.filter(l => l.game !== g.id));
+      return;
+    }
+    if (has) {
+      setSlip(slip.map(l => l.game === g.id ? {
+        game: g.id,
+        pick
+      } : l));
+      return;
+    }
+    if (slip.length >= 6) {
+      toast('An accumulator can have up to 6 selections.');
+      return;
+    }
+    setSlip([...slip, {
+      game: g.id,
+      pick
+    }]);
+  };
   const place = () => {
-    if (!slipGame || stake <= 0) return;
-    dispatch({
+    if (!legs.length || stake <= 0) return;
+    if (isAcca) dispatch({
+      t: 'placeAcca',
+      legs: legs.map(l => ({
+        game: l.game,
+        pick: l.pick
+      })),
+      stake,
+      by: me
+    });else dispatch({
       t: 'placeBet',
-      game: slip.game,
-      pick: slip.pick,
+      game: legs[0].game,
+      pick: legs[0].pick,
       stake,
       by: me
     });
-    setSlip(null);
+    setSlip([]);
   };
   const groups = {};
   games.forEach(g => {
     (groups[g.label] = groups[g.label] || []).push(g);
   });
+  const on = (g, p) => slip.some(l => l.game === g.id && l.pick === p);
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", {
     className: "small muted"
-  }, "Bet chips on other people's matches. Odds come from each player's record and recent form, and are locked in when you bet. You can't bet on your own match, and bets close once anyone reports a score. Max ", cap.toLocaleString(), " chips per match."), slip && slipGame && /*#__PURE__*/React.createElement("div", {
+  }, "Bet chips on other people's matches. Tap selections in two or more different matches to build an accumulator: the odds multiply and every leg has to win. A voided leg drops out, combined odds are capped at 200, up to 6 legs. Odds come from each player's record and recent form and are locked when you bet. You can't bet on your own match, and bets close once anyone reports a score. Max ", cap.toLocaleString(), " chips per bet."), legs.length > 0 && /*#__PURE__*/React.createElement("div", {
     className: "okbox",
     style: {
       marginBottom: 12
     }
   }, /*#__PURE__*/React.createElement("div", {
     className: "row spread"
-  }, /*#__PURE__*/React.createElement("b", null, slipGame.p1, " v ", slipGame.p2), /*#__PURE__*/React.createElement("button", {
+  }, /*#__PURE__*/React.createElement("b", null, isAcca ? 'Accumulator, ' + legs.length + ' selections' : 'Single'), /*#__PURE__*/React.createElement("button", {
     className: "btn sm ghost",
-    onClick: () => setSlip(null)
-  }, "Clear")), /*#__PURE__*/React.createElement("p", {
+    onClick: () => setSlip([])
+  }, "Clear")), legs.map(l => /*#__PURE__*/React.createElement("div", {
+    key: l.game,
+    className: "row spread small",
+    style: {
+      padding: '3px 0'
+    }
+  }, /*#__PURE__*/React.createElement("span", null, l.label, ": ", /*#__PURE__*/React.createElement("b", null, l.pick)), /*#__PURE__*/React.createElement("span", null, l.odds.toFixed(2), " ", /*#__PURE__*/React.createElement("button", {
+    className: "btn sm ghost",
+    onClick: () => setSlip(slip.filter(x => x.game !== l.game))
+  }, "x")))), /*#__PURE__*/React.createElement("p", {
     style: {
       margin: '6px 0'
     }
-  }, "You pick ", /*#__PURE__*/React.createElement("b", null, slip.pick), " at ", /*#__PURE__*/React.createElement("b", null, slipOdds.toFixed(2))), /*#__PURE__*/React.createElement(BetBar, {
+  }, isAcca ? 'Combined odds' : 'Odds', " ", /*#__PURE__*/React.createElement("b", null, totalOdds.toFixed(2)), isAcca && prod > 200 ? ' (capped at 200)' : ''), /*#__PURE__*/React.createElement(BetBar, {
     bet: stake,
     setBet: setStake,
     max: maxStake
@@ -2647,11 +2702,11 @@ function MatchBetting({
     style: {
       margin: '6px 0'
     }
-  }, "Returns ", Math.round(stake * slipOdds), " chips if it lands."), /*#__PURE__*/React.createElement("button", {
+  }, "Returns ", Math.round(stake * totalOdds), " chips if ", isAcca ? 'every leg lands' : 'it lands', ". ", isAcca ? 'Tap a selection again to remove it.' : 'Pick a selection in another match to turn this into an accumulator.'), /*#__PURE__*/React.createElement("button", {
     className: "btn",
     disabled: stake <= 0 || stake > maxStake,
     onClick: place
-  }, "Place bet")), games.length === 0 && /*#__PURE__*/React.createElement("p", {
+  }, isAcca ? 'Place accumulator' : 'Place bet')), games.length === 0 && /*#__PURE__*/React.createElement("p", {
     className: "muted"
   }, "No open matches to bet on right now."), Object.entries(groups).map(([label, list]) => /*#__PURE__*/React.createElement("div", {
     key: label
@@ -2669,17 +2724,11 @@ function MatchBetting({
     }, /*#__PURE__*/React.createElement("span", null, g.p1, " v ", g.p2), /*#__PURE__*/React.createElement("span", {
       className: "row"
     }, /*#__PURE__*/React.createElement("button", {
-      className: 'chip' + (slip && slip.game === g.id && slip.pick === g.p1 ? ' on' : ''),
-      onClick: () => setSlip({
-        game: g.id,
-        pick: g.p1
-      })
+      className: 'chip' + (on(g, g.p1) ? ' on' : ''),
+      onClick: () => toggle(g, g.p1)
     }, g.p1, " ", o[g.p1].toFixed(2)), /*#__PURE__*/React.createElement("button", {
-      className: 'chip' + (slip && slip.game === g.id && slip.pick === g.p2 ? ' on' : ''),
-      onClick: () => setSlip({
-        game: g.id,
-        pick: g.p2
-      })
+      className: 'chip' + (on(g, g.p2) ? ' on' : ''),
+      onClick: () => toggle(g, g.p2)
     }, g.p2, " ", o[g.p2].toFixed(2))));
   }))), mine.length > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("h3", {
     style: {
@@ -2687,14 +2736,21 @@ function MatchBetting({
     }
   }, "Your bets"), mine.slice(0, 15).map(b => /*#__PURE__*/React.createElement("div", {
     key: b.id,
-    className: "row spread small",
     style: {
       padding: '5px 0',
       borderBottom: '1px solid var(--smoke)'
     }
-  }, /*#__PURE__*/React.createElement("span", null, b.label, ": ", b.pick, " @ ", (+b.odds).toFixed(2), ", stake ", b.stake), /*#__PURE__*/React.createElement("span", {
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "row spread small"
+  }, /*#__PURE__*/React.createElement("span", null, b.legs ? b.label + ' @ ' + (+b.odds).toFixed(2) + ', stake ' + b.stake : b.label + ': ' + b.pick + ' @ ' + (+b.odds).toFixed(2) + ', stake ' + b.stake), /*#__PURE__*/React.createElement("span", {
     className: 'stamp ' + (b.status === 'won' ? 'ok' : b.status === 'lost' ? 'bad' : b.status === 'void' ? 'grey' : 'warn')
-  }, b.status === 'open' ? 'open, returns ' + Math.round(b.stake * b.odds) : b.status === 'won' ? 'won ' + b.payout : b.status === 'lost' ? 'lost' : 'void, refunded')))));
+  }, b.status === 'open' ? 'open, returns ' + Math.round(b.stake * b.odds) : b.status === 'won' ? 'won ' + b.payout : b.status === 'lost' ? 'lost' : 'void, refunded')), b.legs && b.legs.map((l, i) => /*#__PURE__*/React.createElement("div", {
+    key: i,
+    className: "small muted",
+    style: {
+      paddingLeft: 12
+    }
+  }, l.label, ": ", l.pick, " @ ", (+l.odds).toFixed(2), " ", l.status === 'won' ? 'won' : l.status === 'lost' ? 'lost' : l.status === 'void' ? 'void' : ''))))));
 }
 function CardsEditor({
   store,
@@ -4357,6 +4413,7 @@ function ChatPage({
     className: "muted small"
   }, "Nobody's said anything yet."), msgs.map(m => /*#__PURE__*/React.createElement("div", {
     key: m.id,
+    className: (m.body || '').toLowerCase().includes('@' + String(me).toLowerCase()) ? 'mention' : undefined,
     style: {
       marginBottom: 10
     }
@@ -5733,8 +5790,44 @@ function settleBets(s, log) {
   s.chips = s.chips || {};
   s.bets.forEach(b => {
     if (b.status !== 'open') return;
-    const g = findGame(s, b.game).g;
     const cur = s.chips[b.player] != null ? s.chips[b.player] : 1000;
+    if (b.legs) {
+      let lost = false, openLeft = false, anyWon = false, prod = 1;
+      b.legs.forEach(l => {
+        if (l.status === 'open') {
+          const g = findGame(s, l.game).g;
+          if (!g || g.p1 !== l.pick && g.p2 !== l.pick) l.status = 'void';
+          else if (g.s1 != null) l.status = (g.s1 > g.s2 ? g.p1 : g.p2) === l.pick ? 'won' : 'lost';
+        }
+        if (l.status === 'lost') lost = true;
+        else if (l.status === 'open') openLeft = true;
+        else if (l.status === 'won') {
+          prod *= l.odds;
+          anyWon = true;
+        }
+      });
+      if (lost) {
+        b.status = 'lost';
+        b.payout = 0;
+        log(b.player + ' lost ' + b.stake + ' chips on an accumulator (' + b.label + ')');
+      } else if (openLeft) {
+        return;
+      } else if (!anyWon) {
+        s.chips[b.player] = cur + b.stake;
+        b.status = 'void';
+        b.payout = b.stake;
+        log('Accumulator void, ' + b.stake + ' chips back to ' + b.player);
+      } else {
+        const eff = Math.round(Math.min(200, prod) * 100) / 100;
+        const pay = Math.round(b.stake * eff);
+        s.chips[b.player] = cur + pay;
+        b.status = 'won';
+        b.payout = pay;
+        log(b.player + ' won ' + pay + ' chips on an accumulator (' + b.label + ')');
+      }
+      return;
+    }
+    const g = findGame(s, b.game).g;
     if (!g || g.p1 !== b.pick && g.p2 !== b.pick) {
       s.chips[b.player] = cur + b.stake;
       b.status = 'void';
@@ -6235,6 +6328,40 @@ function reduce(store, a) {
         log(`${a.by} bet ${stake} chips on ${a.pick} (${g.p1} v ${g.p2}) at ${od}`);
         break;
       }
+    case 'placeAcca':
+      {
+        const legsIn = a.legs || [];
+        if (legsIn.length < 2 || legsIn.length > 6) throw new Error('An accumulator needs 2 to 6 selections.');
+        const stake = Math.floor(+a.stake);
+        if (!(stake > 0)) throw new Error('Bad stake.');
+        const cap = s.payouts.casinoMaxBet || 500;
+        if (stake > cap) throw new Error('Max ' + cap + ' chips on a bet.');
+        s.chips = s.chips || {};
+        const cur = s.chips[a.by] != null ? s.chips[a.by] : 1000;
+        if (stake > cur) throw new Error('You cannot bet more than your chip balance.');
+        const seen = new Set();
+        const legs = [];
+        let prod = 1;
+        legsIn.forEach(l => {
+          if (seen.has(l.game)) throw new Error('One selection per match.');
+          seen.add(l.game);
+          const g = findGame(s, l.game).g;
+          if (!g) throw new Error('A match in your slip no longer exists.');
+          if (!g.p1 || !g.p2) throw new Error('A match in your slip is not set yet.');
+          if (g.s1 != null || g.status !== 'open') throw new Error('Betting has closed on ' + g.p1 + ' v ' + g.p2 + '.');
+          if (a.by === g.p1 || a.by === g.p2) throw new Error("You can't bet on your own match.");
+          if (l.pick !== g.p1 && l.pick !== g.p2) throw new Error('Pick one of the two players.');
+          const od = betOdds(s, g.p1, g.p2)[l.pick];
+          prod *= od;
+          legs.push({ game: g.id, pick: l.pick, label: g.p1 + ' v ' + g.p2, odds: od, status: 'open' });
+        });
+        const combined = Math.round(Math.min(200, prod) * 100) / 100;
+        s.chips[a.by] = cur - stake;
+        s.bets = s.bets || [];
+        s.bets.push({ id: 'b' + Date.now(), player: a.by, type: 'acca', legs, label: 'Acca (' + legs.length + ')', stake, odds: combined, status: 'open', payout: 0, placedAt: Date.now() });
+        log(`${a.by} bet ${stake} chips on a ${legs.length}-leg accumulator at ${combined}`);
+        break;
+      }
     case 'setCardCatalog':
       {
         s.cardCatalog = a.cards;
@@ -6370,7 +6497,7 @@ function Login({
     style: {
       fontSize: 96
     }
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.4.0")), /*#__PURE__*/React.createElement("p", {
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.4.1")), /*#__PURE__*/React.createElement("p", {
     className: "muted"
   }, "Twelve players. Six games. One office. Report to the table."), /*#__PURE__*/React.createElement("div", {
     className: "pinbox"
@@ -6446,6 +6573,31 @@ function App() {
   CATALOG = store && store.cardCatalog && store.cardCatalog.length ? store.cardCatalog : defaultCardCatalog();
   const me = cred ? cred.name : cred;
   const isAdmin = !!(cred && cred.role === 'admin');
+  const [chatUnread, setChatUnread] = useState(0);
+  const [chatMention, setChatMention] = useState(false);
+  useEffect(() => {
+    if (!me) { setChatUnread(0); setChatMention(false); return; }
+    const key = 'book.chatSeen.' + me;
+    let alive = true;
+    const check = async () => {
+      try {
+        const msgs = await api.loadMessages(60);
+        if (!alive) return;
+        const maxId = msgs.length ? Math.max(...msgs.map(m => +m.id)) : 0;
+        let seen = localStorage.getItem(key);
+        if (seen == null) { localStorage.setItem(key, String(maxId)); seen = String(maxId); }
+        if (tab === 'chat') { localStorage.setItem(key, String(maxId)); setChatUnread(0); setChatMention(false); return; }
+        const fresh = msgs.filter(m => +m.id > +seen && m.author !== me);
+        setChatUnread(fresh.length);
+        setChatMention(fresh.some(m => (m.body || '').toLowerCase().includes('@' + me.toLowerCase())));
+      } catch (e) {}
+    };
+    check();
+    const iv = setInterval(check, 20000);
+    const off = api.subscribeChat(check, 'chat-badge');
+    return () => { alive = false; clearInterval(iv); off(); };
+  }, [me, tab]);
+  useEffect(() => { document.title = (chatUnread > 0 ? '(' + chatUnread + ') ' : '') + 'Book1.4.1'; }, [chatUnread]);
   const cloudEmpty = !!(store && !store.weeks);
   const persistCred = c => {
     setCred(c);
@@ -6477,7 +6629,7 @@ function App() {
           refresh();
         } else toast('Not saved: ' + e.message);
       }
-    } else if (cred && (a.t === 'submit' || a.t === 'rollcall' || a.t === 'profile' || a.t === 'recall' || a.t === 'casino' || a.t === 'tourneyVote' || a.t === 'ping' || a.t === 'predict' || a.t === 'equipCard' || a.t === 'unlock' || a.t === 'placeBet')) {
+    } else if (cred && (a.t === 'submit' || a.t === 'rollcall' || a.t === 'profile' || a.t === 'recall' || a.t === 'casino' || a.t === 'tourneyVote' || a.t === 'ping' || a.t === 'predict' || a.t === 'equipCard' || a.t === 'unlock' || a.t === 'placeBet' || a.t === 'placeAcca')) {
       try {
         await api.playerAction(cred, a);
         await refresh();
@@ -6550,7 +6702,7 @@ function App() {
     style: {
       fontSize: 96
     }
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.4.0"));
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.4.1"));
   if (!store) return /*#__PURE__*/React.createElement("div", {
     className: "login"
   }, mark, /*#__PURE__*/React.createElement("p", {
@@ -6676,9 +6828,9 @@ function App() {
         block: 'nearest'
       });
     },
-    className: tab === k ? 'on' : '',
+    className: (tab === k ? 'on' : '') + (k === 'chat' && chatUnread > 0 ? ' unread' : ''),
     onClick: () => setTab(k)
-  }, l, k === 'regime' && pending > 0 ? ' (' + pending + ')' : ''));
+  }, l, k === 'regime' && pending > 0 ? ' (' + pending + ')' : '', k === 'chat' && chatUnread > 0 ? ' (' + chatUnread + (chatMention ? ' @' : '') + ')' : ''));
   return /*#__PURE__*/React.createElement(EmblemCtx.Provider, {
     value: setFocus
   }, /*#__PURE__*/React.createElement("div", {
@@ -6687,7 +6839,7 @@ function App() {
     className: "rail"
   }, /*#__PURE__*/React.createElement("div", {
     className: "wordmark"
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.4.0")), /*#__PURE__*/React.createElement("div", {
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.4.1")), /*#__PURE__*/React.createElement("div", {
     className: "decree"
   }, decree), /*#__PURE__*/React.createElement("div", {
     className: "nav"
