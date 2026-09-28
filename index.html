@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Book1.4.2</title>
+<title>Book1.5.0</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -169,6 +169,9 @@ table.plain tr.me td{background:rgba(200,16,46,.1)}
 }
 .nav button.unread,.tabbar button.unread{color:#ff6b7d}
 .mention{border-left:3px solid var(--brass);padding-left:8px;background:rgba(201,162,39,.08)}
+.hogstat{display:flex;justify-content:space-between;gap:12px;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--smoke);padding:9px 6px;color:var(--bone);font-size:15px}
+.hogstat.on{background:rgba(201,162,39,.12);border-left:3px solid var(--brass)}
+.hogstat .small{color:var(--ash);text-align:right}
 </style>
 </head>
 <body>
@@ -501,7 +504,7 @@ const {
 } = React;
 const STORE_KEY = 'book1.2-local';
 const CFG = window.BOOK_CONFIG || {};
-const APP_SQL_VERSION = 21; // bump this whenever a new SQL script adds or changes a server function
+const APP_SQL_VERSION = 22; // bump this whenever a new SQL script adds or changes a server function
 const CLOUD = !!(CFG.url && CFG.key);
 const ADMINS = ['Chef', 'Lorcan'];
 const DECREES = ['Abstention is not permitted.', 'The Book sees all results.', 'Ball difference is destiny.', 'The Dictator collects. The Dictator distributes.', 'Report your score. Report it honestly.', 'Twelfth place is a service to the office.', 'The mong off is not optional.', 'Disputes are settled by the regime.'];
@@ -675,6 +678,25 @@ const api = CLOUD ? {
     if (error) throw error;
     return data.version;
   },
+  async hogCard(cred) {
+    const {
+      data,
+      error
+    } = await sb.rpc('book_hog_card', {
+      p_name: cred.name,
+      p_pin: cred.pin
+    });
+    if (error) throw error;
+    return data;
+  },
+  async hogTable() {
+    const {
+      data,
+      error
+    } = await sb.rpc('book_hog_table');
+    if (error) throw error;
+    return data;
+  },
   async login(name, pin) {
     const {
       data,
@@ -832,6 +854,19 @@ const api = CLOUD ? {
   },
   async loadVersion() {
     return 0;
+  },
+  async hogCard(cred) {
+    const st = loadStore();
+    const w = st.weeks[st.weeks.length - 1];
+    if (!w.players.includes(cred.name)) return { week: w.n, in: false };
+    return { week: w.n, in: true, card: hogCardFor(hogSalt(), w.n, cred.name) };
+  },
+  async hogTable() {
+    const st = loadStore();
+    const w = st.weeks[st.weeks.length - 1];
+    const salt = hogSalt();
+    const order = w.players.map(pl => ({ pl, l: hogCardFor(salt, w.n, pl).length })).sort((x, y) => y.l - x.l || (x.pl < y.pl ? -1 : 1)).map(x => x.pl);
+    return { week: w.n, order };
   },
   async login(name, pin) {
     const pins = localPins();
@@ -2613,6 +2648,7 @@ function MatchBetting({
   balance
 }) {
   const cap = store.payouts.casinoMaxBet || 500;
+  const accaCap = store.payouts.accaMaxBet || 2000;
   const [slip, setSlip] = useState([]);
   const [stake, setStake] = useState(Math.min(50, balance || 0));
   const games = bettableGames(store).filter(g => g.p1 !== me && g.p2 !== me);
@@ -2633,7 +2669,7 @@ function MatchBetting({
   const prod = legs.reduce((t, l) => t * l.odds, 1);
   const totalOdds = isAcca ? Math.round(Math.min(200, prod) * 100) / 100 : legs[0] ? legs[0].odds : 0;
   const staked = !isAcca && legs[0] ? (store.bets || []).filter(b => b.player === me && b.game === legs[0].game && b.status === 'open').reduce((t, b) => t + b.stake, 0) : 0;
-  const maxStake = Math.max(0, Math.min(balance, cap - staked));
+  const maxStake = isAcca ? Math.max(0, Math.min(balance, accaCap)) : Math.max(0, Math.min(balance, cap - staked));
   const toggle = (g, pick) => {
     const has = slip.find(l => l.game === g.id);
     if (has && has.pick === pick) {
@@ -2682,7 +2718,7 @@ function MatchBetting({
   const on = (g, p) => slip.some(l => l.game === g.id && l.pick === p);
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", {
     className: "small muted"
-  }, "Bet chips on other people's matches. Tap selections in two or more different matches to build an accumulator: the odds multiply and every leg has to win. A voided leg drops out, combined odds are capped at 200, up to 6 legs. Odds come from each player's record and recent form and are locked when you bet. You can't bet on your own match, and bets close once anyone reports a score. Max ", cap.toLocaleString(), " chips per bet."), legs.length > 0 && /*#__PURE__*/React.createElement("div", {
+  }, "Bet chips on other people's matches. Tap selections in two or more different matches to build an accumulator: the odds multiply and every leg has to win. A voided leg drops out, combined odds are capped at 200, up to 6 legs. Odds come from each player's record and recent form and are locked when you bet. You can't bet on your own match, and bets close once anyone reports a score. Max ", cap.toLocaleString(), " chips on a single bet, ", accaCap.toLocaleString(), " on an accumulator."), legs.length > 0 && /*#__PURE__*/React.createElement("div", {
     className: "okbox",
     style: {
       marginBottom: 12
@@ -2968,7 +3004,7 @@ function CasinoPaywall({
     }
   }, "Not enough chips yet."));
 }
-function CasinoPage({
+function CasinoPageInner({
   store,
   me,
   cred,
@@ -3084,6 +3120,357 @@ function CasinoPage({
       marginTop: 10
     }
   }, "Chips top up when the regime closes a game week: ", cb, " base, +", cw, " per win, +", cd, " per point of positive ball difference. Nothing here is real money."))));
+}
+function HogsPage({
+  store,
+  me,
+  cred,
+  act,
+  toast
+}) {
+  const live = store.weeks[store.weeks.length - 1];
+  const weekN = live.n;
+  const inWeek = live.players.includes(me);
+  const cap = store.payouts.casinoMaxBet || 500;
+  const balance = chipsOf(store, me);
+  const [card, setCard] = useState(null);
+  const [table, setTable] = useState(null);
+  const [opp, setOpp] = useState('');
+  const [stat, setStat] = useState('length');
+  const [stake, setStake] = useState(Math.min(50, balance || 0));
+  useEffect(() => {
+    let stop = false;
+    (async () => {
+      try {
+        const c = await api.hogCard(cred);
+        const t = await api.hogTable();
+        if (!stop) {
+          setCard(c);
+          setTable(t);
+        }
+      } catch (e) {
+        if (!stop) toast(e.message);
+      }
+    })();
+    return () => {
+      stop = true;
+    };
+  }, [weekN, me]);
+  const others = live.players.filter(p => p !== me);
+  const target = others.includes(opp) ? opp : others[0] || '';
+  const duels = store.hogDuels || [];
+  const incoming = duels.filter(d => d.status === 'open' && d.opponent === me);
+  const outgoing = duels.filter(d => d.status === 'open' && d.challenger === me);
+  const done = [...duels].filter(d => d.status === 'done').reverse().slice(0, 8);
+  const order = table && table.order || [];
+  const rank = order.indexOf(me) + 1;
+  const statName = k => (HOG_STATS.find(x => x.k === k) || {}).name || k;
+  const maxStake = Math.max(0, Math.min(balance, cap));
+  const resultLine = d => {
+    const mine = d.challenger === me || d.opponent === me;
+    if (!d.winner) return d.challenger + ' and ' + d.opponent + ' drew on ' + statName(d.stat) + ', stakes returned';
+    const loser = d.winner === d.challenger ? d.opponent : d.challenger;
+    const nums = mine ? ' (' + hogShow(d.stat, d.vc) + ' v ' + hogShow(d.stat, d.vo) + ', ' + d.challenger + ' first)' : '';
+    return d.winner + ' out-hogged ' + loser + ' on ' + statName(d.stat) + ' and took ' + d.stake + ' chips' + nums;
+  };
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "page-title"
+  }, /*#__PURE__*/React.createElement("h1", null, "Hog Trumps"), /*#__PURE__*/React.createElement("span", {
+    className: "sub"
+  }, "Game week ", weekN, ". Your card is yours alone.")), !inWeek && /*#__PURE__*/React.createElement("div", {
+    className: "panel",
+    style: {
+      marginBottom: 18
+    }
+  }, /*#__PURE__*/React.createElement("p", {
+    className: "muted"
+  }, "You are not in this game week, so you have no hog. Come back when you are.")), inWeek && /*#__PURE__*/React.createElement("div", {
+    className: "panel",
+    style: {
+      marginBottom: 18
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "row spread"
+  }, /*#__PURE__*/React.createElement("h2", null, "Your hog, GW", weekN), rank > 0 && /*#__PURE__*/React.createElement("span", {
+    className: "stamp warn"
+  }, "rank ", rank, " of ", order.length)), /*#__PURE__*/React.createElement("p", {
+    className: "small muted"
+  }, rank > 0 ? hogTitle(rank, order.length) + '. ' : '', "Only you can see these numbers. Tap a stat to pick it for a challenge."), !card && /*#__PURE__*/React.createElement("p", {
+    className: "muted"
+  }, "Measuring…"), card && card.in && HOG_STATS.map(s => {
+    const v = card.card[s.k];
+    return /*#__PURE__*/React.createElement("button", {
+      key: s.k,
+      className: 'hogstat' + (stat === s.k ? ' on' : ''),
+      onClick: () => setStat(s.k)
+    }, /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, s.name), " ", hogShow(s.k, v)), /*#__PURE__*/React.createElement("span", {
+      className: "small"
+    }, hogLine(s.k, v)));
+  })), inWeek && /*#__PURE__*/React.createElement("div", {
+    className: "panel",
+    style: {
+      marginBottom: 18
+    }
+  }, /*#__PURE__*/React.createElement("h2", null, "Challenge someone"), /*#__PURE__*/React.createElement("p", {
+    className: "small muted"
+  }, "Pick a stat above, pick a victim, set a stake. If they accept, the higher number takes the pot. Only that one stat is ever revealed, and only to the two of you."), /*#__PURE__*/React.createElement("div", {
+    className: "row",
+    style: {
+      marginBottom: 8
+    }
+  }, /*#__PURE__*/React.createElement("select", {
+    value: target,
+    onChange: e => setOpp(e.target.value)
+  }, others.map(p => /*#__PURE__*/React.createElement("option", {
+    key: p
+  }, p))), /*#__PURE__*/React.createElement("span", null, "on ", /*#__PURE__*/React.createElement("b", null, statName(stat)))), /*#__PURE__*/React.createElement(BetBar, {
+    bet: stake,
+    setBet: setStake,
+    max: maxStake
+  }), /*#__PURE__*/React.createElement("button", {
+    className: "btn",
+    style: {
+      marginTop: 10
+    },
+    disabled: !target || stake < 10 || stake > maxStake,
+    onClick: () => act({
+      t: 'hogChallenge',
+      opponent: target,
+      stat,
+      stake,
+      by: me
+    })
+  }, "Challenge ", target, " for ", stake)), incoming.length > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "panel",
+    style: {
+      marginBottom: 18
+    }
+  }, /*#__PURE__*/React.createElement("h2", null, "Challenges for you"), incoming.map(d => /*#__PURE__*/React.createElement("div", {
+    key: d.id,
+    className: "row spread",
+    style: {
+      padding: '6px 0',
+      borderBottom: '1px solid var(--smoke)'
+    }
+  }, /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, d.challenger), " wants a hog off on ", /*#__PURE__*/React.createElement("b", null, statName(d.stat)), " for ", d.stake, " chips"), /*#__PURE__*/React.createElement("span", {
+    className: "row"
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "btn sm",
+    disabled: balance < d.stake,
+    onClick: () => act({
+      t: 'hogAccept',
+      id: d.id,
+      by: me
+    })
+  }, "Accept"), /*#__PURE__*/React.createElement("button", {
+    className: "btn sm ghost",
+    onClick: () => act({
+      t: 'hogDecline',
+      id: d.id,
+      by: me
+    })
+  }, "Decline"))))), outgoing.length > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "panel",
+    style: {
+      marginBottom: 18
+    }
+  }, /*#__PURE__*/React.createElement("h2", null, "Waiting on"), outgoing.map(d => /*#__PURE__*/React.createElement("div", {
+    key: d.id,
+    className: "row spread small",
+    style: {
+      padding: '6px 0',
+      borderBottom: '1px solid var(--smoke)'
+    }
+  }, /*#__PURE__*/React.createElement("span", null, "You challenged ", /*#__PURE__*/React.createElement("b", null, d.opponent), " on ", statName(d.stat), " for ", d.stake, " chips"), /*#__PURE__*/React.createElement("button", {
+    className: "btn sm ghost",
+    onClick: () => act({
+      t: 'hogCancel',
+      id: d.id,
+      by: me
+    })
+  }, "Cancel, refund")))), /*#__PURE__*/React.createElement("div", {
+    className: "grid g2"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "panel"
+  }, /*#__PURE__*/React.createElement("h2", null, "The Hog Table"), /*#__PURE__*/React.createElement("p", {
+    className: "small muted"
+  }, "Ranked by length, GW", weekN, ". Positions are public, the numbers never are."), /*#__PURE__*/React.createElement("table", {
+    className: "plain"
+  }, /*#__PURE__*/React.createElement("tbody", null, order.map((p, i) => /*#__PURE__*/React.createElement("tr", {
+    key: p,
+    className: p === me ? 'me' : ''
+  }, /*#__PURE__*/React.createElement("td", {
+    className: "n muted"
+  }, i + 1), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement(Nm, {
+    n: p,
+    size: 16
+  })), /*#__PURE__*/React.createElement("td", {
+    className: "small muted"
+  }, hogTitle(i + 1, order.length))))))), /*#__PURE__*/React.createElement("div", {
+    className: "panel"
+  }, /*#__PURE__*/React.createElement("h2", null, "Recent hog offs"), done.length === 0 && /*#__PURE__*/React.createElement("p", {
+    className: "muted small"
+  }, "Nobody has settled anything yet."), done.map(d => /*#__PURE__*/React.createElement("p", {
+    key: d.id,
+    className: "small",
+    style: {
+      margin: '6px 0'
+    }
+  }, resultLine(d))))));
+}
+function ChipRequestPanel({
+  store,
+  me,
+  dispatch
+}) {
+  const [open, setOpen] = useState(false);
+  const [amt, setAmt] = useState(500);
+  const [note, setNote] = useState('');
+  const mine = [...(store.chipRequests || [])].filter(r => r.player === me).reverse();
+  const last = mine[0];
+  const pend = mine.find(r => r.status === 'pending');
+  const send = () => {
+    dispatch({
+      t: 'requestChips',
+      amount: amt,
+      note,
+      by: me
+    });
+    setOpen(false);
+    setNote('');
+  };
+  return /*#__PURE__*/React.createElement("div", {
+    className: "panel",
+    style: {
+      marginTop: 18
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "row spread"
+  }, /*#__PURE__*/React.createElement("h2", null, "Skint?"), !pend && /*#__PURE__*/React.createElement("button", {
+    className: "btn sm ghost",
+    onClick: () => setOpen(o => !o)
+  }, "Request chips")), /*#__PURE__*/React.createElement("p", {
+    className: "small muted"
+  }, "Ask the dictator for a top-up. He can say yes, no, or a smaller number."), pend && /*#__PURE__*/React.createElement("div", {
+    className: "warnbox"
+  }, "Waiting on the dictator: you asked for ", pend.amount.toLocaleString(), " chips."), open && !pend && /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 8
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "row",
+    style: {
+      marginBottom: 8
+    }
+  }, [250, 500, 1000, 2000].map(v => /*#__PURE__*/React.createElement("button", {
+    key: v,
+    className: 'chip' + (amt === v ? ' on' : ''),
+    onClick: () => setAmt(v)
+  }, v)), /*#__PURE__*/React.createElement("input", {
+    className: "score",
+    style: {
+      width: 90
+    },
+    value: amt,
+    onChange: e => setAmt(Math.max(0, Math.floor(+e.target.value || 0)))
+  })), /*#__PURE__*/React.createElement("input", {
+    style: {
+      width: '100%',
+      marginBottom: 8
+    },
+    maxLength: 140,
+    placeholder: "Why should he say yes? (optional)",
+    value: note,
+    onChange: e => setNote(e.target.value)
+  }), /*#__PURE__*/React.createElement("button", {
+    className: "btn",
+    disabled: amt < 1 || amt > 5000,
+    onClick: send
+  }, "Send the request")), last && last.status === 'approved' && /*#__PURE__*/React.createElement("p", {
+    className: "small",
+    style: {
+      marginTop: 8
+    }
+  }, "Last request: approved, ", last.granted, " chips."), last && last.status === 'declined' && /*#__PURE__*/React.createElement("p", {
+    className: "small",
+    style: {
+      marginTop: 8
+    }
+  }, "Last request: declined."));
+}
+function ChipRequestsAdmin({
+  store,
+  dispatch,
+  me
+}) {
+  const all = [...(store.chipRequests || [])].reverse();
+  const pend = all.filter(r => r.status === 'pending');
+  const recent = all.filter(r => r.status !== 'pending').slice(0, 10);
+  const [amt, setAmt] = useState({});
+  return /*#__PURE__*/React.createElement("div", {
+    className: "panel"
+  }, /*#__PURE__*/React.createElement("h2", null, "Chip requests"), pend.length === 0 && /*#__PURE__*/React.createElement("p", {
+    className: "muted"
+  }, "Nobody is begging right now."), pend.map(r => /*#__PURE__*/React.createElement("div", {
+    key: r.id,
+    style: {
+      padding: '8px 0',
+      borderBottom: '1px solid var(--smoke)'
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("b", null, r.player), " wants ", r.amount.toLocaleString(), " chips ", /*#__PURE__*/React.createElement("span", {
+    className: "small muted"
+  }, "(has ", chipsOf(store, r.player).toLocaleString(), ")")), r.note && /*#__PURE__*/React.createElement("div", {
+    className: "small muted"
+  }, "\"", r.note, "\""), /*#__PURE__*/React.createElement("div", {
+    className: "row",
+    style: {
+      marginTop: 6
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    className: "score",
+    style: {
+      width: 90
+    },
+    value: amt[r.id] != null ? amt[r.id] : r.amount,
+    onChange: e => setAmt(a => ({
+      ...a,
+      [r.id]: e.target.value
+    }))
+  }), /*#__PURE__*/React.createElement("button", {
+    className: "btn sm",
+    onClick: () => dispatch({
+      t: 'resolveChipRequest',
+      id: r.id,
+      approve: true,
+      amount: +(amt[r.id] != null ? amt[r.id] : r.amount),
+      by: me
+    })
+  }, "Approve"), /*#__PURE__*/React.createElement("button", {
+    className: "btn sm ghost",
+    onClick: () => dispatch({
+      t: 'resolveChipRequest',
+      id: r.id,
+      approve: false,
+      by: me
+    })
+  }, "Decline")))), recent.length > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("h3", {
+    style: {
+      marginTop: 16
+    }
+  }, "Recent"), recent.map(r => /*#__PURE__*/React.createElement("p", {
+    key: r.id,
+    className: "small",
+    style: {
+      margin: '4px 0'
+    }
+  }, r.player, ": ", r.status === 'approved' ? 'approved ' + r.granted : 'declined', " (asked ", r.amount, ") by ", r.decidedBy))));
+}
+function CasinoPage(props) {
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(CasinoPageInner, props), /*#__PURE__*/React.createElement(ChipRequestPanel, {
+    store: props.store,
+    me: props.me,
+    dispatch: props.dispatch
+  }));
 }
 function WheelPrizesEditor({
   store,
@@ -4769,7 +5156,7 @@ function RegimePage({
   const [tScores, setTScores] = useState({});
   const [newName, setNewName] = useState('');
   const outstanding = w.players.filter(p => (w.paid[p] || 0) < po.entry);
-  const secs = [['queue', 'Approvals' + (queue.length ? ' (' + queue.length + ')' : '')], ['results', 'Enter results'], ['money', 'Treasury'], ['roll', 'Roll call'], ['week', 'Game week'], ['eightman', '8 Man'], ['cards', 'Cards'], ['players', 'Players'], ['data', 'Backup']];
+  const secs = [['queue', 'Approvals' + (queue.length ? ' (' + queue.length + ')' : '')], ['results', 'Enter results'], ['money', 'Treasury'], ['roll', 'Roll call'], ['week', 'Game week'], ['eightman', '8 Man'], ['cards', 'Cards'], ['chips', 'Chip requests'], ['players', 'Players'], ['data', 'Backup']];
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: "page-title"
   }, /*#__PURE__*/React.createElement("h1", null, "The regime"), /*#__PURE__*/React.createElement("span", {
@@ -5094,6 +5481,16 @@ function RegimePage({
     onChange: e => dispatch({
       t: 'payout',
       k: 'casinoMaxBet',
+      v: +e.target.value
+    })
+  })), /*#__PURE__*/React.createElement("label", {
+    className: "f"
+  }, "accumulator max bet", /*#__PURE__*/React.createElement("br", null), /*#__PURE__*/React.createElement("input", {
+    className: "score",
+    value: po.accaMaxBet || 2000,
+    onChange: e => dispatch({
+      t: 'payout',
+      k: 'accaMaxBet',
       v: +e.target.value
     })
   })), /*#__PURE__*/React.createElement("label", {
@@ -5673,7 +6070,11 @@ function RegimePage({
     })))));
   }), (!store.tournaments || store.tournaments.length === 0) && /*#__PURE__*/React.createElement("p", {
     className: "muted"
-  }, "Nothing on the go.")), sec === 'cards' && /*#__PURE__*/React.createElement(CardsEditor, {
+  }, "Nothing on the go.")), sec === 'chips' && /*#__PURE__*/React.createElement(ChipRequestsAdmin, {
+    store: store,
+    dispatch: dispatch,
+    me: me
+  }), sec === 'cards' && /*#__PURE__*/React.createElement(CardsEditor, {
     store: store,
     dispatch: dispatch,
     me: me
@@ -5911,6 +6312,169 @@ function settleBets(s, log) {
       log(b.player + ' lost ' + b.stake + ' chips betting on ' + b.pick + ' (' + b.label + ')');
     }
   });
+}
+const HOG_KEYS = ["length", "girth", "smell", "colour", "bush", "ratio", "firmness", "plumsize", "balance", "roundness"];
+const HOG_STATS = [{"k": "length", "name": "Length"}, {"k": "girth", "name": "Girth"}, {"k": "smell", "name": "Smell (higher is fresher)"}, {"k": "colour", "name": "Colour"}, {"k": "bush", "name": "Bush"}, {"k": "ratio", "name": "Shaft to head"}, {"k": "firmness", "name": "Firmness"}, {"k": "plumsize", "name": "Plum size"}, {"k": "balance", "name": "Balance"}, {"k": "roundness", "name": "Roundness"}];
+const HOG_TIERS = {
+ "length": [
+  "Barely a rumour. Visible under a microscope.",
+  "About the size of a AA battery cap.",
+  "A cocktail sausage. Cocktail, not sausage.",
+  "A stubby crayon.",
+  "A biro, lid on.",
+  "Solid mid-table. A ripe banana.",
+  "A cucumber you would nod at in Tesco.",
+  "A baguette. Customs will ask questions.",
+  "A rolling pin. Bakers step aside.",
+  "A full foot. It walks in before you do."
+ ],
+ "girth": [
+  "A cocktail stick.",
+  "A pencil.",
+  "A Twix, one finger only.",
+  "A small cigar.",
+  "A can of Lynx.",
+  "A toilet roll tube.",
+  "A Pringles tube.",
+  "A tin of Heinz beans.",
+  "A pint glass. Genuinely.",
+  "A wheelie bin. Get help."
+ ],
+ "smell": [
+  "Biological weapon. The Geneva Convention applies.",
+  "Wet dog in a heated car.",
+  "Gym bag at the bottom of a locker.",
+  "Bins in August.",
+  "Mildly suspicious.",
+  "Nothing to report. Unremarkable.",
+  "Fresh-ish. Soap has been mentioned.",
+  "A clean hotel towel.",
+  "A fabric softener advert.",
+  "A spring meadow at sunrise."
+ ],
+ "colour": [
+  "Ghost white. Has not seen sunlight since 2009.",
+  "Boiled ham.",
+  "Hospital corridor beige.",
+  "Uncooked chipolata pink.",
+  "A warm sausage roll.",
+  "A healthy glow, allegedly.",
+  "Sunburnt lobster.",
+  "Angry beetroot.",
+  "Royal purple.",
+  "A shade not found in nature. Radioactive."
+ ],
+ "bush": [
+  "Bald as a snooker ball.",
+  "A light dusting of frost.",
+  "Tidy stubble.",
+  "A well kept lawn.",
+  "A garden hedge, trimmed on Sundays.",
+  "Natural. Nothing to declare.",
+  "A proper shrubbery.",
+  "A rugged moor.",
+  "Sherwood Forest. Robin Hood lives in there.",
+  "The Amazon rainforest. Explorers vanish."
+ ],
+ "ratio": [
+  "All head, no shaft. A mushroom.",
+  "A thumbtack.",
+  "A golf tee, upside down.",
+  "A matchstick.",
+  "A Pringle, balanced.",
+  "Textbook proportions.",
+  "A lipstick.",
+  "A torch with sensible batteries.",
+  "A broom handle.",
+  "All shaft, no head. A telegraph pole."
+ ],
+ "firmness": [
+  "The firmness rating of a jellyfish.",
+  "A wet lettuce.",
+  "Cooked spaghetti.",
+  "A soft marshmallow.",
+  "A ripe avocado, past its best.",
+  "A firm handshake, sort of.",
+  "A raw carrot.",
+  "A cricket bat.",
+  "A railway sleeper.",
+  "Cold-rolled steel. A hazard at airports."
+ ],
+ "plumsize": [
+  "Two peas, one of them frozen.",
+  "A pair of grapes.",
+  "Cherry tomatoes.",
+  "A pair of walnuts.",
+  "Plums, as advertised.",
+  "A pair of kiwis.",
+  "A brace of satsumas.",
+  "Tennis balls, used.",
+  "Oranges, full size, no pips.",
+  "Grapefruits. A wheelbarrow is required."
+ ],
+ "balance": [
+  "The Leaning Tower of Pisa.",
+  "One is at the shops, the other stayed home.",
+  "Wonky, like a dodgy trolley wheel.",
+  "A slight lean. Blame gravity.",
+  "Just about level.",
+  "Symmetrical on a good day.",
+  "A well matched pair.",
+  "Weighted like dice.",
+  "A Swiss watch.",
+  "A spirit level. Calibrated."
+ ],
+ "roundness": [
+  "Two squashed rugby balls.",
+  "Eggs, more oval than round.",
+  "Flat tennis balls.",
+  "Lemons.",
+  "Slightly egg shaped.",
+  "Decently round.",
+  "Cricket balls.",
+  "Snooker balls, but not the black.",
+  "Ball bearings.",
+  "Perfect spheres. NASA has called."
+ ]
+};
+const HOG_TITLES = ["Hog of the Week", "Hog Royalty", "Big Game Hunter", "Serious Contender", "Solid Performer", "Mid-table Mediocrity", "Could Be Worse", "Growing on Us", "Grower, Not a Shower", "A Modest Proposal", "Fun Sized"];
+function hogTier(k, v) {
+  let f;
+  if (k === 'length') f = (v - 3) / 302;
+  else if (k === 'girth') f = (v - 15) / 165;
+  else f = (v - 1) / 100;
+  return Math.max(0, Math.min(9, Math.floor(f * 10)));
+}
+function hogLine(k, v) { return HOG_TIERS[k][hogTier(k, v)]; }
+function hogShow(k, v) {
+  if (k === 'length') return (v / 25.4).toFixed(1) + ' in (' + v + ' mm)';
+  if (k === 'girth') return v + ' mm round';
+  if (k === 'ratio') return (1 + v / 10).toFixed(1) + ':1';
+  return v + '/100';
+}
+function hogTitle(rank, n) {
+  if (rank <= 0) return '';
+  if (n > 1 && rank === n) return 'Small but Mighty (allegedly)';
+  return HOG_TITLES[Math.min(rank - 1, HOG_TITLES.length - 1)];
+}
+function hogSalt() {
+  let x = localStorage.getItem('book1.2-hogsalt');
+  if (!x) { x = Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem('book1.2-hogsalt', x); }
+  return x;
+}
+function hogU(salt, wk, pl, k) {
+  const str = salt + ':' + wk + ':' + pl + ':' + k;
+  let h = 1779033703 ^ str.length;
+  for (let i = 0; i < str.length; i++) { h = Math.imul(h ^ str.charCodeAt(i), 3432918353); h = h << 13 | h >>> 19; }
+  h = Math.imul(h ^ h >>> 16, 2246822507);
+  h = Math.imul(h ^ h >>> 13, 3266489909);
+  h ^= h >>> 16;
+  return (h >>> 0) / 4294967296;
+}
+function hogCardFor(salt, wk, pl) {
+  const u = k => hogU(salt, wk, pl, k);
+  const one = k => 1 + Math.floor(100 * u(k));
+  return { length: 3 + Math.floor(302 * (u('len1') + u('len2')) / 2), girth: 15 + Math.floor(165 * (u('gir1') + u('gir2')) / 2), smell: one('smell'), colour: one('colour'), bush: one('bush'), ratio: one('ratio'), firmness: one('firm'), plumsize: one('plum'), balance: one('bal'), roundness: one('round') };
 }
 function findGame(store, id) {
   for (const w of store.weeks) {
@@ -6396,7 +6960,7 @@ function reduce(store, a) {
         if (legsIn.length < 2 || legsIn.length > 6) throw new Error('An accumulator needs 2 to 6 selections.');
         const stake = Math.floor(+a.stake);
         if (!(stake > 0)) throw new Error('Bad stake.');
-        const cap = s.payouts.casinoMaxBet || 500;
+        const cap = s.payouts.accaMaxBet || 2000;
         if (stake > cap) throw new Error('Max ' + cap + ' chips on a bet.');
         s.chips = s.chips || {};
         const cur = s.chips[a.by] != null ? s.chips[a.by] : 1000;
@@ -6422,6 +6986,95 @@ function reduce(store, a) {
         s.bets = s.bets || [];
         s.bets.push({ id: 'b' + Date.now(), player: a.by, type: 'acca', legs, label: 'Acca (' + legs.length + ')', stake, odds: combined, status: 'open', payout: 0, placedAt: Date.now() });
         log(`${a.by} bet ${stake} chips on a ${legs.length}-leg accumulator at ${combined}`);
+        break;
+      }
+    case 'requestChips':
+      {
+        const amount = Math.floor(+a.amount);
+        if (!(amount >= 1 && amount <= 5000)) throw new Error('Ask for between 1 and 5,000 chips.');
+        s.chipRequests = s.chipRequests || [];
+        if (s.chipRequests.some(r => r.player === a.by && r.status === 'pending')) throw new Error('You already have a request waiting for the dictator.');
+        s.chipRequests.push({ id: 'r' + Date.now(), player: a.by, amount, note: String(a.note || '').slice(0, 140), status: 'pending', at: Date.now() });
+        log(`${a.by} asked the dictator for ${amount} chips`);
+        break;
+      }
+    case 'resolveChipRequest':
+      {
+        const r = (s.chipRequests || []).find(x => x.id === a.id && x.status === 'pending');
+        if (!r) throw new Error('That request has already been dealt with.');
+        if (a.approve) {
+          const amt = Math.floor(+a.amount);
+          if (!(amt >= 1 && amt <= 50000)) throw new Error('Give between 1 and 50,000 chips.');
+          s.chips = s.chips || {};
+          const cur = s.chips[r.player] != null ? s.chips[r.player] : 1000;
+          s.chips[r.player] = cur + amt;
+          r.status = 'approved';
+          r.granted = amt;
+          log(`${a.by} gave ${r.player} ${amt} chips`);
+        } else {
+          r.status = 'declined';
+          log(`${a.by} refused ${r.player}'s chip request`);
+        }
+        r.decidedBy = a.by;
+        r.decidedAt = Date.now();
+        break;
+      }
+    case 'hogChallenge':
+      {
+        const w = s.weeks[s.weeks.length - 1];
+        if (!w.players.includes(a.by)) throw new Error('You are not in this game week, so you have no hog.');
+        if (!a.opponent || a.opponent === a.by) throw new Error('Pick someone else to challenge.');
+        if (!w.players.includes(a.opponent)) throw new Error('They are not in this game week.');
+        if (!HOG_KEYS.includes(a.stat)) throw new Error('Pick a stat.');
+        const stake = Math.floor(+a.stake);
+        const cap = s.payouts.casinoMaxBet || 500;
+        if (!(stake >= 10)) throw new Error('The minimum stake is 10 chips.');
+        if (stake > cap) throw new Error('Max ' + cap + ' chips on a challenge.');
+        s.chips = s.chips || {};
+        const cur = s.chips[a.by] != null ? s.chips[a.by] : 1000;
+        if (stake > cur) throw new Error('You cannot bet more than your chip balance.');
+        s.hogDuels = s.hogDuels || [];
+        if (s.hogDuels.filter(x => x.challenger === a.by && x.status === 'open').length >= 3) throw new Error('You already have 3 open challenges.');
+        s.chips[a.by] = cur - stake;
+        s.hogDuels.push({ id: 'h' + Date.now(), week: w.n, challenger: a.by, opponent: a.opponent, stat: a.stat, stake, status: 'open', at: Date.now() });
+        log(`${a.by} challenged ${a.opponent} to a hog off on ${a.stat} for ${stake} chips`);
+        break;
+      }
+    case 'hogAccept':
+      {
+        const d = (s.hogDuels || []).find(x => x.id === a.id);
+        if (!d) throw new Error('That challenge is gone.');
+        if (d.status !== 'open') throw new Error('That challenge is already settled.');
+        if (d.opponent !== a.by) throw new Error('That challenge is not for you.');
+        s.chips = s.chips || {};
+        const oc = s.chips[a.by] != null ? s.chips[a.by] : 1000;
+        if (d.stake > oc) throw new Error('You cannot bet more than your chip balance.');
+        const salt = hogSalt();
+        const v1 = hogCardFor(salt, d.week, d.challenger)[d.stat];
+        const v2 = hogCardFor(salt, d.week, a.by)[d.stat];
+        const cc = s.chips[d.challenger] != null ? s.chips[d.challenger] : 1000;
+        if (v1 > v2) { s.chips[d.challenger] = cc + 2 * d.stake; s.chips[a.by] = oc - d.stake; d.winner = d.challenger; }
+        else if (v2 > v1) { s.chips[a.by] = oc + d.stake; d.winner = a.by; }
+        else { s.chips[d.challenger] = cc + d.stake; d.winner = null; }
+        d.status = 'done';
+        d.vc = v1;
+        d.vo = v2;
+        d.doneAt = Date.now();
+        log(`${d.challenger} and ${a.by} had a hog off on ${d.stat} for ${d.stake} chips: ${d.winner ? d.winner + ' won' : 'a draw'}`);
+        break;
+      }
+    case 'hogDecline':
+    case 'hogCancel':
+      {
+        const d = (s.hogDuels || []).find(x => x.id === a.id);
+        if (!d) throw new Error('That challenge is gone.');
+        if (d.status !== 'open') throw new Error('That challenge is already settled.');
+        if (a.t === 'hogDecline' && d.opponent !== a.by) throw new Error('That challenge is not for you.');
+        if (a.t === 'hogCancel' && d.challenger !== a.by) throw new Error('That is not your challenge.');
+        s.chips = s.chips || {};
+        s.chips[d.challenger] = (s.chips[d.challenger] != null ? s.chips[d.challenger] : 1000) + d.stake;
+        d.status = a.t === 'hogDecline' ? 'declined' : 'cancelled';
+        log(`${a.by} ${a.t === 'hogDecline' ? 'declined' : 'cancelled'} a hog off, ${d.stake} chips back to ${d.challenger}`);
         break;
       }
     case 'setCardCatalog':
@@ -6560,7 +7213,7 @@ function Login({
     style: {
       fontSize: 96
     }
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.4.2")), /*#__PURE__*/React.createElement("p", {
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.5.0")), /*#__PURE__*/React.createElement("p", {
     className: "muted"
   }, "Twelve players. Six games. One office. Report to the table."), /*#__PURE__*/React.createElement("div", {
     className: "pinbox"
@@ -6672,7 +7325,7 @@ function App() {
     const off = api.subscribeChat(check, 'chat-badge');
     return () => { alive = false; clearInterval(iv); off(); };
   }, [me, tab]);
-  useEffect(() => { document.title = (chatUnread > 0 ? '(' + chatUnread + ') ' : '') + 'Book1.4.2'; }, [chatUnread]);
+  useEffect(() => { document.title = (chatUnread > 0 ? '(' + chatUnread + ') ' : '') + 'Book1.5.0'; }, [chatUnread]);
   const cloudEmpty = !!(store && !store.weeks);
   const persistCred = c => {
     setCred(c);
@@ -6704,7 +7357,7 @@ function App() {
           refresh();
         } else toast('Not saved: ' + e.message);
       }
-    } else if (cred && (a.t === 'submit' || a.t === 'rollcall' || a.t === 'profile' || a.t === 'recall' || a.t === 'casino' || a.t === 'tourneyVote' || a.t === 'ping' || a.t === 'predict' || a.t === 'equipCard' || a.t === 'unlock' || a.t === 'placeBet' || a.t === 'placeAcca')) {
+    } else if (cred && (a.t === 'submit' || a.t === 'rollcall' || a.t === 'profile' || a.t === 'recall' || a.t === 'casino' || a.t === 'tourneyVote' || a.t === 'ping' || a.t === 'predict' || a.t === 'equipCard' || a.t === 'unlock' || a.t === 'placeBet' || a.t === 'placeAcca' || a.t === 'requestChips')) {
       try {
         await api.playerAction(cred, a);
         await refresh();
@@ -6761,6 +7414,14 @@ function App() {
       return null;
     }
   };
+  const hogAct = async a => {
+    try {
+      await api.playerAction(cred, a);
+      await refresh();
+    } catch (e) {
+      toast(e.message);
+    }
+  };
   const initCloud = async () => {
     const seed = buildStore();
     try {
@@ -6777,7 +7438,7 @@ function App() {
     style: {
       fontSize: 96
     }
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.4.2"));
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.5.0"));
   if (!store) return /*#__PURE__*/React.createElement("div", {
     className: "login"
   }, mark, /*#__PURE__*/React.createElement("p", {
@@ -6822,10 +7483,10 @@ function App() {
     onClick: () => persistCred(undefined)
   }, "Log out"));
   const wIdx = weekIdx == null ? store.weeks.length - 1 : Math.min(weekIdx, store.weeks.length - 1);
-  const tabs = [['table', 'Table'], ['me', 'My book'], ['casino', 'Casino'], ['eightman', '8 Man'], ['predict', 'Predictions'], ['chat', 'Chat'], ['master', 'Master'], ['stats', 'Dossier'], ['ko', 'Knockout']];
+  const tabs = [['table', 'Table'], ['me', 'My book'], ['casino', 'Casino'], ['hogs', 'Hogs'], ['eightman', '8 Man'], ['predict', 'Predictions'], ['chat', 'Chat'], ['master', 'Master'], ['stats', 'Dossier'], ['ko', 'Knockout']];
   if (isAdmin) tabs.push(['regime', 'Regime']);
   const live = store.weeks[store.weeks.length - 1];
-  const pending = isAdmin ? live.fixtures.concat(live.playoffs).filter(g => g.status === 'disputed').length : 0;
+  const pending = isAdmin ? live.fixtures.concat(live.playoffs).filter(g => g.status === 'disputed').length + (store.chipRequests || []).filter(r => r.status === 'pending').length : 0;
   const page = tab === 'table' ? /*#__PURE__*/React.createElement(TablePage, {
     store: store,
     me: me,
@@ -6857,7 +7518,15 @@ function App() {
   }, /*#__PURE__*/React.createElement("h2", null, "Log in to play."), /*#__PURE__*/React.createElement("button", {
     className: "btn",
     onClick: () => persistCred(undefined)
-  }, "Log in")) : tab === 'eightman' ? /*#__PURE__*/React.createElement(EightManPage, {
+  }, "Log in")) : tab === 'hogs' ? me ? /*#__PURE__*/React.createElement(HogsPage, {
+    store: store,
+    me: me,
+    cred: cred,
+    act: hogAct,
+    toast: toast
+  }) : /*#__PURE__*/React.createElement("div", {
+    className: "panel"
+  }, "Log in to see your hog.") : tab === 'eightman' ? /*#__PURE__*/React.createElement(EightManPage, {
     store: store,
     me: me,
     dispatch: dispatch,
@@ -6914,7 +7583,7 @@ function App() {
     className: "rail"
   }, /*#__PURE__*/React.createElement("div", {
     className: "wordmark"
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.4.2")), /*#__PURE__*/React.createElement("div", {
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.5.0")), /*#__PURE__*/React.createElement("div", {
     className: "decree"
   }, decree), /*#__PURE__*/React.createElement("div", {
     className: "nav"
