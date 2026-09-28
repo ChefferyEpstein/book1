@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Book1.4.1</title>
+<title>Book1.4.2</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -501,7 +501,7 @@ const {
 } = React;
 const STORE_KEY = 'book1.2-local';
 const CFG = window.BOOK_CONFIG || {};
-const APP_SQL_VERSION = 20; // bump this whenever a new SQL script adds or changes a server function
+const APP_SQL_VERSION = 21; // bump this whenever a new SQL script adds or changes a server function
 const CLOUD = !!(CFG.url && CFG.key);
 const ADMINS = ['Chef', 'Lorcan'];
 const DECREES = ['Abstention is not permitted.', 'The Book sees all results.', 'Ball difference is destiny.', 'The Dictator collects. The Dictator distributes.', 'Report your score. Report it honestly.', 'Twelfth place is a service to the office.', 'The mong off is not optional.', 'Disputes are settled by the regime.'];
@@ -667,6 +667,14 @@ const api = CLOUD ? {
     if (error) throw error;
     return data;
   },
+  async loadVersion() {
+    const {
+      data,
+      error
+    } = await sb.from('book').select('version').eq('id', 1).single();
+    if (error) throw error;
+    return data.version;
+  },
   async login(name, pin) {
     const {
       data,
@@ -731,7 +739,7 @@ const api = CLOUD ? {
     const ch = sb.channel('book').on('postgres_changes', {
       event: 'UPDATE',
       schema: 'public',
-      table: 'book'
+      table: 'book_pulse'
     }, () => fn()).subscribe();
     return () => sb.removeChannel(ch);
   },
@@ -739,7 +747,7 @@ const api = CLOUD ? {
     const {
       data,
       error
-    } = await sb.from('chat_messages').select('id,author,body,created_at').order('id', {
+    } = await sb.from('chat_messages').select('id,author,body,image_url,created_at').order('id', {
       ascending: false
     }).limit(limit || 150);
     if (error) throw error;
@@ -763,7 +771,8 @@ const api = CLOUD ? {
     const {
       error
     } = await sb.storage.from('chat-images').upload(path, file, {
-      contentType: file.type
+      contentType: file.type,
+      cacheControl: '31536000'
     });
     if (error) throw error;
     const {
@@ -820,6 +829,9 @@ const api = CLOUD ? {
       data: loadStore(),
       version: 0
     };
+  },
+  async loadVersion() {
+    return 0;
   },
   async login(name, pin) {
     const pins = localPins();
@@ -4320,6 +4332,65 @@ function PredictionsPage({
     className: "n"
   }, Math.round(100 * r.correct / r.total), "%"))))))));
 }
+async function shrinkImage(file) {
+  if (!/^image\/(jpeg|png|webp)$/.test(file.type)) return file;
+  try {
+    const bmp = await createImageBitmap(file);
+    const sc = Math.min(1, 1280 / Math.max(bmp.width, bmp.height));
+    const w = Math.round(bmp.width * sc), h = Math.round(bmp.height * sc);
+    const cv = document.createElement('canvas');
+    cv.width = w; cv.height = h;
+    const cx = cv.getContext('2d');
+    cx.fillStyle = '#fff'; cx.fillRect(0, 0, w, h);
+    cx.drawImage(bmp, 0, 0, w, h);
+    const blob = await new Promise(r => cv.toBlob(r, 'image/jpeg', 0.8));
+    if (!blob || blob.size >= file.size) return file;
+    return new File([blob], (file.name || 'photo').replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' });
+  } catch (e) { return file; }
+}
+function ChatImage({
+  url
+}) {
+  const [bad, setBad] = useState(null);
+  const onErr = async () => {
+    let code = 'blocked';
+    try {
+      const r = await fetch(url, {
+        method: 'HEAD'
+      });
+      code = 'HTTP ' + r.status;
+    } catch (e) {}
+    setBad(code);
+  };
+  if (bad) return /*#__PURE__*/React.createElement("div", {
+    className: "small muted",
+    style: {
+      marginTop: 4
+    }
+  }, "Photo won't load (", bad, "). ", /*#__PURE__*/React.createElement("a", {
+    href: url,
+    target: "_blank",
+    rel: "noreferrer",
+    style: {
+      color: 'var(--brass)'
+    }
+  }, "Open it directly"));
+  return /*#__PURE__*/React.createElement("img", {
+    src: url,
+    alt: "",
+    loading: "lazy",
+    decoding: "async",
+    onError: onErr,
+    style: {
+      maxWidth: 240,
+      maxHeight: 240,
+      borderRadius: 6,
+      display: 'block',
+      marginTop: 4,
+      border: '1px solid var(--smoke)'
+    }
+  });
+}
 function ChatPage({
   me,
   cred,
@@ -4342,7 +4413,7 @@ function ChatPage({
   useEffect(() => {
     load();
     const off = api.subscribeChat(m => setMsgs(x => x.some(y => y.id === m.id) ? x : [...x, m]));
-    const iv = setInterval(load, 15000);
+    const iv = setInterval(() => { if (!document.hidden) load(); }, 45000);
     return () => {
       off();
       clearInterval(iv);
@@ -4374,14 +4445,14 @@ function ChatPage({
     const f = e.target.files[0];
     e.target.value = '';
     if (!f || !me || !cred) return;
-    if (f.size > 5 * 1024 * 1024) {
-      setImgErr('That file is ' + Math.round(f.size / 1024 / 1024 * 10) / 10 + 'MB. Images are capped at 5MB.');
+    if (f.size > 25 * 1024 * 1024) {
+      setImgErr('That file is ' + Math.round(f.size / 1024 / 1024 * 10) / 10 + 'MB. Images are capped at 25MB.');
       return;
     }
     setSending(true);
     setImgErr('');
     try {
-      const url = await api.uploadImage(f);
+      const url = await api.uploadImage(await shrinkImage(f));
       await api.sendMessage(cred, body.trim(), url);
       setBody('');
       await load();
@@ -4432,17 +4503,8 @@ function ChatPage({
     month: 'short',
     hour: '2-digit',
     minute: '2-digit'
-  }))), m.body && /*#__PURE__*/React.createElement("div", null, m.body), m.image_url && /*#__PURE__*/React.createElement("img", {
-    src: m.image_url,
-    alt: "",
-    style: {
-      maxWidth: 240,
-      maxHeight: 240,
-      borderRadius: 6,
-      display: 'block',
-      marginTop: 4,
-      border: '1px solid var(--smoke)'
-    }
+  }))), m.body && /*#__PURE__*/React.createElement("div", null, m.body), m.image_url && /*#__PURE__*/React.createElement(ChatImage, {
+    url: m.image_url
   }))), /*#__PURE__*/React.createElement("div", {
     ref: bottomRef
   })), imgErr && /*#__PURE__*/React.createElement("div", {
@@ -6466,6 +6528,7 @@ function reduce(store, a) {
     case 'replace':
       return a.store;
   }
+  if (s.log && s.log.length > 300) s.log = s.log.slice(-300);
   settleBets(s, log);
   return s;
 }
@@ -6497,7 +6560,7 @@ function Login({
     style: {
       fontSize: 96
     }
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.4.1")), /*#__PURE__*/React.createElement("p", {
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.4.2")), /*#__PURE__*/React.createElement("p", {
     className: "muted"
   }, "Twelve players. Six games. One office. Report to the table."), /*#__PURE__*/React.createElement("div", {
     className: "pinbox"
@@ -6548,6 +6611,8 @@ function App() {
     setMsg(t);
     setTimeout(() => setMsg(''), 3200);
   };
+  const versionRef = useRef(null);
+  useEffect(() => { versionRef.current = version; }, [version]);
   const refresh = async () => {
     try {
       const r = await api.load();
@@ -6560,12 +6625,22 @@ function App() {
   };
   useEffect(() => {
     refresh();
-    const off = api.subscribe(refresh);
-    const iv = setInterval(refresh, 60000);
+    let t = null;
+    const soon = () => { clearTimeout(t); t = setTimeout(refresh, 700); };
+    const off = api.subscribe(soon);
+    const tick = async () => {
+      if (document.hidden) return;
+      try { const v = await api.loadVersion(); if (v !== versionRef.current) await refresh(); } catch (e) {}
+    };
+    const iv = setInterval(tick, 60000);
+    const vis = () => { if (!document.hidden) tick(); };
+    document.addEventListener('visibilitychange', vis);
     api.getServerVersion().then(setDbVersion);
     return () => {
       off();
       clearInterval(iv);
+      clearTimeout(t);
+      document.removeEventListener('visibilitychange', vis);
     };
   }, []);
   PROF = store && store.profiles || {};
@@ -6593,11 +6668,11 @@ function App() {
       } catch (e) {}
     };
     check();
-    const iv = setInterval(check, 20000);
+    const iv = setInterval(() => { if (!document.hidden) check(); }, 60000);
     const off = api.subscribeChat(check, 'chat-badge');
     return () => { alive = false; clearInterval(iv); off(); };
   }, [me, tab]);
-  useEffect(() => { document.title = (chatUnread > 0 ? '(' + chatUnread + ') ' : '') + 'Book1.4.1'; }, [chatUnread]);
+  useEffect(() => { document.title = (chatUnread > 0 ? '(' + chatUnread + ') ' : '') + 'Book1.4.2'; }, [chatUnread]);
   const cloudEmpty = !!(store && !store.weeks);
   const persistCred = c => {
     setCred(c);
@@ -6702,7 +6777,7 @@ function App() {
     style: {
       fontSize: 96
     }
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.4.1"));
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.4.2"));
   if (!store) return /*#__PURE__*/React.createElement("div", {
     className: "login"
   }, mark, /*#__PURE__*/React.createElement("p", {
@@ -6839,7 +6914,7 @@ function App() {
     className: "rail"
   }, /*#__PURE__*/React.createElement("div", {
     className: "wordmark"
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.4.1")), /*#__PURE__*/React.createElement("div", {
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.4.2")), /*#__PURE__*/React.createElement("div", {
     className: "decree"
   }, decree), /*#__PURE__*/React.createElement("div", {
     className: "nav"
