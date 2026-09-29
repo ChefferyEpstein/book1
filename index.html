@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Book1.5.2</title>
+<title>Book1.5.3</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -2023,6 +2023,7 @@ function BetBar({
     onClick: () => setBet(max)
   }, "Max"));
 }
+const WHEEL_ORDER = [0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26];
 function Roulette({
   balance,
   onResult,
@@ -2034,13 +2035,22 @@ function Roulette({
   const [spinning, setSpinning] = useState(false);
   const [result, setResult] = useState(null);
   const [angle, setAngle] = useState(0);
+  const n37 = WHEEL_ORDER.length,
+    step = 360 / n37;
+  const wedgeColour = v => v === 0 ? '#0a5c2b' : isRed(v) ? 'var(--blood)' : '#161616';
+  const grad = 'conic-gradient(' + WHEEL_ORDER.map((v, i) => wedgeColour(v) + ' ' + i * step + 'deg ' + (i + 1) * step + 'deg').join(', ') + ')';
   const spin = () => {
-    if (bet <= 0 || bet > balance) return;
+    if (bet <= 0 || bet > balance || spinning) return;
     setSpinning(true);
     setResult(null);
-    setAngle(a => a + 360 * 5 + Math.floor(Math.random() * 360));
+    const n = Math.floor(Math.random() * 37);
+    const idx = WHEEL_ORDER.indexOf(n);
+    const target = (360 - (idx * step + step / 2) + 360) % 360;
+    setAngle(a => {
+      const base = a - a % 360 + 360 * 5;
+      return base + target;
+    });
     setTimeout(() => {
-      const n = Math.floor(Math.random() * 37);
       const win = pick === 'straight' ? n === num : pick === 'red' ? isRed(n) : pick === 'black' ? n !== 0 && !isRed(n) : pick === 'odd' ? n !== 0 && n % 2 === 1 : n !== 0 && n % 2 === 0;
       const net = win ? pick === 'straight' ? bet * 35 : bet : -bet;
       setResult({
@@ -2050,11 +2060,11 @@ function Roulette({
       });
       setSpinning(false);
       onResult('roulette', bet, net);
-    }, 1300);
+    }, 1900);
   };
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", {
     className: "small muted"
-  }, "Pick red, black, odd, even (pays 1:1), or a single number straight-up (pays 35:1)."), /*#__PURE__*/React.createElement("div", {
+  }, "Pick red, black, odd, even (pays 1:1), or a single number straight-up (pays 35:1). European single-zero wheel, 37 pockets."), /*#__PURE__*/React.createElement("div", {
     style: {
       width: 0,
       height: 0,
@@ -2067,29 +2077,40 @@ function Roulette({
     }
   }), /*#__PURE__*/React.createElement("div", {
     style: {
-      width: 110,
-      height: 110,
+      width: 190,
+      height: 190,
       margin: '6px auto 12px',
       borderRadius: '50%',
       position: 'relative',
       overflow: 'hidden',
       border: '4px solid var(--brass)',
-      transition: spinning ? 'transform 1.3s cubic-bezier(.15,.65,.3,1.4)' : 'none',
+      transition: spinning ? 'transform 1.9s cubic-bezier(.12,.7,.25,1)' : 'none',
       transform: 'rotate(' + angle + 'deg)',
-      background: 'repeating-conic-gradient(#111 0deg 9.7deg, var(--blood) 9.7deg 19.4deg)'
+      background: grad
     }
-  }, /*#__PURE__*/React.createElement("div", {
+  }, WHEEL_ORDER.map((v, i) => /*#__PURE__*/React.createElement("span", {
+    key: i,
     style: {
       position: 'absolute',
       left: '50%',
-      top: 6,
-      width: 12,
-      height: 12,
-      marginLeft: -6,
+      top: '50%',
+      transform: 'rotate(' + (i * step + step / 2) + 'deg) translate(0,-80px) rotate(-' + (i * step + step / 2) + 'deg) translate(-50%,-50%)',
+      fontSize: 9,
+      fontWeight: 700,
+      color: '#fff'
+    }
+  }, v)), /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: 'absolute',
+      left: '50%',
+      top: '50%',
+      width: 44,
+      height: 44,
+      marginLeft: -22,
+      marginTop: -22,
       borderRadius: '50%',
-      background: '#fff',
-      border: '2px solid var(--ok)',
-      boxShadow: '0 0 4px rgba(0,0,0,.6)'
+      background: 'var(--felt-deep)',
+      border: '2px solid var(--brass)'
     }
   })), /*#__PURE__*/React.createElement("div", {
     className: "row",
@@ -2148,59 +2169,139 @@ function Blackjack({
 }) {
   const [bet, setBet] = useState(Math.min(50, balance || 0));
   const [deck, setDeck] = useState(null);
-  const [pl, setPl] = useState([]);
+  const [hands, setHands] = useState(null);
+  const [active, setActive] = useState(0);
   const [dl, setDl] = useState([]);
   const [phase, setPhase] = useState('bet');
-  const [outcome, setOutcome] = useState(null);
+  const [outcomes, setOutcomes] = useState(null);
+  const rankOf = c => c.slice(0, -1);
+  const canSplit = phase === 'playing' && hands && hands.length === 1 && hands[0].cards.length === 2 && rankOf(hands[0].cards[0]) === rankOf(hands[0].cards[1]) && bet * 2 <= balance;
+  const canDouble = phase === 'playing' && hands && hands[active] && hands[active].cards.length === 2 && bet * 2 <= balance;
+  const settle = (finalHands, dHand) => {
+    setDl(dHand);
+    const ht = bjTotal(dHand);
+    const results = finalHands.map(hd => {
+      const pt = bjTotal(hd.cards);
+      let net;
+      if (pt > 21) net = -hd.wager;else if (hd.natural && pt === 21 && !(ht === 21)) net = Math.floor(hd.wager * 1.5);else if (ht > 21) net = hd.wager;else if (pt > ht) net = hd.wager;else if (pt < ht) net = -hd.wager;else net = 0;
+      return {
+        pt,
+        net,
+        wager: hd.wager,
+        cards: hd.cards
+      };
+    });
+    setOutcomes(results);
+    setPhase('result');
+    const totalNet = results.reduce((t, r) => t + r.net, 0);
+    const totalWager = results.reduce((t, r) => t + r.wager, 0);
+    onResult('blackjack', totalWager, totalNet);
+  };
+  const playDealerIfNeeded = (finalHands, d) => {
+    let h = [...dl];
+    if (finalHands.some(hd => bjTotal(hd.cards) <= 21)) {
+      while (bjTotal(h) < 17) h.push(d.pop());
+    }
+    setDeck(d);
+    settle(finalHands, h);
+  };
+  const advance = (updated, d) => {
+    if (active < updated.length - 1) {
+      setHands(updated);
+      setActive(active + 1);
+      setDeck(d);
+    } else {
+      playDealerIfNeeded(updated, d);
+    }
+  };
   const deal = () => {
     if (bet <= 0 || bet > balance) return;
     const d = shuffled();
     const p = [d.pop(), d.pop()];
     const h = [d.pop(), d.pop()];
     setDeck(d);
-    setPl(p);
     setDl(h);
+    setActive(0);
     if (bjTotal(p) === 21) {
-      finish(p, h, d);
-    } else setPhase('playing');
+      settle([{
+        cards: p,
+        wager: bet,
+        natural: true
+      }], h);
+    } else {
+      setHands([{
+        cards: p,
+        wager: bet,
+        natural: false
+      }]);
+      setPhase('playing');
+    }
+  };
+  const split = () => {
+    if (!canSplit) return;
+    const d = [...deck];
+    const h0 = hands[0];
+    const aces = rankOf(h0.cards[0]) === 'A';
+    const a = {
+      cards: [h0.cards[0], d.pop()],
+      wager: bet,
+      natural: false
+    };
+    const b = {
+      cards: [h0.cards[1], d.pop()],
+      wager: bet,
+      natural: false
+    };
+    setDeck(d);
+    if (aces) {
+      setHands([a, b]);
+      playDealerIfNeeded([a, b], d);
+    } else {
+      setHands([a, b]);
+      setActive(0);
+    }
   };
   const hit = () => {
     const d = [...deck];
-    const p = [...pl, d.pop()];
-    setDeck(d);
-    setPl(p);
-    if (bjTotal(p) > 21) finish(p, dl, d);
+    const h = hands[active];
+    const nc = [...h.cards, d.pop()];
+    const updated = hands.map((x, i) => i === active ? {
+      ...x,
+      cards: nc
+    } : x);
+    if (bjTotal(nc) > 21) {
+      advance(updated, d);
+    } else {
+      setHands(updated);
+      setDeck(d);
+    }
   };
   const stand = () => {
-    let d = [...deck];
-    let h = [...dl];
-    while (bjTotal(h) < 17) h.push(d.pop());
-    finish(pl, h, d);
+    advance(hands, [...deck]);
   };
-  const finish = (p, h, d) => {
-    setDl(h);
-    setDeck(d);
-    const pt = bjTotal(p),
-      ht = bjTotal(h);
-    let net;
-    if (pt > 21) net = -bet;else if (pt === 21 && p.length === 2 && !(ht === 21 && h.length === 2)) net = Math.floor(bet * 1.5);else if (ht > 21) net = bet;else if (pt > ht) net = bet;else if (pt < ht) net = -bet;else net = 0;
-    setOutcome({
-      pt,
-      ht,
-      net
-    });
-    setPhase('result');
-    onResult('blackjack', bet, net);
+  const double = () => {
+    if (!canDouble) return;
+    const d = [...deck];
+    const h = hands[active];
+    const nc = [...h.cards, d.pop()];
+    const updated = hands.map((x, i) => i === active ? {
+      ...x,
+      cards: nc,
+      wager: bet * 2
+    } : x);
+    advance(updated, d);
   };
   const again = () => {
     setPhase('bet');
-    setPl([]);
+    setHands(null);
     setDl([]);
-    setOutcome(null);
+    setOutcomes(null);
+    setActive(0);
   };
+  const isSplit = hands && hands.length === 2;
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", {
     className: "small muted"
-  }, "Standard rules, single hand, dealer stands on 17. Blackjack pays 3:2."), phase === 'bet' && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(BetBar, {
+  }, "Standard rules, single hand, dealer stands on 17, blackjack pays 3:2. Double down on your first two cards, split equal pairs into two hands."), phase === 'bet' && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(BetBar, {
     bet: bet,
     setBet: setBet,
     max: balance
@@ -2211,21 +2312,23 @@ function Blackjack({
     },
     disabled: bet <= 0 || bet > balance,
     onClick: deal
-  }, "Deal")), phase !== 'bet' && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("p", null, /*#__PURE__*/React.createElement("b", null, "Dealer"), " ", phase === 'playing' ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(Card, {
+  }, "Deal")), phase !== 'bet' && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("p", null, /*#__PURE__*/React.createElement("b", null, "Dealer"), " ", phase === 'playing' ? /*#__PURE__*/React.createElement(React.Fragment, null, React.createElement(Card, {
     c: dl[0]
-  }), /*#__PURE__*/React.createElement(Card, {
+  }), React.createElement(Card, {
     hidden: true
   })) : dl.map((c, i) => /*#__PURE__*/React.createElement(Card, {
     key: i,
     c: c
   })), " ", phase !== 'playing' && /*#__PURE__*/React.createElement("span", {
     className: "small muted"
-  }, "(", bjTotal(dl), ")")), /*#__PURE__*/React.createElement("p", null, /*#__PURE__*/React.createElement("b", null, "You"), " ", pl.map((c, i) => /*#__PURE__*/React.createElement(Card, {
-    key: i,
+  }, "(", bjTotal(dl), ")")), hands && hands.map((h, i) => /*#__PURE__*/React.createElement("p", {
+    key: i
+  }, /*#__PURE__*/React.createElement("b", null, isSplit ? 'Hand ' + (i + 1) + (phase === 'playing' && i === active ? ' (playing)' : '') : 'You'), " ", h.cards.map((c, j) => /*#__PURE__*/React.createElement(Card, {
+    key: j,
     c: c
   })), " ", /*#__PURE__*/React.createElement("span", {
     className: "small muted"
-  }, "(", bjTotal(pl), ")")), phase === 'playing' && /*#__PURE__*/React.createElement("div", {
+  }, "(", bjTotal(h.cards), ")", h.wager > bet ? ', doubled to ' + h.wager : ''))), phase === 'playing' && /*#__PURE__*/React.createElement("div", {
     className: "row"
   }, /*#__PURE__*/React.createElement("button", {
     className: "btn sm",
@@ -2233,9 +2336,24 @@ function Blackjack({
   }, "Hit"), /*#__PURE__*/React.createElement("button", {
     className: "btn sm ghost",
     onClick: stand
-  }, "Stand")), phase === 'result' && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
-    className: outcome.net > 0 ? 'okbox' : outcome.net < 0 ? 'warnbox' : 'small muted'
-  }, outcome.net > 0 ? 'Won ' + outcome.net + ' chips' : outcome.net < 0 ? 'Lost ' + Math.abs(outcome.net) + ' chips' : 'Push, bet returned'), /*#__PURE__*/React.createElement("button", {
+  }, "Stand"), canDouble && /*#__PURE__*/React.createElement("button", {
+    className: "btn sm ghost",
+    onClick: double
+  }, "Double (", hands[active].wager * 2, ")"), canSplit && /*#__PURE__*/React.createElement("button", {
+    className: "btn sm ghost",
+    onClick: split
+  }, "Split (", bet, " each)")), phase === 'result' && /*#__PURE__*/React.createElement(React.Fragment, null, outcomes.map((o, i) => /*#__PURE__*/React.createElement("div", {
+    key: i,
+    className: o.net > 0 ? 'okbox' : o.net < 0 ? 'warnbox' : 'small muted',
+    style: {
+      marginTop: i ? 6 : 0
+    }
+  }, isSplit ? 'Hand ' + (i + 1) + ': ' : '', o.net > 0 ? 'Won ' + o.net + ' chips' : o.net < 0 ? 'Lost ' + Math.abs(o.net) + ' chips' : 'Push, bet returned')), isSplit && /*#__PURE__*/React.createElement("p", {
+    className: "small muted",
+    style: {
+      marginTop: 6
+    }
+  }, "Total: ", outcomes.reduce((t, o) => t + o.net, 0) >= 0 ? '+' : '', outcomes.reduce((t, o) => t + o.net, 0), " chips"), /*#__PURE__*/React.createElement("button", {
     className: "btn sm",
     style: {
       marginTop: 8
@@ -2480,12 +2598,19 @@ function DiceGame({
     if (!ready || spinning) return;
     setSpinning(true);
     setResult(null);
-    setAngle(a => a + 360 * 4 + Math.floor(Math.random() * 360));
     const r = await spinFn();
+    const amt = r && r.amount != null ? r.amount : segs[0];
+    let idx = segs.indexOf(amt);
+    if (idx < 0) idx = 0;
+    const target = (360 - (idx * step + step / 2) + 360) % 360;
+    setAngle(a => {
+      const base = a - a % 360 + 360 * 4;
+      return base + target;
+    });
     setTimeout(() => {
       setSpinning(false);
       if (r) setResult(r.amount);
-    }, 1300);
+    }, 1900);
   };
   return /*#__PURE__*/React.createElement("div", {
     style: {
@@ -2495,6 +2620,17 @@ function DiceGame({
     className: "small muted"
   }, "Free spin, no chips needed. Resets every 30 minutes."), /*#__PURE__*/React.createElement("div", {
     style: {
+      width: 0,
+      height: 0,
+      margin: '0 auto -6px',
+      borderLeft: '7px solid transparent',
+      borderRight: '7px solid transparent',
+      borderTop: '10px solid var(--brass)',
+      position: 'relative',
+      zIndex: 2
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
       width: 180,
       height: 180,
       margin: '10px auto',
@@ -2502,7 +2638,7 @@ function DiceGame({
       position: 'relative',
       overflow: 'hidden',
       border: '4px solid var(--brass)',
-      transition: spinning ? 'transform 1.3s cubic-bezier(.17,.67,.32,1.4)' : 'none',
+      transition: spinning ? 'transform 1.9s cubic-bezier(.12,.7,.25,1)' : 'none',
       transform: 'rotate(' + angle + 'deg)',
       background: grad
     }
@@ -7272,7 +7408,7 @@ function Login({
     style: {
       fontSize: 96
     }
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.5.2")), /*#__PURE__*/React.createElement("p", {
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.5.3")), /*#__PURE__*/React.createElement("p", {
     className: "muted"
   }, "Twelve players. Six games. One office. Report to the table."), /*#__PURE__*/React.createElement("div", {
     className: "pinbox"
@@ -7385,7 +7521,7 @@ function App() {
     const off = api.subscribeChat(check, 'chat-badge');
     return () => { alive = false; clearInterval(iv); off(); };
   }, [me, tab]);
-  useEffect(() => { document.title = (chatUnread + hogPending > 0 ? '(' + (chatUnread + hogPending) + ') ' : '') + 'Book1.5.2'; }, [chatUnread, hogPending]);
+  useEffect(() => { document.title = (chatUnread + hogPending > 0 ? '(' + (chatUnread + hogPending) + ') ' : '') + 'Book1.5.3'; }, [chatUnread, hogPending]);
   const cloudEmpty = !!(store && !store.weeks);
   const persistCred = c => {
     setCred(c);
@@ -7498,7 +7634,7 @@ function App() {
     style: {
       fontSize: 96
     }
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.5.2"));
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.5.3"));
   if (!store) return /*#__PURE__*/React.createElement("div", {
     className: "login"
   }, mark, /*#__PURE__*/React.createElement("p", {
@@ -7643,7 +7779,7 @@ function App() {
     className: "rail"
   }, /*#__PURE__*/React.createElement("div", {
     className: "wordmark"
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.5.2")), /*#__PURE__*/React.createElement("div", {
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.5.3")), /*#__PURE__*/React.createElement("div", {
     className: "decree"
   }, decree), /*#__PURE__*/React.createElement("div", {
     className: "nav"
