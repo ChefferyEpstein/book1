@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Book1.5.1</title>
+<title>Book1.5.2</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -3136,7 +3136,6 @@ function HogsPage({
   const [card, setCard] = useState(null);
   const [cardErr, setCardErr] = useState('');
   const [again, setAgain] = useState(0);
-  const [table, setTable] = useState(null);
   const [opp, setOpp] = useState('');
   const [stat, setStat] = useState('length');
   const [stake, setStake] = useState(Math.min(50, balance || 0));
@@ -3150,10 +3149,6 @@ function HogsPage({
       } catch (e) {
         if (!stop) setCardErr(e.message || 'Something went wrong.');
       }
-      try {
-        const t = await api.hogTable();
-        if (!stop) setTable(t);
-      } catch (e) {}
     })();
     return () => {
       stop = true;
@@ -3164,9 +3159,46 @@ function HogsPage({
   const duels = store.hogDuels || [];
   const incoming = duels.filter(d => d.status === 'open' && d.opponent === me);
   const outgoing = duels.filter(d => d.status === 'open' && d.challenger === me);
-  const done = [...duels].filter(d => d.status === 'done').reverse().slice(0, 8);
-  const order = table && table.order || [];
-  const rank = order.indexOf(me) + 1;
+  const done = [...duels].filter(d => d.status === 'done');
+  const recent = [...done].reverse().slice(0, 8);
+  const board = {};
+  const bump = (p, k) => {
+    board[p] = board[p] || {
+      wins: 0,
+      losses: 0,
+      draws: 0,
+      net: 0
+    };
+    board[p][k]++;
+  };
+  done.forEach(d => {
+    board[d.challenger] = board[d.challenger] || {
+      wins: 0,
+      losses: 0,
+      draws: 0,
+      net: 0
+    };
+    board[d.opponent] = board[d.opponent] || {
+      wins: 0,
+      losses: 0,
+      draws: 0,
+      net: 0
+    };
+    if (!d.winner) {
+      bump(d.challenger, 'draws');
+      bump(d.opponent, 'draws');
+    } else {
+      const loser = d.winner === d.challenger ? d.opponent : d.challenger;
+      bump(d.winner, 'wins');
+      bump(loser, 'losses');
+      board[d.winner].net += d.stake;
+      board[loser].net -= d.stake;
+    }
+  });
+  const ranked = Object.entries(board).map(([p, r]) => ({
+    p,
+    ...r
+  })).sort((a, b) => b.wins - a.wins || b.net - a.net);
   const statName = k => (HOG_STATS.find(x => x.k === k) || {}).name || k;
   const shortName = k => statName(k).replace(' (higher is fresher)', '');
   const maxStake = Math.max(0, Math.min(balance, cap));
@@ -3193,13 +3225,9 @@ function HogsPage({
     style: {
       marginBottom: 18
     }
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "row spread"
-  }, /*#__PURE__*/React.createElement("h2", null, "Your hog, GW", weekN), rank > 0 && /*#__PURE__*/React.createElement("span", {
-    className: "stamp warn"
-  }, "rank ", rank, " of ", order.length)), /*#__PURE__*/React.createElement("p", {
+  }, /*#__PURE__*/React.createElement("h2", null, "Your hog, GW", weekN), /*#__PURE__*/React.createElement("p", {
     className: "small muted"
-  }, rank > 0 ? hogTitle(rank, order.length) + '. ' : '', "Only you can see these numbers. Tap any stat to pick it for a challenge."), !card && !cardErr && /*#__PURE__*/React.createElement("p", {
+  }, "Only you can see these numbers, and nobody's rank or order is ever shown. Tap any stat to pick it for a challenge."), !card && !cardErr && /*#__PURE__*/React.createElement("p", {
     className: "muted"
   }, "Measuring…"), cardErr && /*#__PURE__*/React.createElement("div", {
     className: "warnbox"
@@ -3267,7 +3295,7 @@ function HogsPage({
     style: {
       marginBottom: 18
     }
-  }, /*#__PURE__*/React.createElement("h2", null, "Challenges for you"), incoming.map(d => /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("h2", null, "Challenges for you ", incoming.length > 1 ? '(' + incoming.length + ')' : ''), incoming.map(d => /*#__PURE__*/React.createElement("div", {
     key: d.id,
     className: "row spread",
     style: {
@@ -3314,25 +3342,34 @@ function HogsPage({
     className: "grid g2"
   }, /*#__PURE__*/React.createElement("div", {
     className: "panel"
-  }, /*#__PURE__*/React.createElement("h2", null, "The Hog Table"), /*#__PURE__*/React.createElement("p", {
+  }, /*#__PURE__*/React.createElement("h2", null, "Hog Off wins"), /*#__PURE__*/React.createElement("p", {
     className: "small muted"
-  }, "Ranked by length, GW", weekN, ". Positions are public, the numbers never are."), /*#__PURE__*/React.createElement("table", {
+  }, "Ranked by challenges won. This reveals nothing about anyone's actual stats, only who has out-hogged who."), ranked.length === 0 && /*#__PURE__*/React.createElement("p", {
+    className: "muted small"
+  }, "Nobody has settled a hog off yet."), ranked.length > 0 && /*#__PURE__*/React.createElement("table", {
     className: "plain"
-  }, /*#__PURE__*/React.createElement("tbody", null, order.map((p, i) => /*#__PURE__*/React.createElement("tr", {
-    key: p,
-    className: p === me ? 'me' : ''
+  }, /*#__PURE__*/React.createElement("tbody", null, ranked.map((r, i) => /*#__PURE__*/React.createElement("tr", {
+    key: r.p,
+    className: r.p === me ? 'me' : ''
   }, /*#__PURE__*/React.createElement("td", {
     className: "n muted"
   }, i + 1), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement(Nm, {
-    n: p,
+    n: r.p,
     size: 16
   })), /*#__PURE__*/React.createElement("td", {
-    className: "small muted"
-  }, hogTitle(i + 1, order.length))))))), /*#__PURE__*/React.createElement("div", {
+    className: "n"
+  }, r.wins, "W"), /*#__PURE__*/React.createElement("td", {
+    className: "n small muted"
+  }, r.losses, "L ", r.draws ? r.draws + 'D' : ''), /*#__PURE__*/React.createElement("td", {
+    className: "n small",
+    style: {
+      color: r.net >= 0 ? 'var(--ok)' : 'var(--blood)'
+    }
+  }, r.net >= 0 ? '+' : '', r.net)))))), /*#__PURE__*/React.createElement("div", {
     className: "panel"
-  }, /*#__PURE__*/React.createElement("h2", null, "Recent hog offs"), done.length === 0 && /*#__PURE__*/React.createElement("p", {
+  }, /*#__PURE__*/React.createElement("h2", null, "Recent hog offs"), recent.length === 0 && /*#__PURE__*/React.createElement("p", {
     className: "muted small"
-  }, "Nobody has settled anything yet."), done.map(d => /*#__PURE__*/React.createElement("p", {
+  }, "Nobody has settled anything yet."), recent.map(d => /*#__PURE__*/React.createElement("p", {
     key: d.id,
     className: "small",
     style: {
@@ -7235,7 +7272,7 @@ function Login({
     style: {
       fontSize: 96
     }
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.5.1")), /*#__PURE__*/React.createElement("p", {
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.5.2")), /*#__PURE__*/React.createElement("p", {
     className: "muted"
   }, "Twelve players. Six games. One office. Report to the table."), /*#__PURE__*/React.createElement("div", {
     className: "pinbox"
@@ -7323,6 +7360,7 @@ function App() {
   CATALOG = store && store.cardCatalog && store.cardCatalog.length ? store.cardCatalog : defaultCardCatalog();
   const me = cred ? cred.name : cred;
   const isAdmin = !!(cred && cred.role === 'admin');
+  const hogPending = me ? (store.hogDuels || []).filter(d => d.status === 'open' && d.opponent === me).length : 0;
   const [chatUnread, setChatUnread] = useState(0);
   const [chatMention, setChatMention] = useState(false);
   useEffect(() => {
@@ -7347,7 +7385,7 @@ function App() {
     const off = api.subscribeChat(check, 'chat-badge');
     return () => { alive = false; clearInterval(iv); off(); };
   }, [me, tab]);
-  useEffect(() => { document.title = (chatUnread > 0 ? '(' + chatUnread + ') ' : '') + 'Book1.5.1'; }, [chatUnread]);
+  useEffect(() => { document.title = (chatUnread + hogPending > 0 ? '(' + (chatUnread + hogPending) + ') ' : '') + 'Book1.5.2'; }, [chatUnread, hogPending]);
   const cloudEmpty = !!(store && !store.weeks);
   const persistCred = c => {
     setCred(c);
@@ -7460,7 +7498,7 @@ function App() {
     style: {
       fontSize: 96
     }
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.5.1"));
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.5.2"));
   if (!store) return /*#__PURE__*/React.createElement("div", {
     className: "login"
   }, mark, /*#__PURE__*/React.createElement("p", {
@@ -7594,9 +7632,9 @@ function App() {
         block: 'nearest'
       });
     },
-    className: (tab === k ? 'on' : '') + (k === 'chat' && chatUnread > 0 ? ' unread' : ''),
+    className: (tab === k ? 'on' : '') + (k === 'chat' && chatUnread > 0 ? ' unread' : '') + (k === 'hogs' && hogPending > 0 ? ' unread' : ''),
     onClick: () => setTab(k)
-  }, l, k === 'regime' && pending > 0 ? ' (' + pending + ')' : '', k === 'chat' && chatUnread > 0 ? ' (' + chatUnread + (chatMention ? ' @' : '') + ')' : ''));
+  }, l, k === 'regime' && pending > 0 ? ' (' + pending + ')' : '', k === 'chat' && chatUnread > 0 ? ' (' + chatUnread + (chatMention ? ' @' : '') + ')' : k === 'hogs' && hogPending > 0 ? ' (' + hogPending + ')' : ''));
   return /*#__PURE__*/React.createElement(EmblemCtx.Provider, {
     value: setFocus
   }, /*#__PURE__*/React.createElement("div", {
@@ -7605,7 +7643,7 @@ function App() {
     className: "rail"
   }, /*#__PURE__*/React.createElement("div", {
     className: "wordmark"
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.5.1")), /*#__PURE__*/React.createElement("div", {
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.5.2")), /*#__PURE__*/React.createElement("div", {
     className: "decree"
   }, decree), /*#__PURE__*/React.createElement("div", {
     className: "nav"
