@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Book1.5.3</title>
+<title>Book1.6.0</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -504,7 +504,7 @@ const {
 } = React;
 const STORE_KEY = 'book1.2-local';
 const CFG = window.BOOK_CONFIG || {};
-const APP_SQL_VERSION = 22; // bump this whenever a new SQL script adds or changes a server function
+const APP_SQL_VERSION = 23; // bump this whenever a new SQL script adds or changes a server function
 const CLOUD = !!(CFG.url && CFG.key);
 const ADMINS = ['Chef', 'Lorcan'];
 const DECREES = ['Abstention is not permitted.', 'The Book sees all results.', 'Ball difference is destiny.', 'The Dictator collects. The Dictator distributes.', 'Report your score. Report it honestly.', 'Twelfth place is a service to the office.', 'The mong off is not optional.', 'Disputes are settled by the regime.'];
@@ -954,9 +954,16 @@ const api = CLOUD ? {
     s.chips[cred.name] = bal - cost;
     s.cards = s.cards || {};
     s.cards[cred.name] = s.cards[cred.name] || { owned: [], equipped: null };
+    const isDup = s.cards[cred.name].owned.includes(picked.id);
+    const dr = Object.assign({ common: 20, uncommon: 30, rare: 45, epic: 65, legendary: 90 }, s.payouts && s.payouts.dupeRefund || {});
+    let refund = 0;
+    if (isDup) {
+      refund = Math.floor(cost * (+dr[picked.rarity] || 0) / 100);
+      s.chips[cred.name] += refund;
+    }
     s.cards[cred.name].owned.push(picked.id);
     saveStore(s);
-    return picked;
+    return { ...picked, duplicate: isDup, refund };
   },
   async spinWheel(cred) {
     const s = loadStore();
@@ -2665,6 +2672,87 @@ function DiceGame({
     }
   }, "Won ", result, " chips!"));
 }
+function CaseReel({
+  won,
+  onDone
+}) {
+  const N = 52,
+    targetIdx = 44,
+    itemW = 88,
+    pitch = itemW + 8;
+  const strip = useMemo(() => {
+    const arr = [];
+    for (let i = 0; i < N; i++) {
+      if (i === targetIdx) {
+        arr.push(won);
+        continue;
+      }
+      const pool = CATALOG.length ? CATALOG : [won];
+      arr.push(pool[Math.floor(Math.random() * pool.length)]);
+    }
+    return arr;
+  }, [won]);
+  const [x, setX] = useState(0);
+  useEffect(() => {
+    const jitter = (Math.random() - 0.5) * itemW * 0.5;
+    const target = -(targetIdx * pitch + pitch / 2) + jitter;
+    const id = requestAnimationFrame(() => setX(target));
+    const t = setTimeout(onDone, 4300);
+    return () => {
+      cancelAnimationFrame(id);
+      clearTimeout(t);
+    };
+  }, [strip]);
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: 'relative',
+      overflow: 'hidden',
+      height: 100,
+      margin: '10px 0',
+      background: 'var(--felt-deep)',
+      borderRadius: 6
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: 'absolute',
+      left: '50%',
+      top: 0,
+      bottom: 0,
+      width: 2,
+      background: 'var(--brass)',
+      zIndex: 2,
+      marginLeft: -1
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: 'absolute',
+      left: '50%',
+      top: 0,
+      bottom: 0,
+      display: 'flex',
+      alignItems: 'center',
+      transform: 'translateX(' + x + 'px)',
+      transition: 'transform 4.2s cubic-bezier(.11,.68,.15,1)'
+    }
+  }, strip.map((c, i) => /*#__PURE__*/React.createElement("div", {
+    key: i,
+    style: {
+      width: itemW,
+      height: 76,
+      margin: '0 4px',
+      flexShrink: 0,
+      borderRadius: 6,
+      background: 'rgba(0,0,0,.35)',
+      border: '2px solid ' + RARITY_COLORS[c.rarity],
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center'
+    }
+  }, /*#__PURE__*/React.createElement(Emblem, {
+    e: c.emblem,
+    size: 48
+  })))));
+}
 function CaseOpener({
   store,
   me,
@@ -2675,6 +2763,7 @@ function CaseOpener({
   balance
 }) {
   const [opening, setOpening] = useState(false);
+  const [pending, setPending] = useState(null);
   const [result, setResult] = useState(null);
   const cost = store.payouts.caseCost || 300;
   const mine = store.cards && store.cards[me] || {
@@ -2699,18 +2788,32 @@ function CaseOpener({
     setOpening(true);
     setResult(null);
     const card = await openCaseFn();
-    setTimeout(() => {
+    if (!card) {
       setOpening(false);
-      if (card) setResult(CATALOG.find(c => c.id === card.id) || card);
-    }, 900);
+      return;
+    }
+    setPending(card);
+  };
+  const onReelDone = () => {
+    setOpening(false);
+    const card = pending;
+    setPending(null);
+    if (card) setResult({
+      ...(CATALOG.find(c => c.id === card.id) || card),
+      duplicate: card.duplicate,
+      refund: card.refund
+    });
   };
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", {
     className: "small muted"
-  }, "Spend ", cost.toLocaleString(), " chips for a random calling card. Odds: ", pct('legendary'), " legendary, ", pct('epic'), " epic, ", pct('rare'), " rare, ", pct('uncommon'), " uncommon, ", pct('common'), " common. You own ", owned.filter(id => CATALOG.some(c => c.id === id)).length, " of ", CATALOG.length, "."), /*#__PURE__*/React.createElement("button", {
+  }, "Spend ", cost.toLocaleString(), " chips for a random calling card. Odds: ", pct('legendary'), " legendary, ", pct('epic'), " epic, ", pct('rare'), " rare, ", pct('uncommon'), " uncommon, ", pct('common'), " common. You own ", owned.filter(id => CATALOG.some(c => c.id === id)).length, " of ", CATALOG.length, ". Duplicates give a partial chip refund based on rarity."), /*#__PURE__*/React.createElement("button", {
     className: "btn",
     disabled: opening || balance < cost,
     onClick: open
-  }, opening ? 'Opening…' : 'Open a case (' + cost.toLocaleString() + ')'), result && /*#__PURE__*/React.createElement("div", {
+  }, opening ? 'Opening…' : 'Open a case (' + cost.toLocaleString() + ')'), opening && pending && /*#__PURE__*/React.createElement(CaseReel, {
+    won: CATALOG.find(c => c.id === pending.id) || pending,
+    onDone: onReelDone
+  }), result && /*#__PURE__*/React.createElement("div", {
     className: "okbox",
     style: {
       marginTop: 12,
@@ -2739,7 +2842,12 @@ function CaseOpener({
     style: {
       textTransform: 'capitalize'
     }
-  }, result.rarity)), /*#__PURE__*/React.createElement("h3", {
+  }, result.rarity), result.duplicate && /*#__PURE__*/React.createElement("p", {
+    className: "small",
+    style: {
+      color: 'var(--brass)'
+    }
+  }, "Already had this one, ", result.refund, " chips refunded.")), /*#__PURE__*/React.createElement("h3", {
     style: {
       marginTop: 18
     }
@@ -2776,6 +2884,38 @@ function CaseOpener({
       }
     }, "equipped"));
   })));
+}
+function betWinProb(store, a, b, pick) {
+  const ra = betRating(store, a),
+    rb = betRating(store, b);
+  const pa = ra * (1 - rb) / (ra * (1 - rb) + rb * (1 - ra));
+  return pick === a ? pa : 1 - pa;
+}
+function cashoutPreview(store, bet, mode) {
+  if (!bet || !bet.legs) return 0;
+  let wonProd = 1,
+    anyWon = false,
+    anyOpen = false,
+    anyLost = false;
+  const openLegs = [];
+  bet.legs.forEach(l => {
+    if (l.status === 'lost') anyLost = true;else if (l.status === 'open') {
+      anyOpen = true;
+      openLegs.push(l);
+    } else if (l.status === 'won') {
+      anyWon = true;
+      wonProd *= l.odds;
+    }
+  });
+  if (anyLost || !anyOpen || !anyWon) return 0;
+  const locked = Math.min(200, wonProd);
+  if (mode === 'safe') return Math.floor(bet.stake * locked);
+  let prob = 1;
+  openLegs.forEach(l => {
+    const g = findGame(store, l.game).g;
+    if (g) prob *= betWinProb(store, g.p1, g.p2, l.pick);
+  });
+  return Math.floor(bet.stake * locked * prob * 0.9);
 }
 function MatchBetting({
   store,
@@ -2928,14 +3068,27 @@ function MatchBetting({
   }, /*#__PURE__*/React.createElement("div", {
     className: "row spread small"
   }, /*#__PURE__*/React.createElement("span", null, b.legs ? b.label + ' @ ' + (+b.odds).toFixed(2) + ', stake ' + b.stake : b.label + ': ' + b.pick + ' @ ' + (+b.odds).toFixed(2) + ', stake ' + b.stake), /*#__PURE__*/React.createElement("span", {
-    className: 'stamp ' + (b.status === 'won' ? 'ok' : b.status === 'lost' ? 'bad' : b.status === 'void' ? 'grey' : 'warn')
-  }, b.status === 'open' ? 'open, returns ' + Math.round(b.stake * b.odds) : b.status === 'won' ? 'won ' + b.payout : b.status === 'lost' ? 'lost' : 'void, refunded')), b.legs && b.legs.map((l, i) => /*#__PURE__*/React.createElement("div", {
+    className: 'stamp ' + (b.status === 'won' || b.status === 'cashedOut' ? 'ok' : b.status === 'lost' ? 'bad' : b.status === 'void' ? 'grey' : 'warn')
+  }, b.status === 'open' ? 'open, returns ' + Math.round(b.stake * b.odds) : b.status === 'won' ? 'won ' + b.payout : b.status === 'lost' ? 'lost' : b.status === 'cashedOut' ? 'cashed out, ' + b.payout : 'void, refunded')), b.legs && b.legs.map((l, i) => /*#__PURE__*/React.createElement("div", {
     key: i,
     className: "small muted",
     style: {
       paddingLeft: 12
     }
-  }, l.label, ": ", l.pick, " @ ", (+l.odds).toFixed(2), " ", l.status === 'won' ? 'won' : l.status === 'lost' ? 'lost' : l.status === 'void' ? 'void' : ''))))));
+  }, l.label, ": ", l.pick, " @ ", (+l.odds).toFixed(2), " ", l.status === 'won' ? 'won' : l.status === 'lost' ? 'lost' : l.status === 'void' ? 'void' : '')), (() => {
+    const cashFull = b.legs ? cashoutPreview(store, b, 'full') : 0;
+    const cashSafe = b.legs ? cashoutPreview(store, b, 'safe') : 0;
+    return b.status === 'open' && cashFull > 0 && /*#__PURE__*/React.createElement("div", {
+      className: "row",
+      style: { marginTop: 4 }
+    }, /*#__PURE__*/React.createElement("button", {
+      className: "btn sm ghost",
+      onClick: () => dispatch({ t: 'cashOutBet', id: b.id, mode: 'full', by: me })
+    }, "Cash out for ~" + cashFull), /*#__PURE__*/React.createElement("button", {
+      className: "btn sm ghost",
+      onClick: () => dispatch({ t: 'cashOutBet', id: b.id, mode: 'safe', by: me })
+    }, "Take the " + cashSafe + " guaranteed"));
+  })()))));
 }
 function CardsEditor({
   store,
@@ -3667,6 +3820,65 @@ function CasinoPage(props) {
     me: props.me,
     dispatch: props.dispatch
   }));
+}
+function DupeRefundEditor({
+  store,
+  dispatch,
+  me
+}) {
+  const RAR = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
+  const [dr, setDr] = useState(Object.assign({
+    common: 20,
+    uncommon: 30,
+    rare: 45,
+    epic: 65,
+    legendary: 90
+  }, store.payouts.dupeRefund || {}));
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 22,
+      borderTop: '1px solid var(--smoke)',
+      paddingTop: 16
+    }
+  }, /*#__PURE__*/React.createElement("h3", null, "Duplicate card refunds"), /*#__PURE__*/React.createElement("p", {
+    className: "muted small"
+  }, "When a case gives someone a card they already own, this percentage of the case cost comes back as chips instead."), /*#__PURE__*/React.createElement("div", {
+    className: "row",
+    style: {
+      flexWrap: 'wrap'
+    }
+  }, RAR.map(r => /*#__PURE__*/React.createElement("label", {
+    key: r,
+    className: "f",
+    style: {
+      margin: 0
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      textTransform: 'capitalize'
+    }
+  }, r), /*#__PURE__*/React.createElement("br", null), /*#__PURE__*/React.createElement("input", {
+    className: "score",
+    style: {
+      width: 60
+    },
+    value: dr[r],
+    onChange: e => setDr(d => ({
+      ...d,
+      [r]: Math.max(0, Math.min(100, +e.target.value || 0))
+    }))
+  }), "%"))), /*#__PURE__*/React.createElement("button", {
+    className: "btn sm",
+    style: {
+      marginTop: 10
+    },
+    onClick: () => dispatch({
+      t: 'payout',
+      k: 'dupeRefund',
+      v: dr,
+      by: me
+    })
+  }, "Save refund rates"));
 }
 function WheelPrizesEditor({
   store,
@@ -5689,7 +5901,11 @@ function RegimePage({
       k: 'accaMaxBet',
       v: +e.target.value
     })
-  })), /*#__PURE__*/React.createElement("label", {
+  })), /*#__PURE__*/React.createElement(DupeRefundEditor, {
+    store: store,
+    dispatch: dispatch,
+    me: me
+  }), /*#__PURE__*/React.createElement("label", {
     className: "f"
   }, "chip top-up base", /*#__PURE__*/React.createElement("br", null), /*#__PURE__*/React.createElement("input", {
     className: "score",
@@ -7127,6 +7343,43 @@ function reduce(store, a) {
         log(`${a.by} unlocked ${a.area} for ${cost} chips`);
         break;
       }
+    case 'cashOutBet':
+      {
+        const b = (s.bets || []).find(x => x.id === a.id && x.player === a.by);
+        if (!b) throw new Error('That bet is gone.');
+        if (b.status !== 'open') throw new Error('That bet is already settled.');
+        if (!b.legs) throw new Error('Only accumulators can be cashed out.');
+        let anyLost = false, anyOpen = false, anyWon = false, wonProd = 1;
+        const openLegs = [];
+        b.legs.forEach(l => {
+          if (l.status === 'lost') anyLost = true;
+          else if (l.status === 'open') { anyOpen = true; openLegs.push(l); }
+          else if (l.status === 'won') { anyWon = true; wonProd *= l.odds; }
+        });
+        if (anyLost) throw new Error('This accumulator has already lost.');
+        if (!anyOpen) throw new Error('Nothing left to cash out, it has already resolved.');
+        if (!anyWon) throw new Error('Nothing has won yet on this accumulator.');
+        const locked = Math.min(200, wonProd);
+        let value;
+        if (a.mode === 'safe') {
+          value = Math.floor(b.stake * locked);
+        } else {
+          let prob = 1;
+          openLegs.forEach(l => {
+            const g = findGame(s, l.game).g;
+            if (g) prob *= betWinProb(s, g.p1, g.p2, l.pick);
+          });
+          value = Math.floor(b.stake * locked * prob * 0.9);
+        }
+        s.chips = s.chips || {};
+        const cur = s.chips[a.by] != null ? s.chips[a.by] : 1000;
+        s.chips[a.by] = cur + value;
+        b.status = 'cashedOut';
+        b.payout = value;
+        b.cashoutMode = a.mode;
+        log(`${a.by} cashed out an accumulator (${a.mode === 'safe' ? 'safe' : 'full'}) for ${value} chips`);
+        break;
+      }
     case 'placeBet':
       {
         const g = findGame(s, a.game).g;
@@ -7409,7 +7662,7 @@ function Login({
     style: {
       fontSize: 96
     }
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.5.3")), /*#__PURE__*/React.createElement("p", {
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.6.0")), /*#__PURE__*/React.createElement("p", {
     className: "muted"
   }, "Twelve players. Six games. One office. Report to the table."), /*#__PURE__*/React.createElement("div", {
     className: "pinbox"
@@ -7497,7 +7750,7 @@ function App() {
   CATALOG = store && store.cardCatalog && store.cardCatalog.length ? store.cardCatalog : defaultCardCatalog();
   const me = cred ? cred.name : cred;
   const isAdmin = !!(cred && cred.role === 'admin');
-  const hogPending = me ? (store.hogDuels || []).filter(d => d.status === 'open' && d.opponent === me).length : 0;
+  const hogPending = store && me ? (store.hogDuels || []).filter(d => d.status === 'open' && d.opponent === me).length : 0;
   const [chatUnread, setChatUnread] = useState(0);
   const [chatMention, setChatMention] = useState(false);
   useEffect(() => {
@@ -7522,7 +7775,7 @@ function App() {
     const off = api.subscribeChat(check, 'chat-badge');
     return () => { alive = false; clearInterval(iv); off(); };
   }, [me, tab]);
-  useEffect(() => { document.title = (chatUnread + hogPending > 0 ? '(' + (chatUnread + hogPending) + ') ' : '') + 'Book1.5.3'; }, [chatUnread, hogPending]);
+  useEffect(() => { document.title = (chatUnread + hogPending > 0 ? '(' + (chatUnread + hogPending) + ') ' : '') + 'Book1.6.0'; }, [chatUnread, hogPending]);
   const cloudEmpty = !!(store && !store.weeks);
   const persistCred = c => {
     setCred(c);
@@ -7554,7 +7807,7 @@ function App() {
           refresh();
         } else toast('Not saved: ' + e.message);
       }
-    } else if (cred && (a.t === 'submit' || a.t === 'rollcall' || a.t === 'profile' || a.t === 'recall' || a.t === 'casino' || a.t === 'tourneyVote' || a.t === 'ping' || a.t === 'predict' || a.t === 'equipCard' || a.t === 'unlock' || a.t === 'placeBet' || a.t === 'placeAcca' || a.t === 'requestChips')) {
+    } else if (cred && (a.t === 'submit' || a.t === 'rollcall' || a.t === 'profile' || a.t === 'recall' || a.t === 'casino' || a.t === 'tourneyVote' || a.t === 'ping' || a.t === 'predict' || a.t === 'equipCard' || a.t === 'unlock' || a.t === 'placeBet' || a.t === 'placeAcca' || a.t === 'requestChips' || a.t === 'cashOutBet')) {
       try {
         await api.playerAction(cred, a);
         await refresh();
@@ -7635,7 +7888,7 @@ function App() {
     style: {
       fontSize: 96
     }
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.5.3"));
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.6.0"));
   if (!store) return /*#__PURE__*/React.createElement("div", {
     className: "login"
   }, mark, /*#__PURE__*/React.createElement("p", {
@@ -7780,7 +8033,7 @@ function App() {
     className: "rail"
   }, /*#__PURE__*/React.createElement("div", {
     className: "wordmark"
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.5.3")), /*#__PURE__*/React.createElement("div", {
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.6.0")), /*#__PURE__*/React.createElement("div", {
     className: "decree"
   }, decree), /*#__PURE__*/React.createElement("div", {
     className: "nav"
