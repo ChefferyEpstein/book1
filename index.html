@@ -2211,6 +2211,7 @@ function Blackjack({
       setActive(active + 1);
       setDeck(d);
     } else {
+      setHands(updated);
       playDealerIfNeeded(updated, d);
     }
   };
