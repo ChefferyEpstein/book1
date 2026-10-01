@@ -8613,7 +8613,15 @@ function App() {
   };
   const dispatch = async a => {
     if (!store) return;
-    if (isAdmin) {
+    const playerActionTypes = ['submit', 'rollcall', 'profile', 'recall', 'casino', 'tourneyVote', 'ping', 'predict', 'equipCard', 'unlock', 'placeBet', 'placeAcca', 'requestChips', 'cashOutBet', 'bsCreate', 'bsDecline', 'bsPlaceShips', 'bsFire', 'bsForfeit', 'sellCard'];
+    if (cred && playerActionTypes.includes(a.t)) {
+      try {
+        await api.playerAction(cred, a);
+        await refresh();
+      } catch (e) {
+        toast((e.message || '').replace(/^.*?: /, ''));
+      }
+    } else if (isAdmin) {
       let next;
       try {
         next = a.t === 'replace' ? a.store : reduce(store, {
@@ -8633,13 +8641,6 @@ function App() {
           toast('Someone else changed the book. Reloaded; try again.');
           refresh();
         } else toast('Not saved: ' + e.message);
-      }
-    } else if (cred && (a.t === 'submit' || a.t === 'rollcall' || a.t === 'profile' || a.t === 'recall' || a.t === 'casino' || a.t === 'tourneyVote' || a.t === 'ping' || a.t === 'predict' || a.t === 'equipCard' || a.t === 'unlock' || a.t === 'placeBet' || a.t === 'placeAcca' || a.t === 'requestChips' || a.t === 'cashOutBet' || a.t === 'bsCreate' || a.t === 'bsDecline' || a.t === 'bsPlaceShips' || a.t === 'bsFire' || a.t === 'bsForfeit' || a.t === 'sellCard')) {
-      try {
-        await api.playerAction(cred, a);
-        await refresh();
-      } catch (e) {
-        toast((e.message || '').replace(/^.*?: /, ''));
       }
     } else toast('Log in first.');
   };
