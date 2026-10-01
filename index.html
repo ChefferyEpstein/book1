@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Book1.6.0</title>
+<title>Book1.7.1</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -504,7 +504,7 @@ const {
 } = React;
 const STORE_KEY = 'book1.2-local';
 const CFG = window.BOOK_CONFIG || {};
-const APP_SQL_VERSION = 23; // bump this whenever a new SQL script adds or changes a server function
+const APP_SQL_VERSION = 25; // bump this whenever a new SQL script adds or changes a server function
 const CLOUD = !!(CFG.url && CFG.key);
 const ADMINS = ['Chef', 'Lorcan'];
 const DECREES = ['Abstention is not permitted.', 'The Book sees all results.', 'Ball difference is destiny.', 'The Dictator collects. The Dictator distributes.', 'Report your score. Report it honestly.', 'Twelfth place is a service to the office.', 'The mong off is not optional.', 'Disputes are settled by the regime.'];
@@ -677,6 +677,18 @@ const api = CLOUD ? {
     } = await sb.from('book').select('version').eq('id', 1).single();
     if (error) throw error;
     return data.version;
+  },
+  async bsMyShips(cred, gameId) {
+    const {
+      data,
+      error
+    } = await sb.rpc('book_bs_myships', {
+      p_name: cred.name,
+      p_pin: cred.pin,
+      p_game: gameId
+    });
+    if (error) throw error;
+    return data;
   },
   async hogCard(cred) {
     const {
@@ -854,6 +866,13 @@ const api = CLOUD ? {
   },
   async loadVersion() {
     return 0;
+  },
+  async bsMyShips(cred, gameId) {
+    const st = loadStore();
+    const g = (st.battleships || []).find(x => x.id === gameId);
+    if (!g) throw new Error('That game does not exist.');
+    if (cred.name !== g.challenger && cred.name !== g.opponent) throw new Error('That is not your game.');
+    return (g.ships && g.ships[cred.name]) || null;
   },
   async hogCard(cred) {
     const st = loadStore();
@@ -2706,11 +2725,27 @@ function CaseReel({
   return /*#__PURE__*/React.createElement("div", {
     style: {
       position: 'relative',
+      margin: '14px 0 10px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: 0,
+      height: 0,
+      margin: '0 auto -2px',
+      borderLeft: '8px solid transparent',
+      borderRight: '8px solid transparent',
+      borderTop: '11px solid var(--brass)',
+      position: 'relative',
+      zIndex: 3
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: 'relative',
       overflow: 'hidden',
       height: 100,
-      margin: '10px 0',
       background: 'var(--felt-deep)',
-      borderRadius: 6
+      borderRadius: 6,
+      boxShadow: 'inset 0 0 0 2px var(--brass)'
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -2718,10 +2753,33 @@ function CaseReel({
       left: '50%',
       top: 0,
       bottom: 0,
-      width: 2,
+      width: 3,
       background: 'var(--brass)',
       zIndex: 2,
-      marginLeft: -1
+      marginLeft: -1.5,
+      boxShadow: '0 0 6px var(--brass)'
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: 'absolute',
+      left: 0,
+      top: 0,
+      bottom: 0,
+      width: 36,
+      background: 'linear-gradient(90deg, var(--felt-deep), transparent)',
+      zIndex: 2,
+      pointerEvents: 'none'
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: 'absolute',
+      right: 0,
+      top: 0,
+      bottom: 0,
+      width: 36,
+      background: 'linear-gradient(270deg, var(--felt-deep), transparent)',
+      zIndex: 2,
+      pointerEvents: 'none'
     }
   }), /*#__PURE__*/React.createElement("div", {
     style: {
@@ -2751,7 +2809,7 @@ function CaseReel({
   }, /*#__PURE__*/React.createElement(Emblem, {
     e: c.emblem,
     size: 48
-  })))));
+  }))))));
 }
 function CaseOpener({
   store,
@@ -2883,7 +2941,11 @@ function CaseOpener({
         color: RARITY_COLORS[c.rarity]
       }
     }, "equipped"));
-  })));
+  })), /*#__PURE__*/React.createElement(CardSeller, {
+    store: store,
+    me: me,
+    dispatch: dispatch
+  }));
 }
 function betWinProb(store, a, b, pick) {
   const ra = betRating(store, a),
@@ -3411,6 +3473,430 @@ function CasinoPageInner({
     }
   }, "Chips top up when the regime closes a game week: ", cb, " base, +", cw, " per win, +", cd, " per point of positive ball difference. Nothing here is real money."))));
 }
+const BS_LABELS = {
+  carrier: 'Carrier (5)',
+  battleship: 'Battleship (4)',
+  cruiser: 'Cruiser (3)',
+  submarine: 'Submarine (3)',
+  destroyer: 'Destroyer (2)'
+};
+function BsGrid({
+  title,
+  cells,
+  onCell,
+  legend
+}) {
+  const rows = [];
+  for (let y = 0; y < 10; y++) {
+    const row = [];
+    for (let x = 0; x < 10; x++) row.push(cells(x, y));
+    rows.push(row);
+  }
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", {
+    className: "small muted",
+    style: {
+      marginBottom: 4
+    }
+  }, title), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'inline-block',
+      border: '2px solid var(--brass)',
+      borderRadius: 4,
+      overflow: 'hidden'
+    }
+  }, rows.map((row, y) => /*#__PURE__*/React.createElement("div", {
+    key: y,
+    style: {
+      display: 'flex'
+    }
+  }, row.map((cell, x) => /*#__PURE__*/React.createElement("button", {
+    key: x,
+    onClick: () => onCell && onCell(x, y),
+    disabled: !onCell || cell.disabled,
+    style: {
+      width: 26,
+      height: 26,
+      padding: 0,
+      border: '1px solid rgba(255,255,255,.08)',
+      background: cell.bg,
+      color: cell.fg || '#fff',
+      fontSize: 13,
+      cursor: onCell && !cell.disabled ? 'pointer' : 'default'
+    }
+  }, cell.label || ''))))), legend);
+}
+function BsPlacement({
+  game,
+  me,
+  dispatch
+}) {
+  const [ships, setShips] = useState(() => bsRandomFleet() || []);
+  const [horiz, setHoriz] = useState(true);
+  const [current, setCurrent] = useState(0);
+  const order = ['carrier', 'battleship', 'cruiser', 'submarine', 'destroyer'];
+  const placed = Object.fromEntries(ships.map(s => [s.id, s]));
+  const occ = {};
+  ships.forEach(s => s.cells.forEach(([x, y]) => {
+    occ[x + ',' + y] = s.id;
+  }));
+  const place = (x, y) => {
+    if (current >= order.length) return;
+    const id = order[current];
+    const len = BS_REQUIRED[id];
+    const cells = [];
+    for (let i = 0; i < len; i++) cells.push(horiz ? [x + i, y] : [x, y + i]);
+    if (cells.some(([cx, cy]) => cx > 9 || cy > 9)) return;
+    if (cells.some(([cx, cy]) => occ[cx + ',' + cy])) return;
+    const next = ships.filter(s => s.id !== id).concat([{
+      id,
+      cells
+    }]);
+    setShips(next);
+    const idx = order.findIndex(o => !next.some(s => s.id === o));
+    setCurrent(idx < 0 ? order.length : idx);
+  };
+  const ready = ships.length === 5 && bsValidShips(ships);
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", {
+    className: "small muted"
+  }, "Place your fleet. Click a cell to lay down the next ship's front-left corner, or use Auto-place and reroll until you like it."), /*#__PURE__*/React.createElement("div", {
+    className: "row",
+    style: {
+      marginBottom: 8
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "btn sm ghost",
+    onClick: () => {
+      setShips(bsRandomFleet() || []);
+      setCurrent(order.length);
+    }
+  }, "Auto-place"), /*#__PURE__*/React.createElement("button", {
+    className: "btn sm ghost",
+    onClick: () => setHoriz(h => !h)
+  }, horiz ? 'Horizontal' : 'Vertical'), /*#__PURE__*/React.createElement("button", {
+    className: "btn sm ghost",
+    onClick: () => {
+      setShips([]);
+      setCurrent(0);
+    }
+  }, "Clear")), /*#__PURE__*/React.createElement("div", {
+    className: "row",
+    style: {
+      marginBottom: 8,
+      flexWrap: 'wrap'
+    }
+  }, order.map((id, i) => /*#__PURE__*/React.createElement("span", {
+    key: id,
+    className: 'chip' + (placed[id] ? ' on' : '') + (current === i ? ' on' : ''),
+    style: {
+      marginRight: 4
+    }
+  }, BS_LABELS[id], placed[id] ? ' \u2713' : ''))), /*#__PURE__*/React.createElement(BsGrid, {
+    title: "Your board",
+    onCell: place,
+    cells: (x, y) => {
+      const sid = occ[x + ',' + y];
+      return sid ? {
+        bg: 'var(--brass)',
+        fg: '#000'
+      } : {
+        bg: 'rgba(255,255,255,.03)'
+      };
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 10
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "btn",
+    disabled: !ready,
+    onClick: () => dispatch({
+      t: 'bsPlaceShips',
+      id: game.id,
+      ships,
+      by: me
+    })
+  }, "Confirm fleet")));
+}
+function BsBattle({
+  game,
+  me,
+  cred,
+  dispatch,
+  toast
+}) {
+  const opp = me === game.challenger ? game.opponent : game.challenger;
+  const [myShips, setMyShips] = useState(null);
+  useEffect(() => {
+    let stop = false;
+    (async () => {
+      try {
+        const sh = await api.bsMyShips(cred, game.id);
+        if (!stop) setMyShips(sh);
+      } catch (e) {}
+    })();
+    return () => {
+      stop = true;
+    };
+  }, [game.id]);
+  const myShots = game.shots[me] || [];
+  const theirShots = game.shots[opp] || [];
+  const myTurn = game.turn === me;
+  const fire = (x, y) => {
+    if (!myTurn) return;
+    dispatch({
+      t: 'bsFire',
+      id: game.id,
+      x,
+      y,
+      by: me
+    });
+  };
+  const occ = {};
+  (myShips || []).forEach(s => s.cells.forEach(([x, y]) => {
+    occ[x + ',' + y] = s.id;
+  }));
+  const hitAt = {};
+  theirShots.forEach(sh => {
+    hitAt[sh.x + ',' + sh.y] = sh.hit;
+  });
+  const myHitAt = {};
+  myShots.forEach(sh => {
+    myHitAt[sh.x + ',' + sh.y] = sh;
+  });
+  const mySunk = new Set(game.sunk[me] || []);
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "row spread",
+    style: {
+      marginBottom: 10
+    }
+  }, /*#__PURE__*/React.createElement("b", null, game.challenger, " v ", game.opponent, game.stake > 0 ? ', ' + game.stake + ' chips each' : ''), /*#__PURE__*/React.createElement("span", {
+    className: myTurn ? 'stamp warn' : 'stamp grey'
+  }, myTurn ? 'Your move' : opp + "'s move")), /*#__PURE__*/React.createElement("div", {
+    className: "grid g2"
+  }, /*#__PURE__*/React.createElement(BsGrid, {
+    title: 'Their waters',
+    onCell: myTurn ? fire : null,
+    cells: (x, y) => {
+      const key = x + ',' + y;
+      const sh = myHitAt[key];
+      if (!sh) return {
+        bg: 'rgba(255,255,255,.05)'
+      };
+      if (sh.hit) return {
+        bg: 'var(--blood)',
+        label: 'X'
+      };
+      return {
+        bg: 'rgba(255,255,255,.15)',
+        label: '\u2022'
+      };
+    }
+  }), /*#__PURE__*/React.createElement(BsGrid, {
+    title: "Your waters",
+    cells: (x, y) => {
+      const key = x + ',' + y;
+      const sid = occ[key];
+      const wasHit = hitAt[key];
+      if (wasHit && sid) return {
+        bg: 'var(--blood)',
+        label: 'X'
+      };
+      if (wasHit) return {
+        bg: 'rgba(255,255,255,.15)',
+        label: '\u2022'
+      };
+      if (sid) return {
+        bg: 'var(--brass)',
+        fg: '#000'
+      };
+      return {
+        bg: 'rgba(255,255,255,.03)'
+      };
+    }
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "row",
+    style: {
+      marginTop: 10,
+      flexWrap: 'wrap'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "small muted"
+  }, "Your fleet: "), ['carrier', 'battleship', 'cruiser', 'submarine', 'destroyer'].map(id => /*#__PURE__*/React.createElement("span", {
+    key: id,
+    className: 'chip' + (mySunk.has(id) ? ' on' : ''),
+    style: {
+      marginRight: 4,
+      opacity: mySunk.has(id) ? 1 : .6
+    }
+  }, BS_LABELS[id], mySunk.has(id) ? ' sunk' : ''))), /*#__PURE__*/React.createElement(ConfirmButton, {
+    className: "btn sm ghost",
+    style: {
+      marginTop: 10
+    },
+    confirmText: "Forfeit and hand them the pot? Click again",
+    onConfirm: () => dispatch({
+      t: 'bsForfeit',
+      id: game.id,
+      by: me
+    })
+  }, "Forfeit"));
+}
+function BattleshipsPage({
+  store,
+  me,
+  cred,
+  dispatch,
+  toast
+}) {
+  const [opp, setOpp] = useState('');
+  const [stake, setStake] = useState(0);
+  const [selected, setSelected] = useState(null);
+  const games = (store.battleships || []).filter(g => g.challenger === me || g.opponent === me);
+  const others = store.players.filter(p => p.active && p.name !== me).map(p => p.name);
+  const target = others.includes(opp) ? opp : others[0] || '';
+  const balance = chipsOf(store, me);
+  const pending = games.filter(g => g.status === 'setup' && g.opponent === me && !g.ready[me]);
+  const needsMe = games.filter(g => g.status === 'setup' && !g.ready[me] && !(g.opponent === me && !g.ready[me] && pending.includes(g)));
+  const active = games.filter(g => g.status === 'playing');
+  const done = games.filter(g => g.status === 'done').reverse().slice(0, 10);
+  const setup = games.filter(g => g.status === 'setup');
+  const sel = selected ? games.find(g => g.id === selected) : null;
+  if (sel && sel.status === 'playing') return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("button", {
+    className: "btn sm ghost",
+    style: {
+      marginBottom: 10
+    },
+    onClick: () => setSelected(null)
+  }, '\u2190', " Back to games"), /*#__PURE__*/React.createElement(BsBattle, {
+    game: sel,
+    me: me,
+    cred: cred,
+    dispatch: dispatch,
+    toast: toast
+  }));
+  if (sel && sel.status === 'setup' && !sel.ready[me]) return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("button", {
+    className: "btn sm ghost",
+    style: {
+      marginBottom: 10
+    },
+    onClick: () => setSelected(null)
+  }, '\u2190', " Back to games"), /*#__PURE__*/React.createElement("p", {
+    className: "small muted"
+  }, "v ", sel.challenger === me ? sel.opponent : sel.challenger, sel.stake > 0 ? ', ' + sel.stake + ' chips each' : ''), /*#__PURE__*/React.createElement(BsPlacement, {
+    game: sel,
+    me: me,
+    dispatch: dispatch
+  }));
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "page-title"
+  }, /*#__PURE__*/React.createElement("h1", null, "Battleships"), /*#__PURE__*/React.createElement("span", {
+    className: "sub"
+  }, "Challenge someone, place your fleet, sink theirs.")), /*#__PURE__*/React.createElement("div", {
+    className: "panel",
+    style: {
+      marginBottom: 18
+    }
+  }, /*#__PURE__*/React.createElement("h2", null, "Challenge someone"), /*#__PURE__*/React.createElement("div", {
+    className: "row",
+    style: {
+      marginBottom: 8
+    }
+  }, /*#__PURE__*/React.createElement("select", {
+    value: target,
+    onChange: e => setOpp(e.target.value)
+  }, others.map(p => /*#__PURE__*/React.createElement("option", {
+    key: p
+  }, p)))), /*#__PURE__*/React.createElement(BetBar, {
+    bet: stake,
+    setBet: setStake,
+    max: balance
+  }), /*#__PURE__*/React.createElement("button", {
+    className: "btn",
+    style: {
+      marginTop: 10
+    },
+    disabled: !target,
+    onClick: () => dispatch({
+      t: 'bsCreate',
+      opponent: target,
+      stake,
+      by: me
+    })
+  }, "Challenge ", target, stake > 0 ? ' for ' + stake : '')), pending.length > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "panel",
+    style: {
+      marginBottom: 18
+    }
+  }, /*#__PURE__*/React.createElement("h2", null, "Challenges for you"), pending.map(g => /*#__PURE__*/React.createElement("div", {
+    key: g.id,
+    className: "row spread",
+    style: {
+      padding: '6px 0',
+      borderBottom: '1px solid var(--smoke)'
+    }
+  }, /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, g.challenger), " wants a game", g.stake > 0 ? ' for ' + g.stake + ' chips each' : ''), /*#__PURE__*/React.createElement("span", {
+    className: "row"
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "btn sm",
+    onClick: () => setSelected(g.id)
+  }, "Accept"), /*#__PURE__*/React.createElement("button", {
+    className: "btn sm ghost",
+    onClick: () => dispatch({
+      t: 'bsDecline',
+      id: g.id,
+      by: me
+    })
+  }, "Decline"))))), setup.filter(g => !pending.includes(g)).length > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "panel",
+    style: {
+      marginBottom: 18
+    }
+  }, /*#__PURE__*/React.createElement("h2", null, "Waiting on ships"), setup.filter(g => !pending.includes(g)).map(g => {
+    const other = g.challenger === me ? g.opponent : g.challenger;
+    return /*#__PURE__*/React.createElement("div", {
+      key: g.id,
+      className: "row spread small",
+      style: {
+        padding: '6px 0',
+        borderBottom: '1px solid var(--smoke)'
+      }
+    }, /*#__PURE__*/React.createElement("span", null, "v ", other, !g.ready[me] ? ', place your fleet' : ', waiting on them'), !g.ready[me] ? /*#__PURE__*/React.createElement("button", {
+      className: "btn sm",
+      onClick: () => setSelected(g.id)
+    }, "Place ships") : /*#__PURE__*/React.createElement("span", {
+      className: "small muted"
+    }, "ready"));
+  })), active.length > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "panel",
+    style: {
+      marginBottom: 18
+    }
+  }, /*#__PURE__*/React.createElement("h2", null, "In progress"), active.map(g => {
+    const other = g.challenger === me ? g.opponent : g.challenger;
+    return /*#__PURE__*/React.createElement("div", {
+      key: g.id,
+      className: "row spread",
+      style: {
+        padding: '6px 0',
+        borderBottom: '1px solid var(--smoke)'
+      }
+    }, /*#__PURE__*/React.createElement("span", null, "v ", other, g.stake > 0 ? ', ' + g.stake + ' chips each' : ''), /*#__PURE__*/React.createElement("button", {
+      className: 'btn sm' + (g.turn === me ? '' : ' ghost'),
+      onClick: () => setSelected(g.id)
+    }, g.turn === me ? 'Your move' : 'View'));
+  })), done.length > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "panel"
+  }, /*#__PURE__*/React.createElement("h2", null, "Recent games"), done.map(g => {
+    const other = g.challenger === me ? g.opponent : g.challenger;
+    return /*#__PURE__*/React.createElement("p", {
+      key: g.id,
+      className: "small",
+      style: {
+        margin: '4px 0'
+      }
+    }, g.winner === me ? 'You beat ' : 'Lost to ', other, g.stake > 0 ? ' (' + (g.winner === me ? '+' : '-') + g.stake + ' chips)' : '');
+  })));
+}
 function HogsPage({
   store,
   me,
@@ -3675,9 +4161,11 @@ function ChipRequestPanel({
   const [open, setOpen] = useState(false);
   const [amt, setAmt] = useState(500);
   const [note, setNote] = useState('');
+  const price = store.payouts.chipPrice != null ? store.payouts.chipPrice : 1;
   const mine = [...(store.chipRequests || [])].filter(r => r.player === me).reverse();
   const last = mine[0];
   const pend = mine.find(r => r.status === 'pending');
+  const cost = amt / 10000 * price;
   const send = () => {
     dispatch({
       t: 'requestChips',
@@ -3695,14 +4183,14 @@ function ChipRequestPanel({
     }
   }, /*#__PURE__*/React.createElement("div", {
     className: "row spread"
-  }, /*#__PURE__*/React.createElement("h2", null, "Skint?"), !pend && /*#__PURE__*/React.createElement("button", {
+  }, /*#__PURE__*/React.createElement("h2", null, "Need chips?"), !pend && /*#__PURE__*/React.createElement("button", {
     className: "btn sm ghost",
     onClick: () => setOpen(o => !o)
-  }, "Request chips")), /*#__PURE__*/React.createElement("p", {
+  }, "Buy chips")), /*#__PURE__*/React.createElement("p", {
     className: "small muted"
-  }, "Ask the dictator for a top-up. He can say yes, no, or a smaller number."), pend && /*#__PURE__*/React.createElement("div", {
+  }, '\u00a3', price.toFixed(2), " per 10,000 chips. Pay the dictator directly, then he confirms it here."), pend && /*#__PURE__*/React.createElement("div", {
     className: "warnbox"
-  }, "Waiting on the dictator: you asked for ", pend.amount.toLocaleString(), " chips."), open && !pend && /*#__PURE__*/React.createElement("div", {
+  }, "Waiting on the dictator: you asked to buy ", pend.amount.toLocaleString(), " chips (", '\u00a3', (pend.amount / 10000 * price).toFixed(2), ")."), open && !pend && /*#__PURE__*/React.createElement("div", {
     style: {
       marginTop: 8
     }
@@ -3722,20 +4210,25 @@ function ChipRequestPanel({
     },
     value: amt,
     onChange: e => setAmt(Math.max(0, Math.floor(+e.target.value || 0)))
-  })), /*#__PURE__*/React.createElement("input", {
+  })), /*#__PURE__*/React.createElement("p", {
+    className: "small muted",
+    style: {
+      margin: '4px 0'
+    }
+  }, "That's ", '\u00a3', cost.toFixed(2), "."), /*#__PURE__*/React.createElement("input", {
     style: {
       width: '100%',
       marginBottom: 8
     },
     maxLength: 140,
-    placeholder: "Why should he say yes? (optional)",
+    placeholder: "Note for the dictator (optional)",
     value: note,
     onChange: e => setNote(e.target.value)
   }), /*#__PURE__*/React.createElement("button", {
     className: "btn",
     disabled: amt < 1 || amt > 5000,
     onClick: send
-  }, "Send the request")), last && last.status === 'approved' && /*#__PURE__*/React.createElement("p", {
+  }, "Request ", amt.toLocaleString(), " chips (", '\u00a3', cost.toFixed(2), ")")), last && last.status === 'approved' && /*#__PURE__*/React.createElement("p", {
     className: "small",
     style: {
       marginTop: 8
@@ -3755,54 +4248,63 @@ function ChipRequestsAdmin({
   const all = [...(store.chipRequests || [])].reverse();
   const pend = all.filter(r => r.status === 'pending');
   const recent = all.filter(r => r.status !== 'pending').slice(0, 10);
+  const price = store.payouts.chipPrice != null ? store.payouts.chipPrice : 1;
   const [amt, setAmt] = useState({});
+  const totalTaken = all.filter(r => r.status === 'approved').reduce((t, r) => t + (r.granted || 0), 0);
   return /*#__PURE__*/React.createElement("div", {
     className: "panel"
-  }, /*#__PURE__*/React.createElement("h2", null, "Chip requests"), pend.length === 0 && /*#__PURE__*/React.createElement("p", {
+  }, /*#__PURE__*/React.createElement("h2", null, "Chip purchases"), /*#__PURE__*/React.createElement("p", {
+    className: "small muted"
+  }, '\u00a3', price.toFixed(2), " per 10,000 chips, set below. ", '\u00a3', (totalTaken / 10000 * price).toFixed(2), " taken in so far across ", all.filter(r => r.status === 'approved').length, " approved purchases."), pend.length === 0 && /*#__PURE__*/React.createElement("p", {
     className: "muted"
-  }, "Nobody is begging right now."), pend.map(r => /*#__PURE__*/React.createElement("div", {
-    key: r.id,
-    style: {
-      padding: '8px 0',
-      borderBottom: '1px solid var(--smoke)'
-    }
-  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("b", null, r.player), " wants ", r.amount.toLocaleString(), " chips ", /*#__PURE__*/React.createElement("span", {
-    className: "small muted"
-  }, "(has ", chipsOf(store, r.player).toLocaleString(), ")")), r.note && /*#__PURE__*/React.createElement("div", {
-    className: "small muted"
-  }, "\"", r.note, "\""), /*#__PURE__*/React.createElement("div", {
-    className: "row",
-    style: {
-      marginTop: 6
-    }
-  }, /*#__PURE__*/React.createElement("input", {
-    className: "score",
-    style: {
-      width: 90
-    },
-    value: amt[r.id] != null ? amt[r.id] : r.amount,
-    onChange: e => setAmt(a => ({
-      ...a,
-      [r.id]: e.target.value
-    }))
-  }), /*#__PURE__*/React.createElement("button", {
-    className: "btn sm",
-    onClick: () => dispatch({
-      t: 'resolveChipRequest',
-      id: r.id,
-      approve: true,
-      amount: +(amt[r.id] != null ? amt[r.id] : r.amount),
-      by: me
-    })
-  }, "Approve"), /*#__PURE__*/React.createElement("button", {
-    className: "btn sm ghost",
-    onClick: () => dispatch({
-      t: 'resolveChipRequest',
-      id: r.id,
-      approve: false,
-      by: me
-    })
-  }, "Decline")))), recent.length > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("h3", {
+  }, "Nobody is buying right now."), pend.map(r => {
+    const a = amt[r.id] != null ? +amt[r.id] : r.amount;
+    return /*#__PURE__*/React.createElement("div", {
+      key: r.id,
+      style: {
+        padding: '8px 0',
+        borderBottom: '1px solid var(--smoke)'
+      }
+    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("b", null, r.player), " wants to buy ", r.amount.toLocaleString(), " chips for ", '\u00a3', (r.amount / 10000 * price).toFixed(2), " ", /*#__PURE__*/React.createElement("span", {
+      className: "small muted"
+    }, "(has ", chipsOf(store, r.player).toLocaleString(), ")")), r.note && /*#__PURE__*/React.createElement("div", {
+      className: "small muted"
+    }, "\"", r.note, "\""), /*#__PURE__*/React.createElement("div", {
+      className: "row",
+      style: {
+        marginTop: 6
+      }
+    }, /*#__PURE__*/React.createElement("input", {
+      className: "score",
+      style: {
+        width: 90
+      },
+      value: amt[r.id] != null ? amt[r.id] : r.amount,
+      onChange: e => setAmt(x => ({
+        ...x,
+        [r.id]: e.target.value
+      }))
+    }), /*#__PURE__*/React.createElement("span", {
+      className: "small muted"
+    }, '\u00a3', (a / 10000 * price).toFixed(2)), /*#__PURE__*/React.createElement("button", {
+      className: "btn sm",
+      onClick: () => dispatch({
+        t: 'resolveChipRequest',
+        id: r.id,
+        approve: true,
+        amount: a,
+        by: me
+      })
+    }, "Confirm paid, give chips"), /*#__PURE__*/React.createElement("button", {
+      className: "btn sm ghost",
+      onClick: () => dispatch({
+        t: 'resolveChipRequest',
+        id: r.id,
+        approve: false,
+        by: me
+      })
+    }, "Decline")));
+  }), recent.length > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("h3", {
     style: {
       marginTop: 16
     }
@@ -3812,7 +4314,65 @@ function ChipRequestsAdmin({
     style: {
       margin: '4px 0'
     }
-  }, r.player, ": ", r.status === 'approved' ? 'approved ' + r.granted : 'declined', " (asked ", r.amount, ") by ", r.decidedBy))));
+  }, r.player, ": ", r.status === 'approved' ? 'approved ' + r.granted + ' (' + '\u00a3' + (r.granted / 10000 * price).toFixed(2) + ')' : 'declined', " (asked ", r.amount, ") by ", r.decidedBy))));
+}
+function CardSeller({
+  store,
+  me,
+  dispatch
+}) {
+  const mine = store.cards && store.cards[me] || {
+    owned: [],
+    equipped: null
+  };
+  const counts = {};
+  (mine.owned || []).forEach(id => {
+    counts[id] = (counts[id] || 0) + 1;
+  });
+  const owned = Object.keys(counts).map(id => CATALOG.find(c => c.id === id)).filter(Boolean);
+  const sp = Object.assign({
+    common: 15,
+    uncommon: 25,
+    rare: 35,
+    epic: 50,
+    legendary: 70
+  }, store.payouts.cardSellPrice || {});
+  const cost = store.payouts.caseCost || 300;
+  const priceFor = c => Math.floor(cost * (+sp[c.rarity] || 0) / 100);
+  if (owned.length === 0) return null;
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 18
+    }
+  }, /*#__PURE__*/React.createElement("h3", null, "Sell a card"), /*#__PURE__*/React.createElement("p", {
+    className: "small muted"
+  }, "Sell a card back for chips. If it's your last copy and it's equipped, it gets unequipped first."), /*#__PURE__*/React.createElement("div", {
+    className: "crest-grid"
+  }, owned.map(c => /*#__PURE__*/React.createElement("div", {
+    key: c.id,
+    className: "crest-tile",
+    style: {
+      borderColor: RARITY_COLORS[c.rarity]
+    }
+  }, /*#__PURE__*/React.createElement(Emblem, {
+    e: c.emblem,
+    size: 44
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "nm",
+    style: {
+      color: RARITY_COLORS[c.rarity]
+    }
+  }, c.name, counts[c.id] > 1 ? ' x' + counts[c.id] : ''), /*#__PURE__*/React.createElement("button", {
+    className: "btn sm ghost",
+    style: {
+      marginTop: 4
+    },
+    onClick: () => dispatch({
+      t: 'sellCard',
+      id: c.id,
+      by: me
+    })
+  }, "Sell for ", priceFor(c))))));
 }
 function CasinoPage(props) {
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(CasinoPageInner, props), /*#__PURE__*/React.createElement(ChipRequestPanel, {
@@ -3879,6 +4439,65 @@ function DupeRefundEditor({
       by: me
     })
   }, "Save refund rates"));
+}
+function CardSellPriceEditor({
+  store,
+  dispatch,
+  me
+}) {
+  const RAR = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
+  const [sp, setSp] = useState(Object.assign({
+    common: 15,
+    uncommon: 25,
+    rare: 35,
+    epic: 50,
+    legendary: 70
+  }, store.payouts.cardSellPrice || {}));
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 22,
+      borderTop: '1px solid var(--smoke)',
+      paddingTop: 16
+    }
+  }, /*#__PURE__*/React.createElement("h3", null, "Card sell prices"), /*#__PURE__*/React.createElement("p", {
+    className: "muted small"
+  }, "What a player gets back for selling a card, as a percentage of the case cost."), /*#__PURE__*/React.createElement("div", {
+    className: "row",
+    style: {
+      flexWrap: 'wrap'
+    }
+  }, RAR.map(r => /*#__PURE__*/React.createElement("label", {
+    key: r,
+    className: "f",
+    style: {
+      margin: 0
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      textTransform: 'capitalize'
+    }
+  }, r), /*#__PURE__*/React.createElement("br", null), /*#__PURE__*/React.createElement("input", {
+    className: "score",
+    style: {
+      width: 60
+    },
+    value: sp[r],
+    onChange: e => setSp(d => ({
+      ...d,
+      [r]: Math.max(0, Math.min(100, +e.target.value || 0))
+    }))
+  }), "%"))), /*#__PURE__*/React.createElement("button", {
+    className: "btn sm",
+    style: {
+      marginTop: 10
+    },
+    onClick: () => dispatch({
+      t: 'payout',
+      k: 'cardSellPrice',
+      v: sp,
+      by: me
+    })
+  }, "Save sell prices"));
 }
 function WheelPrizesEditor({
   store,
@@ -5901,7 +6520,22 @@ function RegimePage({
       k: 'accaMaxBet',
       v: +e.target.value
     })
+  })), /*#__PURE__*/React.createElement("label", {
+    className: "f"
+  }, "chip price (\u00a3 per 10,000)", /*#__PURE__*/React.createElement("br", null), /*#__PURE__*/React.createElement("input", {
+    className: "score",
+    value: po.chipPrice != null ? po.chipPrice : 1,
+    step: "0.01",
+    onChange: e => dispatch({
+      t: 'payout',
+      k: 'chipPrice',
+      v: +e.target.value
+    })
   })), /*#__PURE__*/React.createElement(DupeRefundEditor, {
+    store: store,
+    dispatch: dispatch,
+    me: me
+  }), /*#__PURE__*/React.createElement(CardSellPriceEditor, {
     store: store,
     dispatch: dispatch,
     me: me
@@ -6888,6 +7522,84 @@ function hogCardFor(salt, wk, pl) {
   const one = k => 1 + Math.floor(100 * u(k));
   return { length: 3 + Math.floor(302 * (u('len1') + u('len2')) / 2), girth: 15 + Math.floor(165 * (u('gir1') + u('gir2')) / 2), smell: one('smell'), colour: one('colour'), bush: one('bush'), ratio: one('ratio'), firmness: one('firm'), plumsize: one('plum'), balance: one('bal'), roundness: one('round') };
 }
+const BS_REQUIRED = {
+  carrier: 5,
+  battleship: 4,
+  cruiser: 3,
+  submarine: 3,
+  destroyer: 2
+};
+function bsValidShips(ships) {
+  if (!Array.isArray(ships) || ships.length !== 5) return false;
+  const seen = new Set(),
+    used = new Set();
+  for (const s of ships) {
+    if (!s || !BS_REQUIRED[s.id] || seen.has(s.id)) return false;
+    seen.add(s.id);
+    const len = BS_REQUIRED[s.id];
+    if (!Array.isArray(s.cells) || s.cells.length !== len) return false;
+    const xs = [],
+      ys = [];
+    for (const c of s.cells) {
+      if (!Array.isArray(c) || c.length !== 2) return false;
+      const [x, y] = c;
+      if (x == null || y == null || x < 0 || x > 9 || y < 0 || y > 9) return false;
+      const key = x + ',' + y;
+      if (used.has(key)) return false;
+      used.add(key);
+      xs.push(x);
+      ys.push(y);
+    }
+    const dx = new Set(xs),
+      dy = new Set(ys);
+    const okVert = dx.size === 1 && dy.size === len && Math.max(...ys) - Math.min(...ys) + 1 === len;
+    const okHoriz = dy.size === 1 && dx.size === len && Math.max(...xs) - Math.min(...xs) + 1 === len;
+    if (!okVert && !okHoriz) return false;
+  }
+  return true;
+}
+function bsRandomFleet() {
+  const ids = Object.keys(BS_REQUIRED);
+  for (let attempt = 0; attempt < 200; attempt++) {
+    const used = new Set();
+    const ships = [];
+    let ok = true;
+    for (const id of ids) {
+      const len = BS_REQUIRED[id];
+      let placed = false;
+      for (let tries = 0; tries < 60 && !placed; tries++) {
+        const horiz = Math.random() < 0.5;
+        const x = Math.floor(Math.random() * (horiz ? 10 - len + 1 : 10));
+        const y = Math.floor(Math.random() * (horiz ? 10 : 10 - len + 1));
+        const cells = [];
+        for (let i = 0; i < len; i++) cells.push(horiz ? [x + i, y] : [x, y + i]);
+        if (cells.every(([cx, cy]) => !used.has(cx + ',' + cy))) {
+          cells.forEach(([cx, cy]) => used.add(cx + ',' + cy));
+          ships.push({
+            id,
+            cells
+          });
+          placed = true;
+        }
+      }
+      if (!placed) {
+        ok = false;
+        break;
+      }
+    }
+    if (ok) return ships;
+  }
+  return null;
+}
+function bsHitShip(ships, x, y) {
+  for (const s of ships) for (const [cx, cy] of s.cells) if (cx === x && cy === y) return s.id;
+  return null;
+}
+function bsShipSunk(ships, shipId, shots) {
+  const s = ships.find(x => x.id === shipId);
+  if (!s) return false;
+  return s.cells.every(([cx, cy]) => shots.some(sh => sh.x === cx && sh.y === cy && sh.hit));
+}
 function findGame(store, id) {
   for (const w of store.weeks) {
     for (const k of ['fixtures', 'playoffs', 'tiebreaks']) {
@@ -7437,6 +8149,120 @@ function reduce(store, a) {
         log(`${a.by} bet ${stake} chips on a ${legs.length}-leg accumulator at ${combined}`);
         break;
       }
+    case 'bsCreate':
+      {
+        if (!a.opponent || a.opponent === a.by) throw new Error('Pick someone else to challenge.');
+        const stake = Math.floor(+a.stake) || 0;
+        if (stake < 0) throw new Error('Bad stake.');
+        s.chips = s.chips || {};
+        const cur = s.chips[a.by] != null ? s.chips[a.by] : 1000;
+        if (stake > 0 && stake > cur) throw new Error('You cannot stake more than your chip balance.');
+        s.battleships = s.battleships || [];
+        if (s.battleships.some(g => ['setup', 'playing'].includes(g.status) && ((g.challenger === a.by && g.opponent === a.opponent) || (g.opponent === a.by && g.challenger === a.opponent)))) throw new Error('You already have a game with them.');
+        if (stake > 0) s.chips[a.by] = cur - stake;
+        s.battleships.push({ id: 'bs' + Date.now(), challenger: a.by, opponent: a.opponent, stake, status: 'setup', turn: null, winner: null, ready: { [a.by]: false, [a.opponent]: false }, shots: { [a.by]: [], [a.opponent]: [] }, sunk: { [a.by]: [], [a.opponent]: [] }, ships: {}, createdAt: Date.now() });
+        log(`${a.by} challenged ${a.opponent} to Battleships${stake > 0 ? ' for ' + stake + ' chips' : ''}`);
+        break;
+      }
+    case 'bsDecline':
+      {
+        const g = (s.battleships || []).find(x => x.id === a.id);
+        if (!g) throw new Error('That game is gone.');
+        if (g.status !== 'setup') throw new Error('That game has already started.');
+        if (a.by !== g.opponent) throw new Error('That challenge is not for you.');
+        if (g.stake > 0) {
+          s.chips = s.chips || {};
+          s.chips[g.challenger] = (s.chips[g.challenger] != null ? s.chips[g.challenger] : 1000) + g.stake;
+        }
+        g.status = 'declined';
+        log(`${a.by} declined a game of Battleships against ${g.challenger}`);
+        break;
+      }
+    case 'bsPlaceShips':
+      {
+        const g = (s.battleships || []).find(x => x.id === a.id);
+        if (!g) throw new Error('That game is gone.');
+        if (g.status !== 'setup') throw new Error('Ships can only be placed before the game starts.');
+        if (a.by !== g.challenger && a.by !== g.opponent) throw new Error('That is not your game.');
+        if (!bsValidShips(a.ships)) throw new Error('That is not a legal fleet.');
+        if (a.by === g.opponent && !g.ready[a.by] && g.stake > 0) {
+          s.chips = s.chips || {};
+          const cur = s.chips[a.by] != null ? s.chips[a.by] : 1000;
+          if (g.stake > cur) throw new Error('You cannot stake more than your chip balance.');
+          s.chips[a.by] = cur - g.stake;
+        }
+        g.ships[a.by] = a.ships;
+        g.ready[a.by] = true;
+        if (g.ready[g.challenger] && g.ready[g.opponent]) {
+          g.status = 'playing';
+          g.turn = g.challenger;
+          log(`${g.challenger} and ${g.opponent} are both ready, Battleships under way`);
+        }
+        break;
+      }
+    case 'bsFire':
+      {
+        const g = (s.battleships || []).find(x => x.id === a.id);
+        if (!g) throw new Error('That game is gone.');
+        if (g.status !== 'playing') throw new Error('That game is not in progress.');
+        if (g.turn !== a.by) throw new Error('It is not your turn.');
+        const defender = a.by === g.challenger ? g.opponent : g.challenger;
+        const x = +a.x, y = +a.y;
+        if (x == null || y == null || x < 0 || x > 9 || y < 0 || y > 9) throw new Error('Bad coordinates.');
+        if (g.shots[a.by].some(sh => sh.x === x && sh.y === y)) throw new Error('You have already fired there.');
+        const hit = bsHitShip(g.ships[defender], x, y);
+        g.shots[a.by].push({ x, y, hit: !!hit, ship: hit });
+        if (hit && bsShipSunk(g.ships[defender], hit, g.shots[a.by]) && !g.sunk[defender].includes(hit)) g.sunk[defender].push(hit);
+        const hits = g.shots[a.by].filter(sh => sh.hit).length;
+        if (hits >= 17) {
+          g.status = 'done';
+          g.winner = a.by;
+          g.turn = null;
+          if (g.stake > 0) {
+            s.chips = s.chips || {};
+            s.chips[a.by] = (s.chips[a.by] != null ? s.chips[a.by] : 1000) + g.stake * 2;
+          }
+          log(`${a.by} sank the last of ${defender}'s fleet and won Battleships${g.stake > 0 ? ' (' + g.stake * 2 + ' chips)' : ''}`);
+        } else {
+          g.turn = defender;
+        }
+        break;
+      }
+    case 'bsForfeit':
+      {
+        const g = (s.battleships || []).find(x => x.id === a.id);
+        if (!g) throw new Error('That game is gone.');
+        if (g.status !== 'playing') throw new Error('That game is not in progress.');
+        if (a.by !== g.challenger && a.by !== g.opponent) throw new Error('That is not your game.');
+        const winner = a.by === g.challenger ? g.opponent : g.challenger;
+        g.status = 'done';
+        g.winner = winner;
+        g.turn = null;
+        if (g.stake > 0) {
+          s.chips = s.chips || {};
+          s.chips[winner] = (s.chips[winner] != null ? s.chips[winner] : 1000) + g.stake * 2;
+        }
+        log(`${a.by} forfeited Battleships to ${winner}`);
+        break;
+      }
+    case 'sellCard':
+      {
+        s.cards = s.cards || {};
+        const mine = s.cards[a.by] || { owned: [], equipped: null };
+        if (!mine.owned.includes(a.id)) throw new Error('You do not own that card.');
+        const card = (s.cardCatalog && s.cardCatalog.length ? s.cardCatalog : defaultCardCatalog()).find(c => c.id === a.id);
+        if (!card) throw new Error('That card no longer exists.');
+        const sp = Object.assign({ common: 15, uncommon: 25, rare: 35, epic: 50, legendary: 70 }, s.payouts && s.payouts.cardSellPrice || {});
+        const cost = s.payouts.caseCost || 300;
+        const price = Math.floor(cost * (+sp[card.rarity] || 0) / 100);
+        const idx = mine.owned.indexOf(a.id);
+        mine.owned.splice(idx, 1);
+        if (mine.equipped === a.id && !mine.owned.includes(a.id)) mine.equipped = null;
+        s.chips = s.chips || {};
+        s.chips[a.by] = (s.chips[a.by] != null ? s.chips[a.by] : 1000) + price;
+        log(`${a.by} sold ${card.name} for ${price} chips`);
+        break;
+      }
     case 'requestChips':
       {
         const amount = Math.floor(+a.amount);
@@ -7662,7 +8488,7 @@ function Login({
     style: {
       fontSize: 96
     }
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.6.0")), /*#__PURE__*/React.createElement("p", {
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.7.1")), /*#__PURE__*/React.createElement("p", {
     className: "muted"
   }, "Twelve players. Six games. One office. Report to the table."), /*#__PURE__*/React.createElement("div", {
     className: "pinbox"
@@ -7751,6 +8577,7 @@ function App() {
   const me = cred ? cred.name : cred;
   const isAdmin = !!(cred && cred.role === 'admin');
   const hogPending = store && me ? (store.hogDuels || []).filter(d => d.status === 'open' && d.opponent === me).length : 0;
+  const bsPending = store && me ? (store.battleships || []).filter(g => (g.status === 'playing' && g.turn === me) || (g.status === 'setup' && g.opponent === me && !g.ready[me])).length : 0;
   const [chatUnread, setChatUnread] = useState(0);
   const [chatMention, setChatMention] = useState(false);
   useEffect(() => {
@@ -7775,7 +8602,7 @@ function App() {
     const off = api.subscribeChat(check, 'chat-badge');
     return () => { alive = false; clearInterval(iv); off(); };
   }, [me, tab]);
-  useEffect(() => { document.title = (chatUnread + hogPending > 0 ? '(' + (chatUnread + hogPending) + ') ' : '') + 'Book1.6.0'; }, [chatUnread, hogPending]);
+  useEffect(() => { document.title = (chatUnread + hogPending + bsPending > 0 ? '(' + (chatUnread + hogPending + bsPending) + ') ' : '') + 'Book1.7.1'; }, [chatUnread, hogPending, bsPending]);
   const cloudEmpty = !!(store && !store.weeks);
   const persistCred = c => {
     setCred(c);
@@ -7807,7 +8634,7 @@ function App() {
           refresh();
         } else toast('Not saved: ' + e.message);
       }
-    } else if (cred && (a.t === 'submit' || a.t === 'rollcall' || a.t === 'profile' || a.t === 'recall' || a.t === 'casino' || a.t === 'tourneyVote' || a.t === 'ping' || a.t === 'predict' || a.t === 'equipCard' || a.t === 'unlock' || a.t === 'placeBet' || a.t === 'placeAcca' || a.t === 'requestChips' || a.t === 'cashOutBet')) {
+    } else if (cred && (a.t === 'submit' || a.t === 'rollcall' || a.t === 'profile' || a.t === 'recall' || a.t === 'casino' || a.t === 'tourneyVote' || a.t === 'ping' || a.t === 'predict' || a.t === 'equipCard' || a.t === 'unlock' || a.t === 'placeBet' || a.t === 'placeAcca' || a.t === 'requestChips' || a.t === 'cashOutBet' || a.t === 'bsCreate' || a.t === 'bsDecline' || a.t === 'bsPlaceShips' || a.t === 'bsFire' || a.t === 'bsForfeit' || a.t === 'sellCard')) {
       try {
         await api.playerAction(cred, a);
         await refresh();
@@ -7888,7 +8715,7 @@ function App() {
     style: {
       fontSize: 96
     }
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.6.0"));
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.7.1"));
   if (!store) return /*#__PURE__*/React.createElement("div", {
     className: "login"
   }, mark, /*#__PURE__*/React.createElement("p", {
@@ -7933,7 +8760,7 @@ function App() {
     onClick: () => persistCred(undefined)
   }, "Log out"));
   const wIdx = weekIdx == null ? store.weeks.length - 1 : Math.min(weekIdx, store.weeks.length - 1);
-  const tabs = [['table', 'Table'], ['me', 'My book'], ['casino', 'Casino'], ['hogs', 'Hogs'], ['eightman', '8 Man'], ['predict', 'Predictions'], ['chat', 'Chat'], ['master', 'Master'], ['stats', 'Dossier'], ['ko', 'Knockout']];
+  const tabs = [['table', 'Table'], ['me', 'My book'], ['casino', 'Casino'], ['hogs', 'Hogs'], ['battleships', 'Battleships'], ['eightman', '8 Man'], ['predict', 'Predictions'], ['chat', 'Chat'], ['master', 'Master'], ['stats', 'Dossier'], ['ko', 'Knockout']];
   if (isAdmin) tabs.push(['regime', 'Regime']);
   const live = store.weeks[store.weeks.length - 1];
   const pending = isAdmin ? live.fixtures.concat(live.playoffs).filter(g => g.status === 'disputed').length + (store.chipRequests || []).filter(r => r.status === 'pending').length : 0;
@@ -7968,7 +8795,15 @@ function App() {
   }, /*#__PURE__*/React.createElement("h2", null, "Log in to play."), /*#__PURE__*/React.createElement("button", {
     className: "btn",
     onClick: () => persistCred(undefined)
-  }, "Log in")) : tab === 'hogs' ? me ? /*#__PURE__*/React.createElement(HogsPage, {
+  }, "Log in")) : tab === 'battleships' ? me ? /*#__PURE__*/React.createElement(BattleshipsPage, {
+    store: store,
+    me: me,
+    cred: cred,
+    dispatch: dispatch,
+    toast: toast
+  }) : /*#__PURE__*/React.createElement("div", {
+    className: "panel"
+  }, "Log in to see your games.") : tab === 'hogs' ? me ? /*#__PURE__*/React.createElement(HogsPage, {
     store: store,
     me: me,
     cred: cred,
@@ -8022,9 +8857,9 @@ function App() {
         block: 'nearest'
       });
     },
-    className: (tab === k ? 'on' : '') + (k === 'chat' && chatUnread > 0 ? ' unread' : '') + (k === 'hogs' && hogPending > 0 ? ' unread' : ''),
+    className: (tab === k ? 'on' : '') + (k === 'chat' && chatUnread > 0 ? ' unread' : '') + (k === 'hogs' && hogPending > 0 ? ' unread' : '') + (k === 'battleships' && bsPending > 0 ? ' unread' : ''),
     onClick: () => setTab(k)
-  }, l, k === 'regime' && pending > 0 ? ' (' + pending + ')' : '', k === 'chat' && chatUnread > 0 ? ' (' + chatUnread + (chatMention ? ' @' : '') + ')' : k === 'hogs' && hogPending > 0 ? ' (' + hogPending + ')' : ''));
+  }, l, k === 'regime' && pending > 0 ? ' (' + pending + ')' : '', k === 'chat' && chatUnread > 0 ? ' (' + chatUnread + (chatMention ? ' @' : '') + ')' : k === 'hogs' && hogPending > 0 ? ' (' + hogPending + ')' : k === 'battleships' && bsPending > 0 ? ' (' + bsPending + ')' : ''));
   return /*#__PURE__*/React.createElement(EmblemCtx.Provider, {
     value: setFocus
   }, /*#__PURE__*/React.createElement("div", {
@@ -8033,7 +8868,7 @@ function App() {
     className: "rail"
   }, /*#__PURE__*/React.createElement("div", {
     className: "wordmark"
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.6.0")), /*#__PURE__*/React.createElement("div", {
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.7.1")), /*#__PURE__*/React.createElement("div", {
     className: "decree"
   }, decree), /*#__PURE__*/React.createElement("div", {
     className: "nav"
