@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Book1.8.0</title>
+<title>Book1.8.0.1</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -504,7 +504,7 @@ const {
 } = React;
 const STORE_KEY = 'book1.2-local';
 const CFG = window.BOOK_CONFIG || {};
-const APP_SQL_VERSION = 27; // bump this whenever a new SQL script adds or changes a server function
+const APP_SQL_VERSION = 28; // bump this whenever a new SQL script adds or changes a server function
 const CLOUD = !!(CFG.url && CFG.key);
 const ADMINS = ['Chef', 'Lorcan'];
 const DECREES = ['Abstention is not permitted.', 'The Book sees all results.', 'Ball difference is destiny.', 'The Dictator collects. The Dictator distributes.', 'Report your score. Report it honestly.', 'Twelfth place is a service to the office.', 'The mong off is not optional.', 'Disputes are settled by the regime.'];
@@ -8716,7 +8716,7 @@ function Login({
     style: {
       fontSize: 96
     }
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.8.0")), /*#__PURE__*/React.createElement("p", {
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.8.0.1")), /*#__PURE__*/React.createElement("p", {
     className: "muted"
   }, "Twelve players. Six games. One office. Report to the table."), /*#__PURE__*/React.createElement("div", {
     className: "pinbox"
@@ -8831,7 +8831,7 @@ function App() {
     const off = api.subscribeChat(check, 'chat-badge');
     return () => { alive = false; clearInterval(iv); off(); };
   }, [me, tab]);
-  useEffect(() => { document.title = (chatUnread + hogPending + bsPending + c4Pending > 0 ? '(' + (chatUnread + hogPending + bsPending + c4Pending) + ') ' : '') + 'Book1.8.0'; }, [chatUnread, hogPending, bsPending, c4Pending]);
+  useEffect(() => { document.title = (chatUnread + hogPending + bsPending + c4Pending > 0 ? '(' + (chatUnread + hogPending + bsPending + c4Pending) + ') ' : '') + 'Book1.8.0.1'; }, [chatUnread, hogPending, bsPending, c4Pending]);
   const cloudEmpty = !!(store && !store.weeks);
   const persistCred = c => {
     setCred(c);
@@ -8949,7 +8949,7 @@ function App() {
     style: {
       fontSize: 96
     }
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.8.0"));
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.8.0.1"));
   if (!store) return /*#__PURE__*/React.createElement("div", {
     className: "login"
   }, mark, /*#__PURE__*/React.createElement("p", {
@@ -9108,7 +9108,7 @@ function App() {
     className: "rail"
   }, /*#__PURE__*/React.createElement("div", {
     className: "wordmark"
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.8.0")), /*#__PURE__*/React.createElement("div", {
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.8.0.1")), /*#__PURE__*/React.createElement("div", {
     className: "decree"
   }, decree), /*#__PURE__*/React.createElement("div", {
     className: "nav"
