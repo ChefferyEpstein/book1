@@ -8633,7 +8633,11 @@ function App() {
   const dispatch = async a => {
     if (!store) return;
     const playerActionTypes = ['submit', 'rollcall', 'profile', 'recall', 'casino', 'tourneyVote', 'ping', 'predict', 'equipCard', 'unlock', 'placeBet', 'placeAcca', 'requestChips', 'cashOutBet', 'bsCreate', 'bsDecline', 'bsPlaceShips', 'bsFire', 'bsForfeit', 'sellCard'];
-    if (cred && playerActionTypes.includes(a.t)) {
+    // A player's own roll-call response belongs on the player RPC. Regime approval/denial
+    // must stay on the admin-save path because the player RPC only acts as p_name and
+    // deliberately does not accept the final admin-only "out" state.
+    const adminRollcallAction = isAdmin && a.t === 'rollcall' && (a.v === 'out' || a.p && a.p !== me);
+    if (cred && playerActionTypes.includes(a.t) && !adminRollcallAction) {
       try {
         await api.playerAction(cred, a);
         await refresh();
