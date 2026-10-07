@@ -3725,6 +3725,21 @@ function BsBattle({
     }
   }, /*#__PURE__*/React.createElement("span", {
     className: "small muted"
+  }, "Opponent fleet: "), ['carrier', 'battleship', 'cruiser', 'submarine', 'destroyer'].map(id => /*#__PURE__*/React.createElement("span", {
+    key: id,
+    className: 'chip' + (oppSunk.has(id) ? ' on' : ''),
+    style: {
+      marginRight: 4,
+      opacity: oppSunk.has(id) ? 1 : .6
+    }
+  }, BS_LABELS[id], oppSunk.has(id) ? ' sunk' : ''))), /*#__PURE__*/React.createElement("div", {
+    className: "row",
+    style: {
+      marginTop: 8,
+      flexWrap: 'wrap'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "small muted"
   }, "Your fleet: "), ['carrier', 'battleship', 'cruiser', 'submarine', 'destroyer'].map(id => /*#__PURE__*/React.createElement("span", {
     key: id,
     className: 'chip' + (mySunk.has(id) ? ' on' : ''),
