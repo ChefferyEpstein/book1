@@ -584,7 +584,8 @@ function buildStore() {
       chipBase: 500,
       chipPerWin: 100,
       chipPerDiff: 10,
-      caseCost: 300
+      caseCost: 300,
+      chipPrice: 0.2
     },
     cardCatalog: defaultCardCatalog(),
     cards: {},
@@ -3546,7 +3547,9 @@ function BsPlacement({
     const cells = [];
     for (let i = 0; i < len; i++) cells.push(horiz ? [x + i, y] : [x, y + i]);
     if (cells.some(([cx, cy]) => cx > 9 || cy > 9)) return;
-    if (cells.some(([cx, cy]) => occ[cx + ',' + cy])) return;
+    const movingOcc = new Set();
+    ships.filter(s => s.id !== id).forEach(s => s.cells.forEach(([cx, cy]) => movingOcc.add(cx + ',' + cy)));
+    if (cells.some(([cx, cy]) => movingOcc.has(cx + ',' + cy))) return;
     const next = ships.filter(s => s.id !== id).concat([{
       id,
       cells
@@ -3664,6 +3667,7 @@ function BsBattle({
     myHitAt[sh.x + ',' + sh.y] = sh;
   });
   const mySunk = new Set(game.sunk[me] || []);
+  const oppSunk = new Set(game.sunk[opp] || []);
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: "row spread",
     style: {
@@ -4159,9 +4163,9 @@ function ChipRequestPanel({
   dispatch
 }) {
   const [open, setOpen] = useState(false);
-  const [amt, setAmt] = useState(500);
+  const [amt, setAmt] = useState(50000);
   const [note, setNote] = useState('');
-  const price = store.payouts.chipPrice != null ? store.payouts.chipPrice : 1;
+  const price = store.payouts.chipPrice != null ? store.payouts.chipPrice : 0.2;
   const mine = [...(store.chipRequests || [])].filter(r => r.player === me).reverse();
   const last = mine[0];
   const pend = mine.find(r => r.status === 'pending');
@@ -4199,7 +4203,7 @@ function ChipRequestPanel({
     style: {
       marginBottom: 8
     }
-  }, [250, 500, 1000, 2000].map(v => /*#__PURE__*/React.createElement("button", {
+  }, [10000, 25000, 50000, 100000, 250000].map(v => /*#__PURE__*/React.createElement("button", {
     key: v,
     className: 'chip' + (amt === v ? ' on' : ''),
     onClick: () => setAmt(v)
@@ -4226,7 +4230,7 @@ function ChipRequestPanel({
     onChange: e => setNote(e.target.value)
   }), /*#__PURE__*/React.createElement("button", {
     className: "btn",
-    disabled: amt < 1 || amt > 5000,
+    disabled: amt < 1 || amt > 500000,
     onClick: send
   }, "Request ", amt.toLocaleString(), " chips (", '\u00a3', cost.toFixed(2), ")")), last && last.status === 'approved' && /*#__PURE__*/React.createElement("p", {
     className: "small",
@@ -4248,7 +4252,7 @@ function ChipRequestsAdmin({
   const all = [...(store.chipRequests || [])].reverse();
   const pend = all.filter(r => r.status === 'pending');
   const recent = all.filter(r => r.status !== 'pending').slice(0, 10);
-  const price = store.payouts.chipPrice != null ? store.payouts.chipPrice : 1;
+  const price = store.payouts.chipPrice != null ? store.payouts.chipPrice : 0.2;
   const [amt, setAmt] = useState({});
   const totalTaken = all.filter(r => r.status === 'approved').reduce((t, r) => t + (r.granted || 0), 0);
   return /*#__PURE__*/React.createElement("div", {
@@ -6524,7 +6528,7 @@ function RegimePage({
     className: "f"
   }, "chip price (\u00a3 per 10,000)", /*#__PURE__*/React.createElement("br", null), /*#__PURE__*/React.createElement("input", {
     className: "score",
-    value: po.chipPrice != null ? po.chipPrice : 1,
+    value: po.chipPrice != null ? po.chipPrice : 0.2,
     step: "0.01",
     onChange: e => dispatch({
       t: 'payout',
@@ -8266,7 +8270,7 @@ function reduce(store, a) {
     case 'requestChips':
       {
         const amount = Math.floor(+a.amount);
-        if (!(amount >= 1 && amount <= 5000)) throw new Error('Ask for between 1 and 5,000 chips.');
+        if (!(amount >= 1 && amount <= 500000)) throw new Error('Ask for between 1 and 500,000 chips.');
         s.chipRequests = s.chipRequests || [];
         if (s.chipRequests.some(r => r.player === a.by && r.status === 'pending')) throw new Error('You already have a request waiting for the dictator.');
         s.chipRequests.push({ id: 'r' + Date.now(), player: a.by, amount, note: String(a.note || '').slice(0, 140), status: 'pending', at: Date.now() });
@@ -8279,7 +8283,7 @@ function reduce(store, a) {
         if (!r) throw new Error('That request has already been dealt with.');
         if (a.approve) {
           const amt = Math.floor(+a.amount);
-          if (!(amt >= 1 && amt <= 50000)) throw new Error('Give between 1 and 50,000 chips.');
+          if (!(amt >= 1 && amt <= 500000)) throw new Error('Give between 1 and 500,000 chips.');
           s.chips = s.chips || {};
           const cur = s.chips[r.player] != null ? s.chips[r.player] : 1000;
           s.chips[r.player] = cur + amt;
