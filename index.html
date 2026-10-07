@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Book1.7.2</title>
+<title>Book1.8.0</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -504,7 +504,7 @@ const {
 } = React;
 const STORE_KEY = 'book1.2-local';
 const CFG = window.BOOK_CONFIG || {};
-const APP_SQL_VERSION = 26; // bump this whenever a new SQL script adds or changes a server function
+const APP_SQL_VERSION = 27; // bump this whenever a new SQL script adds or changes a server function
 const CLOUD = !!(CFG.url && CFG.key);
 const ADMINS = ['Chef', 'Lorcan'];
 const DECREES = ['Abstention is not permitted.', 'The Book sees all results.', 'Ball difference is destiny.', 'The Dictator collects. The Dictator distributes.', 'Report your score. Report it honestly.', 'Twelfth place is a service to the office.', 'The mong off is not optional.', 'Disputes are settled by the regime.'];
@@ -589,6 +589,7 @@ function buildStore() {
     },
     cardCatalog: defaultCardCatalog(),
     cards: {},
+    connect4: [],
     log: [],
     nextId: id
   };
@@ -3916,6 +3917,134 @@ function BattleshipsPage({
     }, g.winner === me ? 'You beat ' : 'Lost to ', other, g.stake > 0 ? ' (' + (g.winner === me ? '+' : '-') + g.stake + ' chips)' : '');
   })));
 }
+
+function c4Winner(board, player) {
+  if (!player) return false;
+  const at = (r, c) => r >= 0 && r < 6 && c >= 0 && c < 7 ? board[r * 7 + c] : null;
+  for (let r = 0; r < 6; r++) {
+    for (let c = 0; c < 7; c++) {
+      if (at(r, c) !== player) continue;
+      if (c <= 3 && at(r, c + 1) === player && at(r, c + 2) === player && at(r, c + 3) === player) return true;
+      if (r <= 2 && at(r + 1, c) === player && at(r + 2, c) === player && at(r + 3, c) === player) return true;
+      if (r <= 2 && c <= 3 && at(r + 1, c + 1) === player && at(r + 2, c + 2) === player && at(r + 3, c + 3) === player) return true;
+      if (r <= 2 && c >= 3 && at(r + 1, c - 1) === player && at(r + 2, c - 2) === player && at(r + 3, c - 3) === player) return true;
+    }
+  }
+  return false;
+}
+function c4DropRow(board, col) {
+  for (let r = 5; r >= 0; r--) if (!board[r * 7 + col]) return r;
+  return -1;
+}
+function Connect4Page({ store, me, dispatch }) {
+  const h = React.createElement;
+  const [opp, setOpp] = useState('');
+  const [stake, setStake] = useState(0);
+  const [selected, setSelected] = useState(null);
+  const games = (store.connect4 || []).filter(g => g.challenger === me || g.opponent === me);
+  const others = store.players.filter(p => p.active && p.name !== me).map(p => p.name);
+  const target = others.includes(opp) ? opp : others[0] || '';
+  const balance = chipsOf(store, me);
+  const incoming = games.filter(g => g.status === 'pending' && g.opponent === me);
+  const outgoing = games.filter(g => g.status === 'pending' && g.challenger === me);
+  const active = games.filter(g => g.status === 'playing');
+  const recent = games.filter(g => g.status === 'done' || g.status === 'draw').slice().reverse().slice(0, 12);
+  const sel = selected ? games.find(g => g.id === selected) : null;
+
+  if (sel && ['playing','done','draw'].includes(sel.status)) {
+    const board = Array.from({ length: 42 }, (_, i) => (sel.board || [])[i] || null);
+    const other = sel.challenger === me ? sel.opponent : sel.challenger;
+    const canMove = sel.status === 'playing' && sel.turn === me;
+    const result = sel.status === 'draw' ? 'Draw — stakes returned.' :
+      sel.status === 'done' ? (sel.winner === me ? 'You won.' : other + ' won.') :
+      sel.turn === me ? 'Your move.' : other + "'s move.";
+    return h('div', null,
+      h('button', { className:'btn sm ghost', style:{marginBottom:10}, onClick:()=>setSelected(null) }, '← Back to Connect 4'),
+      h('div', {className:'page-title'}, h('h1', null, 'Connect 4'), h('span', {className:'sub'}, 'v ', other, sel.stake > 0 ? ', ' + sel.stake.toLocaleString() + ' chips each' : '')),
+      h('div', {className:'panel'},
+        h('div', {className:'row spread', style:{marginBottom:10}},
+          h('b', null, result),
+          h('span', {className:'small muted'},
+            sel.challenger, ' ', h('span',{style:{color:'var(--brass)'}},'●'),
+            '  ', sel.opponent, ' ', h('span',{style:{color:'var(--blood)'}},'●')
+          )
+        ),
+        h('div', {style:{display:'grid',gridTemplateColumns:'repeat(7,minmax(38px,64px))',gap:6,width:'fit-content',maxWidth:'100%',margin:'0 auto 6px'}},
+          Array.from({length:7}, (_, col) => h('button', {
+            key:'drop'+col, className:'btn sm ghost',
+            disabled:!canMove || c4DropRow(board,col)<0,
+            onClick:()=>dispatch({t:'c4Drop',id:sel.id,col,by:me})
+          }, '▼'))
+        ),
+        h('div', {style:{display:'grid',gridTemplateColumns:'repeat(7,minmax(38px,64px))',gap:6,width:'fit-content',maxWidth:'100%',margin:'0 auto',padding:8,border:'1px solid var(--smoke)',borderRadius:12,background:'rgba(255,255,255,.03)'}},
+          board.map((p,i)=>h('div',{key:i,style:{
+            aspectRatio:'1 / 1',borderRadius:'50%',minWidth:0,
+            background:p===sel.challenger?'var(--brass)':p===sel.opponent?'var(--blood)':'rgba(255,255,255,.08)',
+            border:'1px solid rgba(255,255,255,.10)',boxShadow:p?'inset 0 0 0 2px rgba(0,0,0,.18)':'inset 0 0 0 2px rgba(0,0,0,.28)'
+          }}))
+        ),
+        sel.status==='playing' && h(ConfirmButton,{
+          className:'btn sm ghost',style:{marginTop:12,borderColor:'var(--blood)',color:'var(--blood)'},
+          confirmText:'Forfeit and hand them the pot? Click again',
+          onConfirm:()=>dispatch({t:'c4Forfeit',id:sel.id,by:me})
+        },'Forfeit')
+      )
+    );
+  }
+
+  return h('div', null,
+    h('div',{className:'page-title'},h('h1',null,'Connect 4'),h('span',{className:'sub'},'Challenge a degenerate. Put chips on it. Four in a row takes the pot.')),
+    h('div',{className:'panel',style:{marginBottom:18}},
+      h('h2',null,'Challenge someone'),
+      h('div',{className:'row',style:{marginBottom:8}},
+        h('select',{value:target,onChange:e=>setOpp(e.target.value)},others.map(p=>h('option',{key:p},p)))
+      ),
+      h(BetBar,{bet:stake,setBet:setStake,max:balance}),
+      h('button',{className:'btn',style:{marginTop:10},disabled:!target || stake<0 || stake>balance,
+        onClick:()=>dispatch({t:'c4Create',opponent:target,stake,by:me})},
+        'Challenge ',target,stake>0?' for '+stake.toLocaleString()+' chips':'')
+    ),
+    incoming.length>0 && h('div',{className:'panel',style:{marginBottom:18}},
+      h('h2',null,'Challenges for you'),
+      incoming.map(g=>h('div',{key:g.id,className:'row spread',style:{padding:'7px 0',borderBottom:'1px solid var(--smoke)'}},
+        h('span',null,h('b',null,g.challenger),' wants Connect 4',g.stake>0?' for '+g.stake.toLocaleString()+' chips each':''),
+        h('span',{className:'row'},
+          h('button',{className:'btn sm',onClick:()=>dispatch({t:'c4Accept',id:g.id,by:me})},'Accept'),
+          h('button',{className:'btn sm ghost',onClick:()=>dispatch({t:'c4Decline',id:g.id,by:me})},'Decline')
+        )
+      ))
+    ),
+    outgoing.length>0 && h('div',{className:'panel',style:{marginBottom:18}},
+      h('h2',null,'Waiting for acceptance'),
+      outgoing.map(g=>h('div',{key:g.id,className:'row spread',style:{padding:'7px 0',borderBottom:'1px solid var(--smoke)'}},
+        h('span',null,'v ',h('b',null,g.opponent),g.stake>0?', '+g.stake.toLocaleString()+' chips escrowed':''),
+        h('button',{className:'btn sm ghost',onClick:()=>dispatch({t:'c4Cancel',id:g.id,by:me})},'Cancel')
+      ))
+    ),
+    active.length>0 && h('div',{className:'panel',style:{marginBottom:18}},
+      h('h2',null,'In progress'),
+      active.map(g=>{
+        const other=g.challenger===me?g.opponent:g.challenger;
+        return h('div',{key:g.id,className:'row spread',style:{padding:'7px 0',borderBottom:'1px solid var(--smoke)'}},
+          h('span',null,'v ',h('b',null,other),g.stake>0?', '+g.stake.toLocaleString()+' chips each':''),
+          h('button',{className:'btn sm'+(g.turn===me?'':' ghost'),onClick:()=>setSelected(g.id)},g.turn===me?'Your move':'View')
+        );
+      })
+    ),
+    recent.length>0 && h('div',{className:'panel'},
+      h('h2',null,'Recent games'),
+      recent.map(g=>{
+        const other=g.challenger===me?g.opponent:g.challenger;
+        const line=g.status==='draw'?'Draw with '+other:g.winner===me?'Beat '+other:'Lost to '+other;
+        return h('div',{key:g.id,className:'row spread',style:{padding:'6px 0',borderBottom:'1px solid var(--smoke)'}},
+          h('span',{className:'small'},line,g.stake>0&&g.status!=='draw'?' ('+(g.winner===me?'+':'-')+g.stake.toLocaleString()+')':''),
+          h('button',{className:'btn sm ghost',onClick:()=>setSelected(g.id)},'View')
+        );
+      })
+    )
+  );
+}
+
 function HogsPage({
   store,
   me,
@@ -8168,6 +8297,86 @@ function reduce(store, a) {
         log(`${a.by} bet ${stake} chips on a ${legs.length}-leg accumulator at ${combined}`);
         break;
       }
+
+    case 'c4Create':
+      {
+        if (!a.opponent || a.opponent === a.by) throw new Error('Pick someone else to challenge.');
+        if (!s.players.some(p => p.active && p.name === a.opponent)) throw new Error('That player is not active.');
+        const stake = Math.floor(+a.stake) || 0;
+        if (stake < 0) throw new Error('Bad stake.');
+        s.chips = s.chips || {};
+        const cur = s.chips[a.by] != null ? s.chips[a.by] : 1000;
+        if (stake > cur) throw new Error('You cannot stake more than your chip balance.');
+        s.connect4 = s.connect4 || [];
+        if (s.connect4.some(g => ['pending','playing'].includes(g.status) && ((g.challenger===a.by&&g.opponent===a.opponent)||(g.opponent===a.by&&g.challenger===a.opponent)))) throw new Error('You already have a Connect 4 game with them.');
+        if (stake > 0) s.chips[a.by] = cur - stake;
+        s.connect4.push({id:'c4'+Date.now(),challenger:a.by,opponent:a.opponent,stake,status:'pending',turn:null,winner:null,board:Array(42).fill(null),createdAt:Date.now()});
+        log(a.by+' challenged '+a.opponent+' to Connect 4'+(stake>0?' for '+stake+' chips':''));
+        break;
+      }
+    case 'c4Accept':
+      {
+        const g=(s.connect4||[]).find(x=>x.id===a.id);
+        if(!g) throw new Error('That challenge is gone.');
+        if(g.status!=='pending') throw new Error('That challenge is already settled.');
+        if(g.opponent!==a.by) throw new Error('That challenge is not for you.');
+        s.chips=s.chips||{};
+        const cur=s.chips[a.by]!=null?s.chips[a.by]:1000;
+        if(g.stake>cur) throw new Error('You cannot stake more than your chip balance.');
+        if(g.stake>0) s.chips[a.by]=cur-g.stake;
+        g.status='playing'; g.turn=Math.random()<.5?g.challenger:g.opponent; g.startedAt=Date.now();
+        log(g.challenger+' and '+g.opponent+' started Connect 4; '+g.turn+' goes first');
+        break;
+      }
+    case 'c4Decline':
+    case 'c4Cancel':
+      {
+        const g=(s.connect4||[]).find(x=>x.id===a.id);
+        if(!g) throw new Error('That challenge is gone.');
+        if(g.status!=='pending') throw new Error('That challenge has already started or finished.');
+        if(a.t==='c4Decline'&&g.opponent!==a.by) throw new Error('That challenge is not for you.');
+        if(a.t==='c4Cancel'&&g.challenger!==a.by) throw new Error('That is not your challenge.');
+        if(g.stake>0){s.chips=s.chips||{};s.chips[g.challenger]=(s.chips[g.challenger]!=null?s.chips[g.challenger]:1000)+g.stake;}
+        g.status=a.t==='c4Decline'?'declined':'cancelled';
+        log(a.by+' '+(a.t==='c4Decline'?'declined':'cancelled')+' Connect 4');
+        break;
+      }
+    case 'c4Drop':
+      {
+        const g=(s.connect4||[]).find(x=>x.id===a.id);
+        if(!g) throw new Error('That game is gone.');
+        if(g.status!=='playing') throw new Error('That game is not in progress.');
+        if(g.turn!==a.by) throw new Error('It is not your turn.');
+        if(a.by!==g.challenger&&a.by!==g.opponent) throw new Error('That is not your game.');
+        const col=Math.floor(+a.col);
+        if(!(col>=0&&col<=6)) throw new Error('Bad column.');
+        const board=Array.from({length:42},(_,i)=>(g.board||[])[i]||null);
+        const row=c4DropRow(board,col);
+        if(row<0) throw new Error('That column is full.');
+        board[row*7+col]=a.by; g.board=board;
+        if(c4Winner(board,a.by)){
+          g.status='done';g.winner=a.by;g.turn=null;g.doneAt=Date.now();
+          if(g.stake>0){s.chips=s.chips||{};s.chips[a.by]=(s.chips[a.by]!=null?s.chips[a.by]:1000)+g.stake*2;}
+          log(a.by+' won Connect 4 against '+(a.by===g.challenger?g.opponent:g.challenger));
+        } else if(board.every(Boolean)){
+          g.status='draw';g.winner=null;g.turn=null;g.doneAt=Date.now();
+          if(g.stake>0){s.chips=s.chips||{};s.chips[g.challenger]=(s.chips[g.challenger]!=null?s.chips[g.challenger]:1000)+g.stake;s.chips[g.opponent]=(s.chips[g.opponent]!=null?s.chips[g.opponent]:1000)+g.stake;}
+          log(g.challenger+' and '+g.opponent+' drew at Connect 4; stakes returned');
+        } else g.turn=a.by===g.challenger?g.opponent:g.challenger;
+        break;
+      }
+    case 'c4Forfeit':
+      {
+        const g=(s.connect4||[]).find(x=>x.id===a.id);
+        if(!g) throw new Error('That game is gone.');
+        if(g.status!=='playing') throw new Error('That game is not in progress.');
+        if(a.by!==g.challenger&&a.by!==g.opponent) throw new Error('That is not your game.');
+        const winner=a.by===g.challenger?g.opponent:g.challenger;
+        g.status='done';g.winner=winner;g.turn=null;g.doneAt=Date.now();
+        if(g.stake>0){s.chips=s.chips||{};s.chips[winner]=(s.chips[winner]!=null?s.chips[winner]:1000)+g.stake*2;}
+        log(a.by+' forfeited Connect 4 to '+winner);
+        break;
+      }
     case 'bsCreate':
       {
         if (!a.opponent || a.opponent === a.by) throw new Error('Pick someone else to challenge.');
@@ -8507,7 +8716,7 @@ function Login({
     style: {
       fontSize: 96
     }
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.7.2")), /*#__PURE__*/React.createElement("p", {
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.8.0")), /*#__PURE__*/React.createElement("p", {
     className: "muted"
   }, "Twelve players. Six games. One office. Report to the table."), /*#__PURE__*/React.createElement("div", {
     className: "pinbox"
@@ -8597,6 +8806,7 @@ function App() {
   const isAdmin = !!(cred && cred.role === 'admin');
   const hogPending = store && me ? (store.hogDuels || []).filter(d => d.status === 'open' && d.opponent === me).length : 0;
   const bsPending = store && me ? (store.battleships || []).filter(g => (g.status === 'playing' && g.turn === me) || (g.status === 'setup' && g.opponent === me && !g.ready[me])).length : 0;
+  const c4Pending = store && me ? (store.connect4 || []).filter(g => (g.status === 'pending' && g.opponent === me) || (g.status === 'playing' && g.turn === me)).length : 0;
   const [chatUnread, setChatUnread] = useState(0);
   const [chatMention, setChatMention] = useState(false);
   useEffect(() => {
@@ -8621,7 +8831,7 @@ function App() {
     const off = api.subscribeChat(check, 'chat-badge');
     return () => { alive = false; clearInterval(iv); off(); };
   }, [me, tab]);
-  useEffect(() => { document.title = (chatUnread + hogPending + bsPending > 0 ? '(' + (chatUnread + hogPending + bsPending) + ') ' : '') + 'Book1.7.2'; }, [chatUnread, hogPending, bsPending]);
+  useEffect(() => { document.title = (chatUnread + hogPending + bsPending + c4Pending > 0 ? '(' + (chatUnread + hogPending + bsPending + c4Pending) + ') ' : '') + 'Book1.8.0'; }, [chatUnread, hogPending, bsPending, c4Pending]);
   const cloudEmpty = !!(store && !store.weeks);
   const persistCred = c => {
     setCred(c);
@@ -8632,7 +8842,7 @@ function App() {
   };
   const dispatch = async a => {
     if (!store) return;
-    const playerActionTypes = ['submit', 'rollcall', 'profile', 'recall', 'casino', 'tourneyVote', 'ping', 'predict', 'equipCard', 'unlock', 'placeBet', 'placeAcca', 'requestChips', 'cashOutBet', 'bsCreate', 'bsDecline', 'bsPlaceShips', 'bsFire', 'bsForfeit', 'sellCard'];
+    const playerActionTypes = ['submit', 'rollcall', 'profile', 'recall', 'casino', 'tourneyVote', 'ping', 'predict', 'equipCard', 'unlock', 'placeBet', 'placeAcca', 'requestChips', 'cashOutBet', 'c4Create', 'c4Accept', 'c4Decline', 'c4Cancel', 'c4Drop', 'c4Forfeit', 'bsCreate', 'bsDecline', 'bsPlaceShips', 'bsFire', 'bsForfeit', 'sellCard'];
     // A player's own roll-call response belongs on the player RPC. Regime approval/denial
     // must stay on the admin-save path because the player RPC only acts as p_name and
     // deliberately does not accept the final admin-only "out" state.
@@ -8739,7 +8949,7 @@ function App() {
     style: {
       fontSize: 96
     }
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.7.2"));
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.8.0"));
   if (!store) return /*#__PURE__*/React.createElement("div", {
     className: "login"
   }, mark, /*#__PURE__*/React.createElement("p", {
@@ -8784,7 +8994,7 @@ function App() {
     onClick: () => persistCred(undefined)
   }, "Log out"));
   const wIdx = weekIdx == null ? store.weeks.length - 1 : Math.min(weekIdx, store.weeks.length - 1);
-  const tabs = [['table', 'Table'], ['me', 'My book'], ['casino', 'Casino'], ['hogs', 'Hogs'], ['battleships', 'Battleships'], ['eightman', '8 Man'], ['predict', 'Predictions'], ['chat', 'Chat'], ['master', 'Master'], ['stats', 'Dossier'], ['ko', 'Knockout']];
+  const tabs = [['table', 'Table'], ['me', 'My book'], ['casino', 'Casino'], ['hogs', 'Hogs'], ['battleships', 'Battleships'], ['connect4', 'Connect 4'], ['eightman', '8 Man'], ['predict', 'Predictions'], ['chat', 'Chat'], ['master', 'Master'], ['stats', 'Dossier'], ['ko', 'Knockout']];
   if (isAdmin) tabs.push(['regime', 'Regime']);
   const live = store.weeks[store.weeks.length - 1];
   const pending = isAdmin ? live.fixtures.concat(live.playoffs).filter(g => g.status === 'disputed').length + (store.chipRequests || []).filter(r => r.status === 'pending').length : 0;
@@ -8827,7 +9037,13 @@ function App() {
     toast: toast
   }) : /*#__PURE__*/React.createElement("div", {
     className: "panel"
-  }, "Log in to see your games.") : tab === 'hogs' ? me ? /*#__PURE__*/React.createElement(HogsPage, {
+  }, "Log in to see your games.") : tab === 'connect4' ? me ? /*#__PURE__*/React.createElement(Connect4Page, {
+    store: store,
+    me: me,
+    dispatch: dispatch
+  }) : /*#__PURE__*/React.createElement("div", {
+    className: "panel"
+  }, "Log in to play Connect 4.") : tab === 'hogs' ? me ? /*#__PURE__*/React.createElement(HogsPage, {
     store: store,
     me: me,
     cred: cred,
@@ -8881,9 +9097,9 @@ function App() {
         block: 'nearest'
       });
     },
-    className: (tab === k ? 'on' : '') + (k === 'chat' && chatUnread > 0 ? ' unread' : '') + (k === 'hogs' && hogPending > 0 ? ' unread' : '') + (k === 'battleships' && bsPending > 0 ? ' unread' : ''),
+    className: (tab === k ? 'on' : '') + (k === 'chat' && chatUnread > 0 ? ' unread' : '') + (k === 'hogs' && hogPending > 0 ? ' unread' : '') + (k === 'battleships' && bsPending > 0 ? ' unread' : '') + (k === 'connect4' && c4Pending > 0 ? ' unread' : ''),
     onClick: () => setTab(k)
-  }, l, k === 'regime' && pending > 0 ? ' (' + pending + ')' : '', k === 'chat' && chatUnread > 0 ? ' (' + chatUnread + (chatMention ? ' @' : '') + ')' : k === 'hogs' && hogPending > 0 ? ' (' + hogPending + ')' : k === 'battleships' && bsPending > 0 ? ' (' + bsPending + ')' : ''));
+  }, l, k === 'regime' && pending > 0 ? ' (' + pending + ')' : '', k === 'chat' && chatUnread > 0 ? ' (' + chatUnread + (chatMention ? ' @' : '') + ')' : k === 'hogs' && hogPending > 0 ? ' (' + hogPending + ')' : k === 'battleships' && bsPending > 0 ? ' (' + bsPending + ')' : k === 'connect4' && c4Pending > 0 ? ' (' + c4Pending + ')' : ''));
   return /*#__PURE__*/React.createElement(EmblemCtx.Provider, {
     value: setFocus
   }, /*#__PURE__*/React.createElement("div", {
@@ -8892,7 +9108,7 @@ function App() {
     className: "rail"
   }, /*#__PURE__*/React.createElement("div", {
     className: "wordmark"
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.7.2")), /*#__PURE__*/React.createElement("div", {
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.8.0")), /*#__PURE__*/React.createElement("div", {
     className: "decree"
   }, decree), /*#__PURE__*/React.createElement("div", {
     className: "nav"
