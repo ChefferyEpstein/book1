@@ -165,7 +165,7 @@ declare
     g := d->'connect4'->i;
     if g->>'status' <> 'playing' then raise exception 'That game is not in progress.'; end if;
     if g->>'turn' <> p_name then raise exception 'It is not your turn.'; end if;
-    if p_name <> g->>'challenger' and p_name <> g->>'opponent' then raise exception 'That is not your game.'; end if;
+    if p_name <> (g->>'challenger') and p_name <> (g->>'opponent') then raise exception 'That is not your game.'; end if;
 
     s1 := (p_action->>'col')::int;
     if s1 is null or s1 < 0 or s1 > 6 then raise exception 'Bad column.'; end if;
