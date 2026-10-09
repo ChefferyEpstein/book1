@@ -597,6 +597,7 @@ function buildStore() {
     fantasyWeeks: {},
     bounties: [],
     bettingLocks: {},
+    challengeWeekStartedAt: Date.now(),
     log: [],
     nextId: id
   };
@@ -3125,8 +3126,10 @@ function weeklyChallengeProgress(store,p) {
   const gs=(w.fixtures||[]).filter(g=>played(g)&&(g.p1===p||g.p2===p));
   const wins=gs.filter(g=>winner(g)===p).length;
   const d=gs.reduce((t,g)=>t+diff(g,p),0);
-  const c4wins=(store.connect4||[]).filter(g=>+g.week===+w.n&&g.status==='done'&&g.winner===p).length;
-  const bswins=(store.battleships||[]).filter(g=>+g.week===+w.n&&g.status==='done'&&g.winner===p).length;
+  const challengeStart=+store.challengeWeekStartedAt||0;
+  const inWeek=g=>+g.week===+w.n||(!g.week&&+g.createdAt>=challengeStart);
+  const c4wins=(store.connect4||[]).filter(g=>inWeek(g)&&g.status==='done'&&g.winner===p).length;
+  const bswins=(store.battleships||[]).filter(g=>inWeek(g)&&g.status==='done'&&g.winner===p).length;
   const hogwins=(store.hogDuels||[]).filter(g=>+g.week===+w.n&&g.status==='done'&&g.winner===p).length;
   return {week:w.n,wins,played:gs.length,diff:d,c4wins,bswins,hogwins};
 }
@@ -8425,6 +8428,7 @@ function reduce(store, a) {
         s.players.filter(p => p.active).forEach(p => s.rollcall[p.name] = 'in');
         s.fantasyWeeks=s.fantasyWeeks||{};
         s.fantasyWeeks[String(n)]={tiers:fantasySnapshot(s),picks:{},paid:false};
+        s.challengeWeekStartedAt=Date.now();
         log('GW' + n + ' opened with ' + a.players.join(', '));
         if (n % 4 === 1 && s.knockouts[s.knockouts.length - 1].after < n - 1) {
           s.knockouts.push(drawKnockout(s, n - 1));
