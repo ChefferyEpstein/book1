@@ -258,7 +258,15 @@ set
   ),
   version = version + 1,
   updated_at = now()
-where id = 1;
+where id = 1
+  and (
+    not (data ? 'scoreBets')
+    or not (data ? 'progression')
+    or not (data ? 'challengeClaims')
+    or not (data ? 'fantasyWeeks')
+    or not (data ? 'bounties')
+    or not (coalesce(data->'payouts','{}'::jsonb) ? 'fantasyPrize')
+  );
 
 -- Snapshot current Master tiers for the live fantasy week if this week has no snapshot yet.
 do $$
@@ -397,6 +405,7 @@ declare
        or not ((g->'tiers'->'mongs') ? (p_action->'picks'->>3)) then
       raise exception 'Team must be 1 Elite, 1 Challenger and 2 Mongs.';
     end if;
+    g := jsonb_set(g,'{picks}',coalesce(g->'picks','{}'::jsonb),true);
     g := jsonb_set(g,array['picks',p_name],p_action->'picks',true);
     d := jsonb_set(d,array['fantasyWeeks',bid],g,true);
 
