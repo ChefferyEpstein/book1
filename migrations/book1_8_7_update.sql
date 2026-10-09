@@ -148,6 +148,62 @@ begin
 end
 $function$;
 
+create or replace function public.book_find_game_187(p_data jsonb, p_game text)
+returns jsonb
+language plpgsql
+stable
+as $function$
+declare
+  w jsonb;
+  g jsonb;
+  k jsonb;
+  l jsonb;
+  t jsonb;
+  arr jsonb;
+begin
+  for w in select value from jsonb_array_elements(coalesce(p_data->'weeks','[]'::jsonb))
+  loop
+    for arr in select coalesce(w->'fixtures','[]'::jsonb)
+               union all select coalesce(w->'playoffs','[]'::jsonb)
+               union all select coalesce(w->'tiebreaks','[]'::jsonb)
+    loop
+      for g in select value from jsonb_array_elements(arr)
+      loop
+        if g->>'id'=p_game then return g; end if;
+      end loop;
+    end loop;
+  end loop;
+
+  for k in select value from jsonb_array_elements(coalesce(p_data->'knockouts','[]'::jsonb))
+  loop
+    for l in select value from jsonb_array_elements(coalesce(k->'leagues','[]'::jsonb))
+    loop
+      for g in select value from jsonb_array_elements(coalesce(l->'games','[]'::jsonb))
+      loop
+        if g->>'id'=p_game then return g; end if;
+      end loop;
+    end loop;
+  end loop;
+
+  for t in select value from jsonb_array_elements(coalesce(p_data->'tournaments','[]'::jsonb))
+  loop
+    if t->'bracket' is not null then
+      for arr in select coalesce(t->'bracket'->'qf','[]'::jsonb)
+                 union all select coalesce(t->'bracket'->'sf','[]'::jsonb)
+                 union all select coalesce(t->'bracket'->'final','[]'::jsonb)
+      loop
+        for g in select value from jsonb_array_elements(arr)
+        loop
+          if g->>'id'=p_game then return g; end if;
+        end loop;
+      end loop;
+    end if;
+  end loop;
+
+  return null;
+end
+$function$;
+
 create or replace function public.book_settle_187(p_data jsonb)
 returns jsonb
 language plpgsql
@@ -172,12 +228,7 @@ begin
       b := p_data->'scoreBets'->idx;
       if b->>'status' <> 'open' then continue; end if;
 
-      g := null;
-      select gg into g
-      from jsonb_array_elements(coalesce(p_data->'weeks','[]'::jsonb)) ww
-      cross join lateral jsonb_array_elements(coalesce(ww->'fixtures','[]'::jsonb)) gg
-      where gg->>'id' = b->>'game'
-      limit 1;
+      g := public.book_find_game_187(p_data,b->>'game');
 
       stake := coalesce((b->>'stake')::int,0);
       if g is null then
@@ -296,12 +347,7 @@ declare
   f text;
   actions text := $actions$
   elsif t = 'placeScoreBet' then
-    w := d->'weeks'->(jsonb_array_length(d->'weeks')-1);
-    g := null;
-    select value into g
-    from jsonb_array_elements(coalesce(w->'fixtures','[]'::jsonb))
-    where value->>'id' = p_action->>'game'
-    limit 1;
+    g := public.book_find_game_187(d,p_action->>'game');
     if g is null or g->>'p1' is null or g->>'p2' is null then raise exception 'That match no longer exists.'; end if;
     if g->>'s1' is not null or g->>'status' <> 'open' then raise exception 'Betting is closed on that match.'; end if;
     if p_name = g->>'p1' or p_name = g->>'p2' then raise exception 'You cannot bet on your own match.'; end if;
