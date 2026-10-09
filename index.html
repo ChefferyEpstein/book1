@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Book1.8.7</title>
+<title>Book1.8.8</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -504,7 +504,7 @@ const {
 } = React;
 const STORE_KEY = 'book1.2-local';
 const CFG = window.BOOK_CONFIG || {};
-const APP_SQL_VERSION = 29; // bump this whenever a new SQL script adds or changes a server function
+const APP_SQL_VERSION = 30; // bump this whenever a new SQL script adds or changes a server function
 const CLOUD = !!(CFG.url && CFG.key);
 const ADMINS = ['Chef', 'Lorcan'];
 const DECREES = ['Abstention is not permitted.', 'The Book sees all results.', 'Ball difference is destiny.', 'The Dictator collects. The Dictator distributes.', 'Report your score. Report it honestly.', 'Twelfth place is a service to the office.', 'The mong off is not optional.', 'Disputes are settled by the regime.'];
@@ -596,6 +596,8 @@ function buildStore() {
     challengeClaims: [],
     fantasyWeeks: {},
     bounties: [],
+    bettingLocks: {},
+    challengeWeekStartedAt: Date.now(),
     log: [],
     nextId: id
   };
@@ -1356,6 +1358,7 @@ function Form({
 let PROF = {};
 let CARDS = {};
 let CATALOG = [];
+let PROGRESS_STORE = null;
 const RARITY_COLORS = {
   common: '#9CA3AF',
   uncommon: '#3FA34D',
@@ -1407,6 +1410,7 @@ function EmblemModal({
   if (!name) return null;
   const p = PROF[name] || {};
   const s = playerStats(store, name);
+  const prog = playerProgress(store,name);
   return /*#__PURE__*/React.createElement("div", {
     className: "modal-backdrop",
     onClick: onClose
@@ -1433,7 +1437,7 @@ function EmblemModal({
     className: "small muted"
   }, "No crest set yet."), /*#__PURE__*/React.createElement("p", {
     className: "small muted"
-  }, s.weeks, " weeks played · ", s.w, "-", s.l, " · ", s.mong, " mong off", s.mong === 1 ? '' : 's', s.worst ? ' \u00b7 ' + s.worst + ' worst player ' + (s.worst > 1 ? 'trophies' : 'trophy') : ''), /*#__PURE__*/React.createElement("button", {
+  }, "Prestige ", prog.prestige, " · Level ", prog.level, " · ", prog.xp.toLocaleString(), " XP this prestige · ", s.weeks, " weeks played · ", s.w, "-", s.l, " · ", s.mong, " mong off", s.mong === 1 ? '' : 's', s.worst ? ' \u00b7 ' + s.worst + ' worst player ' + (s.worst > 1 ? 'trophies' : 'trophy') : ''), /*#__PURE__*/React.createElement("button", {
     className: "btn sm",
     onClick: onOpenDossier
   }, "Open full dossier")));
@@ -1467,6 +1471,19 @@ function Emblem({
     }
   });
 }
+function prestigeEmblem(level) {
+  const p=Math.max(0,+level||0);
+  if(!p) return null;
+  const tier=p>=10?'mythic':p>=5?'red':p>=3?'gold':p>=2?'silver':'bronze';
+  const cfg={
+    bronze:{bg:'#2A2626',c:'#C9824B',g:'star'},
+    silver:{bg:'#20242A',c:'#D7DCE2',g:'shield'},
+    gold:{bg:'#0A0A0A',c:'#C9A227',g:'crown'},
+    red:{bg:'#2B0508',c:'#EDE6D6',g:'crown'},
+    mythic:{bg:'#000000',c:'#C9A227',g:'skull'}
+  }[tier];
+  return {bg:cfg.bg,shape:'shield',layers:[{g:cfg.g,c:cfg.c,x:0,y:-4,s:.72,r:0}]};
+}
 function Nm({
   n,
   size = 20,
@@ -1476,6 +1493,8 @@ function Nm({
   const openBig = useContext(EmblemCtx);
   const cardId = CARDS[n] && CARDS[n].equipped;
   const card = cardId && CATALOG.find(c => c.id === cardId);
+  const prog = PROGRESS_STORE && PROGRESS_STORE.weeks ? playerProgress(PROGRESS_STORE,n) : null;
+  const pBadge = prog && prestigeEmblem(prog.prestige);
   return /*#__PURE__*/React.createElement("button", {
     type: "button",
     className: "nm-click",
@@ -1483,7 +1502,15 @@ function Nm({
       e.stopPropagation();
       openBig(n);
     }
-  }, p && p.emblem && /*#__PURE__*/React.createElement(Emblem, {
+  }, pBadge && /*#__PURE__*/React.createElement(Emblem, {
+    e: pBadge,
+    size: Math.round(size * .9),
+    style: {
+      marginRight: 5,
+      border: '1px solid var(--brass)',
+      borderRadius: '50%'
+    }
+  }), p && p.emblem && /*#__PURE__*/React.createElement(Emblem, {
     e: p.emblem,
     size: size,
     style: {
@@ -1502,7 +1529,13 @@ function Nm({
       opacity: .75,
       fontWeight: 700
     }
-  }, "[", p.tag, "] "), n);
+  }, "[", p.tag, "] "), n, prog && /*#__PURE__*/React.createElement("span", {
+    className: "small muted",
+    style: {
+      marginLeft: 5,
+      fontSize: Math.max(10,Math.round(size*.55))
+    }
+  }, "Lv", prog.level));
 }
 function EmblemStudio({
   me,
@@ -2978,6 +3011,7 @@ function cashoutPreview(store, bet, mode) {
     }
   });
   if (anyLost || !anyOpen || !anyWon) return 0;
+  if (openLegs.some(l=>isBettingLocked(store,l.game))) return 0;
   const locked = Math.min(200, wonProd);
   if (mode === 'safe') return Math.floor(bet.stake * locked);
   let prob = 1;
@@ -2988,10 +3022,36 @@ function cashoutPreview(store, bet, mode) {
   return Math.floor(bet.stake * locked * prob * 0.9);
 }
 
-const SCORE_ODDS = [20, 16, 13, 11, 9, 8, 7, 6];
-function correctScoreOdds(s1, s2) {
-  if (Math.max(+s1,+s2) !== 8 || Math.min(+s1,+s2) < 0 || Math.min(+s1,+s2) > 7 || +s1 === +s2) return 0;
-  return SCORE_ODDS[Math.min(+s1,+s2)] || 0;
+function choose(n,k) {
+  k=Math.min(k,n-k);
+  let r=1;
+  for(let i=1;i<=k;i++) r=r*(n-k+i)/i;
+  return r;
+}
+function raceTo8WinProb(q) {
+  let p=0;
+  for(let k=0;k<=7;k++) p+=choose(7+k,k)*Math.pow(q,8)*Math.pow(1-q,k);
+  return p;
+}
+function pointProbFromMatchProb(target) {
+  let lo=.001,hi=.999;
+  for(let i=0;i<45;i++){
+    const mid=(lo+hi)/2;
+    if(raceTo8WinProb(mid)<target) lo=mid; else hi=mid;
+  }
+  return (lo+hi)/2;
+}
+function correctScoreOdds(store,a,b,s1,s2) {
+  s1=+s1;s2=+s2;
+  if(Math.max(s1,s2)!==8||Math.min(s1,s2)<0||Math.min(s1,s2)>7||s1===s2) return 0;
+  const matchA=betWinProb(store,a,b,a);
+  const q=pointProbFromMatchProb(matchA);
+  const loser=s1===8?s2:s1;
+  const raw=s1===8
+    ? choose(7+loser,loser)*Math.pow(q,8)*Math.pow(1-q,loser)
+    : choose(7+loser,loser)*Math.pow(1-q,8)*Math.pow(q,loser);
+  const margin=(store.payouts&&store.payouts.betMargin!=null?store.payouts.betMargin:8)/100;
+  return Math.round(Math.max(1.05,Math.min(200,(1/raw)*(1-margin)))*100)/100;
 }
 function settleScoreBets(s, log) {
   if (!s.scoreBets || !s.scoreBets.length) return;
@@ -3038,6 +3098,7 @@ function rawPlayerXp(store, p) {
     xp += 25;
     if (g.winner === p) xp += 50;
   });
+  xp += (store.challengeClaims || []).filter(c => c.player === p).reduce((t,c)=>t+(+c.xp||0),0);
   return xp;
 }
 function playerProgress(store,p) {
@@ -3047,20 +3108,36 @@ function playerProgress(store,p) {
   const level = Math.min(25, 1 + Math.floor(xp / 500));
   return { raw, xp, level, prestige:+rec.prestige||0, into:xp % 500, canPrestige:xp >= 12000 };
 }
-const WEEKLY_CHALLENGES = [
-  {id:'wins3',name:'Hat-trick',desc:'Win 3 pool games this game week.',reward:10000},
-  {id:'play4',name:'Clock in',desc:'Complete 4 pool games this game week.',reward:5000},
-  {id:'diff10',name:'Run it up',desc:'Reach +10 ball difference this game week.',reward:7500}
-];
+const CHALLENGE_POOL = {
+  wins3:{id:'wins3',name:'Hat-trick',desc:'Win 3 pool games this game week.',reward:10000,xp:750},
+  play4:{id:'play4',name:'Clock in',desc:'Complete 4 pool games this game week.',reward:5000,xp:400},
+  diff10:{id:'diff10',name:'Run it up',desc:'Reach +10 ball difference this game week.',reward:7500,xp:750},
+  c4wins2:{id:'c4wins2',name:'Four in a Row',desc:'Win 2 Connect 4 games this game week.',reward:5000,xp:500},
+  bswin1:{id:'bswin1',name:'Naval Warfare',desc:'Win a Battleships game this game week.',reward:5000,xp:500},
+  hogwin1:{id:'hogwin1',name:'Hog Supremacy',desc:'Win a Hog duel this game week.',reward:3000,xp:300}
+};
+function weeklyChallengesForWeek(n) {
+  const core=['wins3','play4','diff10'], mini=['c4wins2','bswin1','hogwin1'];
+  const i=Math.max(0,(+n||1)-1)%3;
+  return [CHALLENGE_POOL[core[i]],CHALLENGE_POOL[mini[i]],CHALLENGE_POOL[core[(i+1)%3]]];
+}
 function weeklyChallengeProgress(store,p) {
   const w=store.weeks[store.weeks.length-1];
   const gs=(w.fixtures||[]).filter(g=>played(g)&&(g.p1===p||g.p2===p));
   const wins=gs.filter(g=>winner(g)===p).length;
   const d=gs.reduce((t,g)=>t+diff(g,p),0);
-  return {week:w.n,wins,played:gs.length,diff:d};
+  const challengeStart=+store.challengeWeekStartedAt||0;
+  const inWeek=g=>+g.week===+w.n||(!g.week&&+g.createdAt>=challengeStart);
+  const c4wins=(store.connect4||[]).filter(g=>inWeek(g)&&g.status==='done'&&g.winner===p).length;
+  const bswins=(store.battleships||[]).filter(g=>inWeek(g)&&g.status==='done'&&g.winner===p).length;
+  const hogwins=(store.hogDuels||[]).filter(g=>+g.week===+w.n&&g.status==='done'&&g.winner===p).length;
+  return {week:w.n,wins,played:gs.length,diff:d,c4wins,bswins,hogwins};
 }
 function weeklyChallengeDone(stats,id) {
-  return id==='wins3' ? stats.wins>=3 : id==='play4' ? stats.played>=4 : id==='diff10' ? stats.diff>=10 : false;
+  return id==='wins3'?stats.wins>=3:id==='play4'?stats.played>=4:id==='diff10'?stats.diff>=10:id==='c4wins2'?stats.c4wins>=2:id==='bswin1'?stats.bswins>=1:id==='hogwin1'?stats.hogwins>=1:false;
+}
+function weeklyChallengeProgressText(stats,id) {
+  return id==='wins3'?stats.wins+'/3 wins':id==='play4'?stats.played+'/4 games':id==='diff10'?stats.diff+'/+10 diff':id==='c4wins2'?stats.c4wins+'/2 C4 wins':id==='bswin1'?stats.bswins+'/1 Battleships win':stats.hogwins+'/1 Hog win';
 }
 function fantasySnapshot(store) {
   const history = store.weeks && store.weeks.length > 1 ? {...store,weeks:store.weeks.slice(0,-1)} : store;
@@ -3529,13 +3606,11 @@ function CasinoPageInner({
     dice: ['Dice', DiceGame],
     cases: ['Cases', null],
     wheel: ['Free Spin', null],
-    bets: ['Match Betting', null],
-    scorebets: ['Correct Score', null]
+    bets: ['Match Betting', null]
   };
   const isCases = game === 'cases',
     isWheel = game === 'wheel',
-    isBets = game === 'bets',
-    isScoreBets = game === 'scorebets';
+    isBets = game === 'bets';
   const [, GameComp] = games[game];
   const cb = store.payouts.chipBase || 500,
     cw = store.payouts.chipPerWin || 100,
@@ -3582,18 +3657,24 @@ function CasinoPageInner({
     me: me,
     spinFn: spinWheel,
     toast: toast
-  }) : isBets ? /*#__PURE__*/React.createElement(MatchBetting, {
+  }) : isBets ? /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(MatchBetting, {
     store: store,
     me: me,
     dispatch: dispatch,
     toast: toast,
     balance: balance
-  }) : isScoreBets ? /*#__PURE__*/React.createElement(CorrectScoreBetting, {
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 20,
+      paddingTop: 16,
+      borderTop: '1px solid var(--smoke)'
+    }
+  }, /*#__PURE__*/React.createElement("h2", null, "Correct score"), /*#__PURE__*/React.createElement(CorrectScoreBetting, {
     store: store,
     me: me,
     dispatch: dispatch,
     balance: balance
-  }) : balance <= 0 ? /*#__PURE__*/React.createElement("p", {
+  }))) : balance <= 0 ? /*#__PURE__*/React.createElement("p", {
     className: "muted"
   }, "Skint. Wait for the next game week's top-up.") : /*#__PURE__*/React.createElement(GameComp, {
     balance: game === 'threeCardPoker' ? Math.min(Math.floor(balance / 2), cap) : betLimit,
@@ -5159,6 +5240,8 @@ function MyPage({
   const [np2, setNp2] = useState('');
   const w = store.weeks[store.weeks.length - 1];
   const mine = w.fixtures.concat(w.playoffs).filter(g => g.p1 === me || g.p2 === me);
+  const currentIds=new Set(w.fixtures.concat(w.playoffs).map(g=>g.id));
+  const otherMarkets=marketGames(store).filter(g=>(g.p1===me||g.p2===me)&&!currentIds.has(g.id));
   const st = playerStats(store, me);
   const at = allTime(store, false).find(r => r.name === me) || {};
   const rc = store.rollcall[me];
@@ -5197,6 +5280,7 @@ function MyPage({
     const o = opp(g, me);
     const my = g.sub[me];
     const theirs = g.sub[o];
+    const lock = bettingLockOf(store,g.id);
     return /*#__PURE__*/React.createElement("div", {
       key: g.id,
       style: {
@@ -5225,7 +5309,16 @@ function MyPage({
       style: {
         marginTop: 6
       }
-    }, theirs && /*#__PURE__*/React.createElement("span", {
+    }, lock ? /*#__PURE__*/React.createElement("span", {
+      className: "stamp bad"
+    }, "LIVE · BETTING CLOSED · ", new Date(lock.startedAt).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}), " by ", lock.startedBy) : /*#__PURE__*/React.createElement("button", {
+      className: "btn sm",
+      onClick: () => dispatch({
+        t: 'startMatch',
+        id: g.id,
+        by: me
+      })
+    }, "Start match"), theirs && /*#__PURE__*/React.createElement("span", {
       className: "small muted"
     }, o, " says ", g.p1 === me ? theirs[0] + '-' + theirs[1] : theirs[1] + '-' + theirs[0], " (you first)"), my && /*#__PURE__*/React.createElement("span", {
       className: "small muted"
@@ -5257,12 +5350,13 @@ function MyPage({
       onClick: () => setEdit(null)
     }, "Cancel")) : /*#__PURE__*/React.createElement("button", {
       className: "btn sm ghost",
+      disabled: !lock,
       onClick: () => {
         setEdit(g.id);
         setA(8);
         setB(0);
       }
-    }, my ? 'Amend' : 'Report result'), my && edit !== g.id && /*#__PURE__*/React.createElement(ConfirmButton, {
+    }, !lock ? 'Start match first' : my ? 'Amend' : 'Report result'), my && edit !== g.id && /*#__PURE__*/React.createElement(ConfirmButton, {
       style: {
         borderColor: 'var(--blood)',
         color: 'var(--blood)'
@@ -5279,7 +5373,23 @@ function MyPage({
     style: {
       marginTop: 10
     }
-  }, "Both players report. Matching scores go straight on the table. If they differ, either of you can amend; if it stays disputed the regime rules on it.")), /*#__PURE__*/React.createElement("div", {
+  }, "Both players report. Matching scores go straight on the table. If they differ, either of you can amend; if it stays disputed the regime rules on it.")), otherMarkets.length > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "panel"
+  }, /*#__PURE__*/React.createElement("h2", null, "Other live pool matches"), /*#__PURE__*/React.createElement("p", {
+    className: "small muted"
+  }, "Knockout and 8-man matches also use the betting lock. Start them here before breaking."), otherMarkets.map(g => {
+    const lock=bettingLockOf(store,g.id);
+    return /*#__PURE__*/React.createElement("div", {
+      key:g.id,
+      className:"row spread",
+      style:{padding:'7px 0',borderBottom:'1px solid var(--smoke)'}
+    }, /*#__PURE__*/React.createElement("span", null, g.label, " · ", g.p1, " v ", g.p2), lock ? /*#__PURE__*/React.createElement("span", {
+      className:"stamp bad"
+    }, "LIVE · betting closed") : /*#__PURE__*/React.createElement("button", {
+      className:"btn sm",
+      onClick:()=>dispatch({t:'startMatch',id:g.id,by:me})
+    }, "Start match"));
+  })), /*#__PURE__*/React.createElement("div", {
     className: "panel"
   }, /*#__PURE__*/React.createElement("h2", null, "Next week"), /*#__PURE__*/React.createElement("p", null, "You are currently ", rc === 'in' ? /*#__PURE__*/React.createElement("span", {
     className: "pill in"
@@ -5934,7 +6044,7 @@ function CorrectScoreBetting({store,me,dispatch,balance}) {
   const [stake,setStake]=useState(Math.min(50,balance||0));
   const g=games.find(x=>x.id===gid)||games[0];
   const parts=score.split('-').map(Number);
-  const odds=correctScoreOdds(parts[0],parts[1]);
+  const odds=g?correctScoreOdds(store,g.p1,g.p2,parts[0],parts[1]):0;
   const cap=store.payouts.casinoMaxBet||500;
   const already=g?(store.scoreBets||[]).filter(b=>b.player===me&&b.game===g.id&&b.status==='open').reduce((t,b)=>t+b.stake,0):0;
   const maxStake=Math.max(0,Math.min(balance,cap-already));
@@ -5942,14 +6052,14 @@ function CorrectScoreBetting({store,me,dispatch,balance}) {
   for(let k=0;k<=7;k++){options.push([8,k]);options.push([k,8]);}
   const mine=[...(store.scoreBets||[])].filter(b=>b.player===me).reverse();
   return h('div',null,
-    h('p',{className:'small muted'},'Exact-score singles on this game week. Pick the final race-to-8 score. These are separate from normal winner bets and accumulators.'),
+    h('p',{className:'small muted'},'Correct score is part of the match market. Prices use the same player-strength and recent-form model as the win odds, then distribute that probability across every race-to-8 score. Correct-score bets remain singles.'),
     !g?h('p',{className:'muted'},'No open matches available for correct-score betting.'):
     h('div',{className:'okbox',style:{marginBottom:12}},
       h('div',{className:'row',style:{flexWrap:'wrap'}},
         h('select',{value:g.id,onChange:e=>setGid(e.target.value)},games.map(x=>h('option',{key:x.id,value:x.id},x.p1+' v '+x.p2))),
-        h('select',{value:score,onChange:e=>setScore(e.target.value)},options.map(([a,b])=>h('option',{key:a+'-'+b,value:a+'-'+b},a+'-'+b+' @ '+correctScoreOdds(a,b).toFixed(2))))
+        h('select',{value:score,onChange:e=>setScore(e.target.value)},options.map(([a,b])=>h('option',{key:a+'-'+b,value:a+'-'+b},a+'-'+b+' @ '+correctScoreOdds(store,g.p1,g.p2,a,b).toFixed(2))))
       ),
-      h('p',{style:{margin:'8px 0'}},g.p1,' ',parts[0],'-',parts[1],' ',g.p2,' — ',h('b',null,odds.toFixed(2))),
+      (()=>{const mo=betOdds(store,g.p1,g.p2);return h('p',{style:{margin:'8px 0'}},g.p1,' ',mo[g.p1].toFixed(2),' · ',g.p2,' ',mo[g.p2].toFixed(2),' | correct score ',g.p1,' ',parts[0],'-',parts[1],' ',g.p2,' — ',h('b',null,odds.toFixed(2)));})(),
       h(BetBar,{bet:stake,setBet:setStake,max:maxStake}),
       h('p',{className:'small muted'},'Returns ',Math.round(stake*odds).toLocaleString(),' chips if it lands.'),
       h('button',{className:'btn',disabled:!odds||stake<=0||stake>maxStake,onClick:()=>dispatch({t:'placeScoreBet',game:g.id,s1:parts[0],s2:parts[1],stake,by:me})},'Place correct-score bet')
@@ -5980,11 +6090,11 @@ function ProgressPage({store,me,dispatch}) {
       ),
       h('div',{className:'panel'},
         h('h2',null,'GW'+stats.week+' weekly challenges'),
-        WEEKLY_CHALLENGES.map(c=>{
+        weeklyChallengesForWeek(stats.week).map(c=>{
           const done=weeklyChallengeDone(stats,c.id), got=claimed(c.id);
-          const prog=c.id==='wins3'?stats.wins+'/3 wins':c.id==='play4'?stats.played+'/4 games':stats.diff+'/+10 diff';
+          const prog=weeklyChallengeProgressText(stats,c.id);
           return h('div',{key:c.id,className:'row spread',style:{padding:'8px 0',borderBottom:'1px solid var(--smoke)'}},
-            h('span',null,h('b',null,c.name),' — ',c.desc,h('span',{className:'small muted'},' ',prog,' · ',c.reward.toLocaleString(),' chips')),
+            h('span',null,h('b',null,c.name),' — ',c.desc,h('span',{className:'small muted'},' ',prog,' · ',c.reward.toLocaleString(),' chips · ',c.xp.toLocaleString(),' XP')),
             h('button',{className:'btn sm'+(done&&!got?'':' ghost'),disabled:!done||got,onClick:()=>dispatch({t:'claimWeekly',key:c.id,by:me})},got?'Claimed':done?'Claim':'Not yet')
           );
         })
@@ -6043,7 +6153,7 @@ function FantasyPage({store,me,dispatch}) {
 function BountiesPage({store,me,dispatch}) {
   const h=React.createElement;
   const w=store.weeks[store.weeks.length-1];
-  const games=(w.fixtures||[]).filter(g=>g.p1&&g.p2&&!played(g)&&g.status==='open');
+  const games=(w.fixtures||[]).filter(g=>g.p1&&g.p2&&!played(g)&&g.status==='open'&&!isBettingLocked(store,g.id));
   const [gid,setGid]=useState(games[0]&&games[0].id||'');
   const g=games.find(x=>x.id===gid)||games[0];
   const [hunter,setHunter]=useState(g&&g.p1||'');
@@ -6757,6 +6867,26 @@ function RegimePage({
   }, played(g) ? 'Fix' : 'Set')), /*#__PURE__*/React.createElement("div", {
     className: "r"
   }, g.p2)))), /*#__PURE__*/React.createElement("div", {
+    className: "panel"
+  }, /*#__PURE__*/React.createElement("h2", null, "Live betting locks"), /*#__PURE__*/React.createElement("p", {
+    className: "small muted"
+  }, "Only the regime can reopen a mistakenly started match, and only before any score report exists."), w.fixtures.concat(w.playoffs).filter(g => isBettingLocked(store,g.id) && !played(g)).map(g => /*#__PURE__*/React.createElement("div", {
+    key: g.id,
+    className: "row spread",
+    style: {
+      padding: '6px 0',
+      borderBottom: '1px solid var(--smoke)'
+    }
+  }, /*#__PURE__*/React.createElement("span", null, g.p1, " v ", g.p2, " · started by ", bettingLockOf(store,g.id).startedBy), /*#__PURE__*/React.createElement("button", {
+    className: "btn sm ghost",
+    disabled: g.status !== 'open' || Object.keys(g.sub || {}).length > 0,
+    onClick: () => dispatch({
+      t: 'reopenBetting',
+      id: g.id
+    })
+  }, "Reopen betting"))), !w.fixtures.concat(w.playoffs).some(g => isBettingLocked(store,g.id) && !played(g)) && /*#__PURE__*/React.createElement("p", {
+    className: "muted small"
+  }, "No live betting locks.")), /*#__PURE__*/React.createElement("div", {
     className: "panel"
   }, /*#__PURE__*/React.createElement("h2", null, "Tie breaks"), /*#__PURE__*/React.createElement("p", {
     className: "small muted"
@@ -7725,20 +7855,29 @@ function betOdds(store, a, b) {
   out[b] = conv(1 - pa);
   return out;
 }
-function bettableGames(store) {
+function bettingLockOf(store,id) {
+  return store && store.bettingLocks && store.bettingLocks[id] || null;
+}
+function isBettingLocked(store,id) {
+  return !!bettingLockOf(store,id);
+}
+function marketGames(store) {
   const out = [];
   const add = (g, label) => {
-    if (g && g.p1 && g.p2 && g.s1 == null && g.status === 'open') out.push({ id: g.id, p1: g.p1, p2: g.p2, label });
+    if (g && g.p1 && g.p2 && g.s1 == null && g.status === 'open') out.push({ id:g.id,p1:g.p1,p2:g.p2,label });
   };
-  const live = store.weeks[store.weeks.length - 1];
-  live.fixtures.forEach(g => add(g, 'GW' + live.n));
-  live.playoffs.forEach(g => add(g, 'GW' + live.n + ' play-off'));
-  const ko = store.knockouts[store.knockouts.length - 1];
-  if (ko) ko.leagues.forEach(l => l.games.forEach(g => add(g, 'Knockout, ' + l.name)));
-  (store.tournaments || []).forEach(t => {
-    if (t.bracket) ['qf', 'sf', 'final'].forEach(k => t.bracket[k].forEach(g => add(g, t.name)));
+  const live=store.weeks[store.weeks.length-1];
+  live.fixtures.forEach(g=>add(g,'GW'+live.n));
+  live.playoffs.forEach(g=>add(g,'GW'+live.n+' play-off'));
+  const ko=store.knockouts[store.knockouts.length-1];
+  if(ko) ko.leagues.forEach(l=>l.games.forEach(g=>add(g,'Knockout, '+l.name)));
+  (store.tournaments||[]).forEach(t=>{
+    if(t.bracket) ['qf','sf','final'].forEach(k=>(t.bracket[k]||[]).forEach(g=>add(g,t.name)));
   });
   return out;
+}
+function bettableGames(store) {
+  return marketGames(store).filter(g=>!isBettingLocked(store,g.id));
 }
 function settleBets(s, log) {
   if (!s.bets || !s.bets.length) return;
@@ -8164,10 +8303,34 @@ function reduce(store, a) {
   });
   const log = m => s.log.push(stamp + ' ' + m);
   switch (a.t) {
+    case 'startMatch':
+      {
+        const ctx=findGame(s,a.id), g=ctx.g;
+        if(!g) throw new Error('That match no longer exists.');
+        if(g.p1!==a.by&&g.p2!==a.by) throw new Error('Only the two players can start this match.');
+        if(played(g)) throw new Error('That match is already finished.');
+        s.bettingLocks=s.bettingLocks||{};
+        if(s.bettingLocks[g.id]) throw new Error('Betting is already closed for that match.');
+        s.bettingLocks[g.id]={startedAt:Date.now(),startedBy:a.by};
+        log(a.by+' started '+g.p1+' v '+g.p2+'; betting closed');
+        break;
+      }
+    case 'reopenBetting':
+      {
+        const ctx=findGame(s,a.id), g=ctx.g;
+        if(!g) throw new Error('That match no longer exists.');
+        if(played(g)||g.status!=='open'||Object.keys(g.sub||{}).length) throw new Error('Betting can only reopen before any score reporting starts.');
+        s.bettingLocks=s.bettingLocks||{};
+        if(!s.bettingLocks[g.id]) throw new Error('Betting is not locked on that match.');
+        delete s.bettingLocks[g.id];
+        log(a.by+' reopened betting on '+g.p1+' v '+g.p2);
+        break;
+      }
     case 'submit':
       {
         const ctx = findGame(s, a.id);
         const g = ctx.g;
+        if(!isBettingLocked(s,g.id)) throw new Error('Start the match first. That closes betting before play begins.');
         g.sub[a.by] = a.s;
         const o = opp(g, a.by);
         const th = g.sub[o];
@@ -8286,6 +8449,7 @@ function reduce(store, a) {
         s.players.filter(p => p.active).forEach(p => s.rollcall[p.name] = 'in');
         s.fantasyWeeks=s.fantasyWeeks||{};
         s.fantasyWeeks[String(n)]={tiers:fantasySnapshot(s),picks:{},paid:false};
+        s.challengeWeekStartedAt=Date.now();
         log('GW' + n + ' opened with ' + a.players.join(', '));
         if (n % 4 === 1 && s.knockouts[s.knockouts.length - 1].after < n - 1) {
           s.knockouts.push(drawKnockout(s, n - 1));
@@ -8528,6 +8692,7 @@ function reduce(store, a) {
         if (anyLost) throw new Error('This accumulator has already lost.');
         if (!anyOpen) throw new Error('Nothing left to cash out, it has already resolved.');
         if (!anyWon) throw new Error('Nothing has won yet on this accumulator.');
+        if(openLegs.some(l=>isBettingLocked(s,l.game))) throw new Error('Cash out is closed because a remaining leg has started.');
         const locked = Math.min(200, wonProd);
         let value;
         if (a.mode === 'safe') {
@@ -8554,7 +8719,7 @@ function reduce(store, a) {
         const g = findGame(s, a.game).g;
         if (!g) throw new Error('That match no longer exists.');
         if (!g.p1 || !g.p2) throw new Error('That match is not set yet.');
-        if (g.s1 != null || g.status !== 'open') throw new Error('Betting is closed on that match.');
+        if (g.s1 != null || g.status !== 'open' || isBettingLocked(s,g.id)) throw new Error('Betting is closed on that match.');
         if (a.by === g.p1 || a.by === g.p2) throw new Error("You can't bet on your own match.");
         if (a.pick !== g.p1 && a.pick !== g.p2) throw new Error('Pick one of the two players.');
         const stake = Math.floor(+a.stake);
@@ -8592,7 +8757,7 @@ function reduce(store, a) {
           const g = findGame(s, l.game).g;
           if (!g) throw new Error('A match in your slip no longer exists.');
           if (!g.p1 || !g.p2) throw new Error('A match in your slip is not set yet.');
-          if (g.s1 != null || g.status !== 'open') throw new Error('Betting has closed on ' + g.p1 + ' v ' + g.p2 + '.');
+          if (g.s1 != null || g.status !== 'open' || isBettingLocked(s,g.id)) throw new Error('Betting has closed on ' + g.p1 + ' v ' + g.p2 + '.');
           if (a.by === g.p1 || a.by === g.p2) throw new Error("You can't bet on your own match.");
           if (l.pick !== g.p1 && l.pick !== g.p2) throw new Error('Pick one of the two players.');
           const od = betOdds(s, g.p1, g.p2)[l.pick];
@@ -8612,9 +8777,9 @@ function reduce(store, a) {
       {
         const g=findGame(s,a.game).g;
         if(!g||!g.p1||!g.p2) throw new Error('That match no longer exists.');
-        if(g.s1!=null||g.status!=='open') throw new Error('Betting is closed on that match.');
+        if(g.s1!=null||g.status!=='open'||isBettingLocked(s,g.id)) throw new Error('Betting is closed on that match.');
         if(a.by===g.p1||a.by===g.p2) throw new Error("You can't bet on your own match.");
-        const s1=Math.floor(+a.s1),s2=Math.floor(+a.s2),od=correctScoreOdds(s1,s2),stake=Math.floor(+a.stake);
+        const s1=Math.floor(+a.s1),s2=Math.floor(+a.s2),od=correctScoreOdds(s,g.p1,g.p2,s1,s2),stake=Math.floor(+a.stake);
         if(!od) throw new Error('Pick a valid race-to-8 score.');
         if(!(stake>0)) throw new Error('Bad stake.');
         const cap=s.payouts.casinoMaxBet||500;
@@ -8631,16 +8796,16 @@ function reduce(store, a) {
       }
     case 'claimWeekly':
       {
-        const c=WEEKLY_CHALLENGES.find(x=>x.id===a.key);
-        if(!c) throw new Error('Unknown challenge.');
         const st=weeklyChallengeProgress(s,a.by);
+        const c=weeklyChallengesForWeek(st.week).find(x=>x.id===a.key);
+        if(!c) throw new Error('That challenge is not active this week.');
         s.challengeClaims=s.challengeClaims||[];
         if(s.challengeClaims.some(x=>+x.week===+st.week&&x.player===a.by&&x.key===a.key)) throw new Error('Already claimed.');
         if(!weeklyChallengeDone(st,a.key)) throw new Error('Challenge is not complete yet.');
         s.chips=s.chips||{};
         s.chips[a.by]=(s.chips[a.by]!=null?s.chips[a.by]:1000)+c.reward;
-        s.challengeClaims.push({week:st.week,player:a.by,key:a.key,reward:c.reward,at:Date.now()});
-        log(a.by+' claimed '+c.reward+' chips for '+c.name);
+        s.challengeClaims.push({week:st.week,player:a.by,key:a.key,reward:c.reward,xp:c.xp,at:Date.now()});
+        log(a.by+' claimed '+c.reward+' chips and '+c.xp+' XP for '+c.name);
         break;
       }
     case 'prestige':
@@ -8670,7 +8835,7 @@ function reduce(store, a) {
       {
         const g=findGame(s,a.game).g;
         if(!g||!s.weeks[s.weeks.length-1].fixtures.some(x=>x.id===g.id)) throw new Error('Pick a current game-week league fixture.');
-        if(played(g)||g.status!=='open') throw new Error('That match has already started reporting or finished.');
+        if(played(g)||g.status!=='open'||isBettingLocked(s,g.id)) throw new Error('That match has started or finished; bounty market closed.');
         if(a.hunter!==g.p1&&a.hunter!==g.p2) throw new Error('Pick one of the two players.');
         const amount=Math.floor(+a.amount);
         if(!(amount>=1000&&amount<=100000)) throw new Error('Bounties are 1,000 to 100,000 chips.');
@@ -8688,7 +8853,7 @@ function reduce(store, a) {
         if(!b||b.status!=='open') throw new Error('That bounty is no longer open.');
         if(b.sponsor!==a.by) throw new Error('Only the sponsor can cancel it.');
         const g=findGame(s,b.game).g;
-        if(g&&g.status!=='open') throw new Error('Too late to cancel; score reporting has started.');
+        if(g&&(g.status!=='open'||isBettingLocked(s,g.id))) throw new Error('Too late to cancel; the match has started.');
         s.chips=s.chips||{};s.chips[a.by]=(s.chips[a.by]!=null?s.chips[a.by]:1000)+b.amount;
         b.status='cancelled';b.cancelledAt=Date.now();
         log(a.by+' cancelled a '+b.amount+' chip bounty');
@@ -8706,7 +8871,7 @@ function reduce(store, a) {
         s.connect4 = s.connect4 || [];
         if (s.connect4.some(g => ['pending','playing'].includes(g.status) && ((g.challenger===a.by&&g.opponent===a.opponent)||(g.opponent===a.by&&g.challenger===a.opponent)))) throw new Error('You already have a Connect 4 game with them.');
         if (stake > 0) s.chips[a.by] = cur - stake;
-        s.connect4.push({id:'c4'+Date.now(),challenger:a.by,opponent:a.opponent,stake,status:'pending',turn:null,winner:null,board:Array(42).fill(null),createdAt:Date.now()});
+        s.connect4.push({id:'c4'+Date.now(),week:s.weeks[s.weeks.length-1].n,challenger:a.by,opponent:a.opponent,stake,status:'pending',turn:null,winner:null,board:Array(42).fill(null),createdAt:Date.now()});
         log(a.by+' challenged '+a.opponent+' to Connect 4'+(stake>0?' for '+stake+' chips':''));
         break;
       }
@@ -8784,7 +8949,7 @@ function reduce(store, a) {
         s.battleships = s.battleships || [];
         if (s.battleships.some(g => ['setup', 'playing'].includes(g.status) && ((g.challenger === a.by && g.opponent === a.opponent) || (g.opponent === a.by && g.challenger === a.opponent)))) throw new Error('You already have a game with them.');
         if (stake > 0) s.chips[a.by] = cur - stake;
-        s.battleships.push({ id: 'bs' + Date.now(), challenger: a.by, opponent: a.opponent, stake, status: 'setup', turn: null, winner: null, ready: { [a.by]: false, [a.opponent]: false }, shots: { [a.by]: [], [a.opponent]: [] }, sunk: { [a.by]: [], [a.opponent]: [] }, ships: {}, createdAt: Date.now() });
+        s.battleships.push({ id: 'bs' + Date.now(), week: s.weeks[s.weeks.length-1].n, challenger: a.by, opponent: a.opponent, stake, status: 'setup', turn: null, winner: null, ready: { [a.by]: false, [a.opponent]: false }, shots: { [a.by]: [], [a.opponent]: [] }, sunk: { [a.by]: [], [a.opponent]: [] }, ships: {}, createdAt: Date.now() });
         log(`${a.by} challenged ${a.opponent} to Battleships${stake > 0 ? ' for ' + stake + ' chips' : ''}`);
         break;
       }
@@ -9114,7 +9279,7 @@ function Login({
     style: {
       fontSize: 96
     }
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.8.7")), /*#__PURE__*/React.createElement("p", {
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.8.8")), /*#__PURE__*/React.createElement("p", {
     className: "muted"
   }, "Twelve players. Six games. One office. Report to the table."), /*#__PURE__*/React.createElement("div", {
     className: "pinbox"
@@ -9200,6 +9365,7 @@ function App() {
   PROF = store && store.profiles || {};
   CARDS = store && store.cards || {};
   CATALOG = store && store.cardCatalog && store.cardCatalog.length ? store.cardCatalog : defaultCardCatalog();
+  PROGRESS_STORE = store;
   const me = cred ? cred.name : cred;
   const isAdmin = !!(cred && cred.role === 'admin');
   const hogPending = store && me ? (store.hogDuels || []).filter(d => d.status === 'open' && d.opponent === me).length : 0;
@@ -9229,7 +9395,7 @@ function App() {
     const off = api.subscribeChat(check, 'chat-badge');
     return () => { alive = false; clearInterval(iv); off(); };
   }, [me, tab]);
-  useEffect(() => { document.title = (chatUnread + hogPending + bsPending + c4Pending > 0 ? '(' + (chatUnread + hogPending + bsPending + c4Pending) + ') ' : '') + 'Book1.8.7'; }, [chatUnread, hogPending, bsPending, c4Pending]);
+  useEffect(() => { document.title = (chatUnread + hogPending + bsPending + c4Pending > 0 ? '(' + (chatUnread + hogPending + bsPending + c4Pending) + ') ' : '') + 'Book1.8.8'; }, [chatUnread, hogPending, bsPending, c4Pending]);
   const cloudEmpty = !!(store && !store.weeks);
   const persistCred = c => {
     setCred(c);
@@ -9240,7 +9406,7 @@ function App() {
   };
   const dispatch = async a => {
     if (!store) return;
-    const playerActionTypes = ['submit', 'rollcall', 'profile', 'recall', 'casino', 'tourneyVote', 'ping', 'predict', 'equipCard', 'unlock', 'placeBet', 'placeAcca', 'placeScoreBet', 'claimWeekly', 'prestige', 'fantasyPick', 'bountyPost', 'bountyCancel', 'requestChips', 'cashOutBet', 'c4Create', 'c4Accept', 'c4Decline', 'c4Cancel', 'c4Drop', 'c4Forfeit', 'bsCreate', 'bsDecline', 'bsPlaceShips', 'bsFire', 'bsForfeit', 'sellCard'];
+    const playerActionTypes = ['submit', 'rollcall', 'profile', 'recall', 'casino', 'tourneyVote', 'ping', 'predict', 'equipCard', 'unlock', 'placeBet', 'placeAcca', 'placeScoreBet', 'startMatch', 'claimWeekly', 'prestige', 'fantasyPick', 'bountyPost', 'bountyCancel', 'requestChips', 'cashOutBet', 'c4Create', 'c4Accept', 'c4Decline', 'c4Cancel', 'c4Drop', 'c4Forfeit', 'bsCreate', 'bsDecline', 'bsPlaceShips', 'bsFire', 'bsForfeit', 'sellCard'];
     // A player's own roll-call response belongs on the player RPC. Regime approval/denial
     // must stay on the admin-save path because the player RPC only acts as p_name and
     // deliberately does not accept the final admin-only "out" state.
@@ -9347,7 +9513,7 @@ function App() {
     style: {
       fontSize: 96
     }
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.8.7"));
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.8.8"));
   if (!store) return /*#__PURE__*/React.createElement("div", {
     className: "login"
   }, mark, /*#__PURE__*/React.createElement("p", {
@@ -9518,7 +9684,7 @@ function App() {
     className: "rail"
   }, /*#__PURE__*/React.createElement("div", {
     className: "wordmark"
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.8.7")), /*#__PURE__*/React.createElement("div", {
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.8.8")), /*#__PURE__*/React.createElement("div", {
     className: "decree"
   }, decree), /*#__PURE__*/React.createElement("div", {
     className: "nav"
