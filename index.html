@@ -5275,6 +5275,7 @@ function MyPage({
     const o = opp(g, me);
     const my = g.sub[me];
     const theirs = g.sub[o];
+    const lock = bettingLockOf(store,g.id);
     return /*#__PURE__*/React.createElement("div", {
       key: g.id,
       style: {
@@ -5303,7 +5304,16 @@ function MyPage({
       style: {
         marginTop: 6
       }
-    }, theirs && /*#__PURE__*/React.createElement("span", {
+    }, lock ? /*#__PURE__*/React.createElement("span", {
+      className: "stamp bad"
+    }, "LIVE · BETTING CLOSED · ", new Date(lock.startedAt).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}), " by ", lock.startedBy) : /*#__PURE__*/React.createElement("button", {
+      className: "btn sm",
+      onClick: () => dispatch({
+        t: 'startMatch',
+        id: g.id,
+        by: me
+      })
+    }, "Start match"), theirs && /*#__PURE__*/React.createElement("span", {
       className: "small muted"
     }, o, " says ", g.p1 === me ? theirs[0] + '-' + theirs[1] : theirs[1] + '-' + theirs[0], " (you first)"), my && /*#__PURE__*/React.createElement("span", {
       className: "small muted"
@@ -5335,12 +5345,13 @@ function MyPage({
       onClick: () => setEdit(null)
     }, "Cancel")) : /*#__PURE__*/React.createElement("button", {
       className: "btn sm ghost",
+      disabled: !lock,
       onClick: () => {
         setEdit(g.id);
         setA(8);
         setB(0);
       }
-    }, my ? 'Amend' : 'Report result'), my && edit !== g.id && /*#__PURE__*/React.createElement(ConfirmButton, {
+    }, !lock ? 'Start match first' : my ? 'Amend' : 'Report result'), my && edit !== g.id && /*#__PURE__*/React.createElement(ConfirmButton, {
       style: {
         borderColor: 'var(--blood)',
         color: 'var(--blood)'
@@ -6835,6 +6846,26 @@ function RegimePage({
   }, played(g) ? 'Fix' : 'Set')), /*#__PURE__*/React.createElement("div", {
     className: "r"
   }, g.p2)))), /*#__PURE__*/React.createElement("div", {
+    className: "panel"
+  }, /*#__PURE__*/React.createElement("h2", null, "Live betting locks"), /*#__PURE__*/React.createElement("p", {
+    className: "small muted"
+  }, "Only the regime can reopen a mistakenly started match, and only before any score report exists."), w.fixtures.concat(w.playoffs).filter(g => isBettingLocked(store,g.id) && !played(g)).map(g => /*#__PURE__*/React.createElement("div", {
+    key: g.id,
+    className: "row spread",
+    style: {
+      padding: '6px 0',
+      borderBottom: '1px solid var(--smoke)'
+    }
+  }, /*#__PURE__*/React.createElement("span", null, g.p1, " v ", g.p2, " · started by ", bettingLockOf(store,g.id).startedBy), /*#__PURE__*/React.createElement("button", {
+    className: "btn sm ghost",
+    disabled: g.status !== 'open' || Object.keys(g.sub || {}).length > 0,
+    onClick: () => dispatch({
+      t: 'reopenBetting',
+      id: g.id
+    })
+  }, "Reopen betting"))), !w.fixtures.concat(w.playoffs).some(g => isBettingLocked(store,g.id) && !played(g)) && /*#__PURE__*/React.createElement("p", {
+    className: "muted small"
+  }, "No live betting locks.")), /*#__PURE__*/React.createElement("div", {
     className: "panel"
   }, /*#__PURE__*/React.createElement("h2", null, "Tie breaks"), /*#__PURE__*/React.createElement("p", {
     className: "small muted"
