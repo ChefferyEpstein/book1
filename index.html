@@ -3010,6 +3010,7 @@ function cashoutPreview(store, bet, mode) {
     }
   });
   if (anyLost || !anyOpen || !anyWon) return 0;
+  if (openLegs.some(l=>isBettingLocked(store,l.game))) return 0;
   const locked = Math.min(200, wonProd);
   if (mode === 'safe') return Math.floor(bet.stake * locked);
   let prob = 1;
@@ -6120,7 +6121,7 @@ function FantasyPage({store,me,dispatch}) {
 function BountiesPage({store,me,dispatch}) {
   const h=React.createElement;
   const w=store.weeks[store.weeks.length-1];
-  const games=(w.fixtures||[]).filter(g=>g.p1&&g.p2&&!played(g)&&g.status==='open');
+  const games=(w.fixtures||[]).filter(g=>g.p1&&g.p2&&!played(g)&&g.status==='open'&&!isBettingLocked(store,g.id));
   const [gid,setGid]=useState(games[0]&&games[0].id||'');
   const g=games.find(x=>x.id===gid)||games[0];
   const [hunter,setHunter]=useState(g&&g.p1||'');
@@ -7802,10 +7803,16 @@ function betOdds(store, a, b) {
   out[b] = conv(1 - pa);
   return out;
 }
+function bettingLockOf(store,id) {
+  return store && store.bettingLocks && store.bettingLocks[id] || null;
+}
+function isBettingLocked(store,id) {
+  return !!bettingLockOf(store,id);
+}
 function bettableGames(store) {
   const out = [];
   const add = (g, label) => {
-    if (g && g.p1 && g.p2 && g.s1 == null && g.status === 'open') out.push({ id: g.id, p1: g.p1, p2: g.p2, label });
+    if (g && g.p1 && g.p2 && g.s1 == null && g.status === 'open' && !isBettingLocked(store,g.id)) out.push({ id: g.id, p1: g.p1, p2: g.p2, label });
   };
   const live = store.weeks[store.weeks.length - 1];
   live.fixtures.forEach(g => add(g, 'GW' + live.n));
@@ -8241,10 +8248,34 @@ function reduce(store, a) {
   });
   const log = m => s.log.push(stamp + ' ' + m);
   switch (a.t) {
+    case 'startMatch':
+      {
+        const ctx=findGame(s,a.id), g=ctx.g;
+        if(!g) throw new Error('That match no longer exists.');
+        if(g.p1!==a.by&&g.p2!==a.by) throw new Error('Only the two players can start this match.');
+        if(played(g)) throw new Error('That match is already finished.');
+        s.bettingLocks=s.bettingLocks||{};
+        if(s.bettingLocks[g.id]) throw new Error('Betting is already closed for that match.');
+        s.bettingLocks[g.id]={startedAt:Date.now(),startedBy:a.by};
+        log(a.by+' started '+g.p1+' v '+g.p2+'; betting closed');
+        break;
+      }
+    case 'reopenBetting':
+      {
+        const ctx=findGame(s,a.id), g=ctx.g;
+        if(!g) throw new Error('That match no longer exists.');
+        if(played(g)||g.status!=='open'||Object.keys(g.sub||{}).length) throw new Error('Betting can only reopen before any score reporting starts.');
+        s.bettingLocks=s.bettingLocks||{};
+        if(!s.bettingLocks[g.id]) throw new Error('Betting is not locked on that match.');
+        delete s.bettingLocks[g.id];
+        log(a.by+' reopened betting on '+g.p1+' v '+g.p2);
+        break;
+      }
     case 'submit':
       {
         const ctx = findGame(s, a.id);
         const g = ctx.g;
+        if(!isBettingLocked(s,g.id)) throw new Error('Start the match first. That closes betting before play begins.');
         g.sub[a.by] = a.s;
         const o = opp(g, a.by);
         const th = g.sub[o];
@@ -8605,6 +8636,7 @@ function reduce(store, a) {
         if (anyLost) throw new Error('This accumulator has already lost.');
         if (!anyOpen) throw new Error('Nothing left to cash out, it has already resolved.');
         if (!anyWon) throw new Error('Nothing has won yet on this accumulator.');
+        if(openLegs.some(l=>isBettingLocked(s,l.game))) throw new Error('Cash out is closed because a remaining leg has started.');
         const locked = Math.min(200, wonProd);
         let value;
         if (a.mode === 'safe') {
@@ -8631,7 +8663,7 @@ function reduce(store, a) {
         const g = findGame(s, a.game).g;
         if (!g) throw new Error('That match no longer exists.');
         if (!g.p1 || !g.p2) throw new Error('That match is not set yet.');
-        if (g.s1 != null || g.status !== 'open') throw new Error('Betting is closed on that match.');
+        if (g.s1 != null || g.status !== 'open' || isBettingLocked(s,g.id)) throw new Error('Betting is closed on that match.');
         if (a.by === g.p1 || a.by === g.p2) throw new Error("You can't bet on your own match.");
         if (a.pick !== g.p1 && a.pick !== g.p2) throw new Error('Pick one of the two players.');
         const stake = Math.floor(+a.stake);
@@ -8669,7 +8701,7 @@ function reduce(store, a) {
           const g = findGame(s, l.game).g;
           if (!g) throw new Error('A match in your slip no longer exists.');
           if (!g.p1 || !g.p2) throw new Error('A match in your slip is not set yet.');
-          if (g.s1 != null || g.status !== 'open') throw new Error('Betting has closed on ' + g.p1 + ' v ' + g.p2 + '.');
+          if (g.s1 != null || g.status !== 'open' || isBettingLocked(s,g.id)) throw new Error('Betting has closed on ' + g.p1 + ' v ' + g.p2 + '.');
           if (a.by === g.p1 || a.by === g.p2) throw new Error("You can't bet on your own match.");
           if (l.pick !== g.p1 && l.pick !== g.p2) throw new Error('Pick one of the two players.');
           const od = betOdds(s, g.p1, g.p2)[l.pick];
@@ -8689,7 +8721,7 @@ function reduce(store, a) {
       {
         const g=findGame(s,a.game).g;
         if(!g||!g.p1||!g.p2) throw new Error('That match no longer exists.');
-        if(g.s1!=null||g.status!=='open') throw new Error('Betting is closed on that match.');
+        if(g.s1!=null||g.status!=='open'||isBettingLocked(s,g.id)) throw new Error('Betting is closed on that match.');
         if(a.by===g.p1||a.by===g.p2) throw new Error("You can't bet on your own match.");
         const s1=Math.floor(+a.s1),s2=Math.floor(+a.s2),od=correctScoreOdds(s,g.p1,g.p2,s1,s2),stake=Math.floor(+a.stake);
         if(!od) throw new Error('Pick a valid race-to-8 score.');
@@ -8747,7 +8779,7 @@ function reduce(store, a) {
       {
         const g=findGame(s,a.game).g;
         if(!g||!s.weeks[s.weeks.length-1].fixtures.some(x=>x.id===g.id)) throw new Error('Pick a current game-week league fixture.');
-        if(played(g)||g.status!=='open') throw new Error('That match has already started reporting or finished.');
+        if(played(g)||g.status!=='open'||isBettingLocked(s,g.id)) throw new Error('That match has started or finished; bounty market closed.');
         if(a.hunter!==g.p1&&a.hunter!==g.p2) throw new Error('Pick one of the two players.');
         const amount=Math.floor(+a.amount);
         if(!(amount>=1000&&amount<=100000)) throw new Error('Bounties are 1,000 to 100,000 chips.');
@@ -8765,7 +8797,7 @@ function reduce(store, a) {
         if(!b||b.status!=='open') throw new Error('That bounty is no longer open.');
         if(b.sponsor!==a.by) throw new Error('Only the sponsor can cancel it.');
         const g=findGame(s,b.game).g;
-        if(g&&g.status!=='open') throw new Error('Too late to cancel; score reporting has started.');
+        if(g&&(g.status!=='open'||isBettingLocked(s,g.id))) throw new Error('Too late to cancel; the match has started.');
         s.chips=s.chips||{};s.chips[a.by]=(s.chips[a.by]!=null?s.chips[a.by]:1000)+b.amount;
         b.status='cancelled';b.cancelledAt=Date.now();
         log(a.by+' cancelled a '+b.amount+' chip bounty');
@@ -9318,7 +9350,7 @@ function App() {
   };
   const dispatch = async a => {
     if (!store) return;
-    const playerActionTypes = ['submit', 'rollcall', 'profile', 'recall', 'casino', 'tourneyVote', 'ping', 'predict', 'equipCard', 'unlock', 'placeBet', 'placeAcca', 'placeScoreBet', 'claimWeekly', 'prestige', 'fantasyPick', 'bountyPost', 'bountyCancel', 'requestChips', 'cashOutBet', 'c4Create', 'c4Accept', 'c4Decline', 'c4Cancel', 'c4Drop', 'c4Forfeit', 'bsCreate', 'bsDecline', 'bsPlaceShips', 'bsFire', 'bsForfeit', 'sellCard'];
+    const playerActionTypes = ['submit', 'rollcall', 'profile', 'recall', 'casino', 'tourneyVote', 'ping', 'predict', 'equipCard', 'unlock', 'placeBet', 'placeAcca', 'placeScoreBet', 'startMatch', 'claimWeekly', 'prestige', 'fantasyPick', 'bountyPost', 'bountyCancel', 'requestChips', 'cashOutBet', 'c4Create', 'c4Accept', 'c4Decline', 'c4Cancel', 'c4Drop', 'c4Forfeit', 'bsCreate', 'bsDecline', 'bsPlaceShips', 'bsFire', 'bsForfeit', 'sellCard'];
     // A player's own roll-call response belongs on the player RPC. Regime approval/denial
     // must stay on the admin-save path because the player RPC only acts as p_name and
     // deliberately does not accept the final admin-only "out" state.
