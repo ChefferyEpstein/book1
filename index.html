@@ -5928,8 +5928,7 @@ function StatsPage({
 
 function CorrectScoreBetting({store,me,dispatch,balance}) {
   const h=React.createElement;
-  const w=store.weeks[store.weeks.length-1];
-  const games=(w.fixtures||[]).filter(g=>g.p1&&g.p2&&g.s1==null&&g.status==='open'&&g.p1!==me&&g.p2!==me);
+  const games=bettableGames(store).filter(g=>g.p1!==me&&g.p2!==me);
   const [gid,setGid]=useState(games[0]&&games[0].id||'');
   const [score,setScore]=useState('8-4');
   const [stake,setStake]=useState(Math.min(50,balance||0));
