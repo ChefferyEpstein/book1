@@ -3063,7 +3063,10 @@ function weeklyChallengeDone(stats,id) {
   return id==='wins3' ? stats.wins>=3 : id==='play4' ? stats.played>=4 : id==='diff10' ? stats.diff>=10 : false;
 }
 function fantasySnapshot(store) {
-  const rows=allTime(store,false).filter(r => store.players.some(p=>p.name===r.name&&p.active));
+  const history = store.weeks && store.weeks.length > 1 ? {...store,weeks:store.weeks.slice(0,-1)} : store;
+  let rows=allTime(history,false).filter(r => store.players.some(p=>p.name===r.name&&p.active));
+  const ranked=new Set(rows.map(r=>r.name));
+  store.players.filter(p=>p.active&&!ranked.has(p.name)).forEach(p=>rows.push({name:p.name,w:0,d:0}));
   return {elite:rows.slice(0,4).map(r=>r.name),challenger:rows.slice(4,8).map(r=>r.name),mongs:rows.slice(8).map(r=>r.name)};
 }
 function fantasyPointsForPlayer(w,name,tier) {
