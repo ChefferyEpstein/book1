@@ -3020,10 +3020,36 @@ function cashoutPreview(store, bet, mode) {
   return Math.floor(bet.stake * locked * prob * 0.9);
 }
 
-const SCORE_ODDS = [20, 16, 13, 11, 9, 8, 7, 6];
-function correctScoreOdds(s1, s2) {
-  if (Math.max(+s1,+s2) !== 8 || Math.min(+s1,+s2) < 0 || Math.min(+s1,+s2) > 7 || +s1 === +s2) return 0;
-  return SCORE_ODDS[Math.min(+s1,+s2)] || 0;
+function choose(n,k) {
+  k=Math.min(k,n-k);
+  let r=1;
+  for(let i=1;i<=k;i++) r=r*(n-k+i)/i;
+  return r;
+}
+function raceTo8WinProb(q) {
+  let p=0;
+  for(let k=0;k<=7;k++) p+=choose(7+k,k)*Math.pow(q,8)*Math.pow(1-q,k);
+  return p;
+}
+function pointProbFromMatchProb(target) {
+  let lo=.001,hi=.999;
+  for(let i=0;i<45;i++){
+    const mid=(lo+hi)/2;
+    if(raceTo8WinProb(mid)<target) lo=mid; else hi=mid;
+  }
+  return (lo+hi)/2;
+}
+function correctScoreOdds(store,a,b,s1,s2) {
+  s1=+s1;s2=+s2;
+  if(Math.max(s1,s2)!==8||Math.min(s1,s2)<0||Math.min(s1,s2)>7||s1===s2) return 0;
+  const matchA=betWinProb(store,a,b,a);
+  const q=pointProbFromMatchProb(matchA);
+  const loser=s1===8?s2:s1;
+  const raw=s1===8
+    ? choose(7+loser,loser)*Math.pow(q,8)*Math.pow(1-q,loser)
+    : choose(7+loser,loser)*Math.pow(1-q,8)*Math.pow(q,loser);
+  const margin=(store.payouts&&store.payouts.betMargin!=null?store.payouts.betMargin:8)/100;
+  return Math.round(Math.max(1.05,Math.min(200,(1/raw)*(1-margin)))*100)/100;
 }
 function settleScoreBets(s, log) {
   if (!s.scoreBets || !s.scoreBets.length) return;
@@ -3576,13 +3602,11 @@ function CasinoPageInner({
     dice: ['Dice', DiceGame],
     cases: ['Cases', null],
     wheel: ['Free Spin', null],
-    bets: ['Match Betting', null],
-    scorebets: ['Correct Score', null]
+    bets: ['Match Betting', null]
   };
   const isCases = game === 'cases',
     isWheel = game === 'wheel',
-    isBets = game === 'bets',
-    isScoreBets = game === 'scorebets';
+    isBets = game === 'bets';
   const [, GameComp] = games[game];
   const cb = store.payouts.chipBase || 500,
     cw = store.payouts.chipPerWin || 100,
@@ -3629,18 +3653,24 @@ function CasinoPageInner({
     me: me,
     spinFn: spinWheel,
     toast: toast
-  }) : isBets ? /*#__PURE__*/React.createElement(MatchBetting, {
+  }) : isBets ? /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(MatchBetting, {
     store: store,
     me: me,
     dispatch: dispatch,
     toast: toast,
     balance: balance
-  }) : isScoreBets ? /*#__PURE__*/React.createElement(CorrectScoreBetting, {
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 20,
+      paddingTop: 16,
+      borderTop: '1px solid var(--smoke)'
+    }
+  }, /*#__PURE__*/React.createElement("h2", null, "Correct score"), /*#__PURE__*/React.createElement(CorrectScoreBetting, {
     store: store,
     me: me,
     dispatch: dispatch,
     balance: balance
-  }) : balance <= 0 ? /*#__PURE__*/React.createElement("p", {
+  }))) : balance <= 0 ? /*#__PURE__*/React.createElement("p", {
     className: "muted"
   }, "Skint. Wait for the next game week's top-up.") : /*#__PURE__*/React.createElement(GameComp, {
     balance: game === 'threeCardPoker' ? Math.min(Math.floor(balance / 2), cap) : betLimit,
@@ -5981,7 +6011,7 @@ function CorrectScoreBetting({store,me,dispatch,balance}) {
   const [stake,setStake]=useState(Math.min(50,balance||0));
   const g=games.find(x=>x.id===gid)||games[0];
   const parts=score.split('-').map(Number);
-  const odds=correctScoreOdds(parts[0],parts[1]);
+  const odds=g?correctScoreOdds(store,g.p1,g.p2,parts[0],parts[1]):0;
   const cap=store.payouts.casinoMaxBet||500;
   const already=g?(store.scoreBets||[]).filter(b=>b.player===me&&b.game===g.id&&b.status==='open').reduce((t,b)=>t+b.stake,0):0;
   const maxStake=Math.max(0,Math.min(balance,cap-already));
@@ -5989,14 +6019,14 @@ function CorrectScoreBetting({store,me,dispatch,balance}) {
   for(let k=0;k<=7;k++){options.push([8,k]);options.push([k,8]);}
   const mine=[...(store.scoreBets||[])].filter(b=>b.player===me).reverse();
   return h('div',null,
-    h('p',{className:'small muted'},'Exact-score singles on this game week. Pick the final race-to-8 score. These are separate from normal winner bets and accumulators.'),
+    h('p',{className:'small muted'},'Correct score is part of the match market. Prices use the same player-strength and recent-form model as the win odds, then distribute that probability across every race-to-8 score. Correct-score bets remain singles.'),
     !g?h('p',{className:'muted'},'No open matches available for correct-score betting.'):
     h('div',{className:'okbox',style:{marginBottom:12}},
       h('div',{className:'row',style:{flexWrap:'wrap'}},
         h('select',{value:g.id,onChange:e=>setGid(e.target.value)},games.map(x=>h('option',{key:x.id,value:x.id},x.p1+' v '+x.p2))),
-        h('select',{value:score,onChange:e=>setScore(e.target.value)},options.map(([a,b])=>h('option',{key:a+'-'+b,value:a+'-'+b},a+'-'+b+' @ '+correctScoreOdds(a,b).toFixed(2))))
+        h('select',{value:score,onChange:e=>setScore(e.target.value)},options.map(([a,b])=>h('option',{key:a+'-'+b,value:a+'-'+b},a+'-'+b+' @ '+correctScoreOdds(store,g.p1,g.p2,a,b).toFixed(2))))
       ),
-      h('p',{style:{margin:'8px 0'}},g.p1,' ',parts[0],'-',parts[1],' ',g.p2,' — ',h('b',null,odds.toFixed(2))),
+      (()=>{const mo=betOdds(store,g.p1,g.p2);return h('p',{style:{margin:'8px 0'}},g.p1,' ',mo[g.p1].toFixed(2),' · ',g.p2,' ',mo[g.p2].toFixed(2),' | correct score ',g.p1,' ',parts[0],'-',parts[1],' ',g.p2,' — ',h('b',null,odds.toFixed(2)));})(),
       h(BetBar,{bet:stake,setBet:setStake,max:maxStake}),
       h('p',{className:'small muted'},'Returns ',Math.round(stake*odds).toLocaleString(),' chips if it lands.'),
       h('button',{className:'btn',disabled:!odds||stake<=0||stake>maxStake,onClick:()=>dispatch({t:'placeScoreBet',game:g.id,s1:parts[0],s2:parts[1],stake,by:me})},'Place correct-score bet')
@@ -8661,7 +8691,7 @@ function reduce(store, a) {
         if(!g||!g.p1||!g.p2) throw new Error('That match no longer exists.');
         if(g.s1!=null||g.status!=='open') throw new Error('Betting is closed on that match.');
         if(a.by===g.p1||a.by===g.p2) throw new Error("You can't bet on your own match.");
-        const s1=Math.floor(+a.s1),s2=Math.floor(+a.s2),od=correctScoreOdds(s1,s2),stake=Math.floor(+a.stake);
+        const s1=Math.floor(+a.s1),s2=Math.floor(+a.s2),od=correctScoreOdds(s,g.p1,g.p2,s1,s2),stake=Math.floor(+a.stake);
         if(!od) throw new Error('Pick a valid race-to-8 score.');
         if(!(stake>0)) throw new Error('Bad stake.');
         const cap=s.payouts.casinoMaxBet||500;
