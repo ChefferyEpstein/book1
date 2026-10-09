@@ -524,15 +524,14 @@ begin
   end if;
 
   if position('d := public.book_settle_187(d);' in f) = 0 then
-    f := regexp_replace(
-      f,
-      E'\n([[:space:]]*)update public\\.book',
-      E'\n\\1d := public.book_settle_187(d);\n\n\\1update public.book',
-      'i'
-    );
-    if position('d := public.book_settle_187(d);' in f) = 0 then
-      raise exception 'Book1 1.8.7 migration stopped: final book update anchor not found.';
+    if position('d := book_settle_json(d);' in f) = 0 then
+      raise exception 'Book1 1.8.7 migration stopped: settlement anchor not found.';
     end if;
+    f := replace(
+      f,
+      'd := book_settle_json(d);',
+      'd := book_settle_json(d);' || E'\n  d := public.book_settle_187(d);'
+    );
   end if;
 
   execute f;
