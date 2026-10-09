@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Book1.8.1</title>
+<title>Book1.8.7</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -504,7 +504,7 @@ const {
 } = React;
 const STORE_KEY = 'book1.2-local';
 const CFG = window.BOOK_CONFIG || {};
-const APP_SQL_VERSION = 28; // bump this whenever a new SQL script adds or changes a server function
+const APP_SQL_VERSION = 29; // bump this whenever a new SQL script adds or changes a server function
 const CLOUD = !!(CFG.url && CFG.key);
 const ADMINS = ['Chef', 'Lorcan'];
 const DECREES = ['Abstention is not permitted.', 'The Book sees all results.', 'Ball difference is destiny.', 'The Dictator collects. The Dictator distributes.', 'Report your score. Report it honestly.', 'Twelfth place is a service to the office.', 'The mong off is not optional.', 'Disputes are settled by the regime.'];
@@ -585,11 +585,17 @@ function buildStore() {
       chipPerWin: 100,
       chipPerDiff: 10,
       caseCost: 300,
-      chipPrice: 0.2
+      chipPrice: 0.2,
+      fantasyPrize: 50000
     },
     cardCatalog: defaultCardCatalog(),
     cards: {},
     connect4: [],
+    scoreBets: [],
+    progression: {},
+    challengeClaims: [],
+    fantasyWeeks: {},
+    bounties: [],
     log: [],
     nextId: id
   };
@@ -2981,6 +2987,135 @@ function cashoutPreview(store, bet, mode) {
   });
   return Math.floor(bet.stake * locked * prob * 0.9);
 }
+
+const SCORE_ODDS = [20, 16, 13, 11, 9, 8, 7, 6];
+function correctScoreOdds(s1, s2) {
+  if (Math.max(+s1,+s2) !== 8 || Math.min(+s1,+s2) < 0 || Math.min(+s1,+s2) > 7 || +s1 === +s2) return 0;
+  return SCORE_ODDS[Math.min(+s1,+s2)] || 0;
+}
+function settleScoreBets(s, log) {
+  if (!s.scoreBets || !s.scoreBets.length) return;
+  s.chips = s.chips || {};
+  s.scoreBets.forEach(b => {
+    if (b.status !== 'open') return;
+    const g = findGame(s,b.game).g;
+    const cur = s.chips[b.player] != null ? s.chips[b.player] : 1000;
+    if (!g) {
+      s.chips[b.player] = cur + b.stake;
+      b.status = 'void'; b.payout = b.stake;
+      log('Correct-score bet void, '+b.stake+' chips back to '+b.player);
+      return;
+    }
+    if (!played(g)) return;
+    if (+g.s1 === +b.s1 && +g.s2 === +b.s2) {
+      const pay = Math.round(b.stake * b.odds);
+      s.chips[b.player] = cur + pay;
+      b.status = 'won'; b.payout = pay;
+      log(b.player+' won '+pay+' chips on correct score '+b.s1+'-'+b.s2+' ('+b.label+')');
+    } else {
+      b.status = 'lost'; b.payout = 0;
+      log(b.player+' lost '+b.stake+' chips on correct score '+b.s1+'-'+b.s2+' ('+b.label+')');
+    }
+  });
+}
+function rawPlayerXp(store, p) {
+  let xp = 0;
+  (store.weeks || []).forEach(w => (w.fixtures || []).filter(played).forEach(g => {
+    if (g.p1 !== p && g.p2 !== p) return;
+    xp += 100;
+    if (winner(g) === p) xp += 200;
+    xp += Math.max(0, diff(g,p)) * 10;
+  }));
+  (store.connect4 || []).filter(g => (g.status === 'done' || g.status === 'draw') && (g.challenger === p || g.opponent === p)).forEach(g => {
+    xp += 50;
+    if (g.winner === p) xp += 100;
+  });
+  (store.battleships || []).filter(g => g.status === 'done' && (g.challenger === p || g.opponent === p)).forEach(g => {
+    xp += 50;
+    if (g.winner === p) xp += 100;
+  });
+  (store.hogDuels || []).filter(g => g.status === 'done' && (g.challenger === p || g.opponent === p)).forEach(g => {
+    xp += 25;
+    if (g.winner === p) xp += 50;
+  });
+  return xp;
+}
+function playerProgress(store,p) {
+  const rec = store.progression && store.progression[p] || {prestige:0,xpOffset:0};
+  const raw = rawPlayerXp(store,p);
+  const xp = Math.max(0, raw - (+rec.xpOffset || 0));
+  const level = Math.min(25, 1 + Math.floor(xp / 500));
+  return { raw, xp, level, prestige:+rec.prestige||0, into:xp % 500, canPrestige:xp >= 12000 };
+}
+const WEEKLY_CHALLENGES = [
+  {id:'wins3',name:'Hat-trick',desc:'Win 3 pool games this game week.',reward:10000},
+  {id:'play4',name:'Clock in',desc:'Complete 4 pool games this game week.',reward:5000},
+  {id:'diff10',name:'Run it up',desc:'Reach +10 ball difference this game week.',reward:7500}
+];
+function weeklyChallengeProgress(store,p) {
+  const w=store.weeks[store.weeks.length-1];
+  const gs=(w.fixtures||[]).filter(g=>played(g)&&(g.p1===p||g.p2===p));
+  const wins=gs.filter(g=>winner(g)===p).length;
+  const d=gs.reduce((t,g)=>t+diff(g,p),0);
+  return {week:w.n,wins,played:gs.length,diff:d};
+}
+function weeklyChallengeDone(stats,id) {
+  return id==='wins3' ? stats.wins>=3 : id==='play4' ? stats.played>=4 : id==='diff10' ? stats.diff>=10 : false;
+}
+function fantasySnapshot(store) {
+  const rows=allTime(store,false).filter(r => store.players.some(p=>p.name===r.name&&p.active));
+  return {elite:rows.slice(0,4).map(r=>r.name),challenger:rows.slice(4,8).map(r=>r.name),mongs:rows.slice(8).map(r=>r.name)};
+}
+function fantasyPointsForPlayer(w,name,tier) {
+  const row=standings(w).find(r=>r.name===name) || {w:0,d:0};
+  const winPts=tier==='elite'?10:tier==='challenger'?12:15;
+  return row.w*winPts + row.d*2;
+}
+function fantasyScore(store,w,picks,tiers) {
+  if (!picks || picks.length!==4 || !tiers) return 0;
+  return picks.reduce((total,name)=>{
+    const tier=(tiers.elite||[]).includes(name)?'elite':(tiers.challenger||[]).includes(name)?'challenger':'mongs';
+    return total + fantasyPointsForPlayer(w,name,tier);
+  },0);
+}
+function settleFantasyWeek(s,w,log) {
+  s.fantasyWeeks=s.fantasyWeeks||{};
+  const fw=s.fantasyWeeks[String(w.n)];
+  if(!fw||fw.paid||!fw.picks) return;
+  const entries=Object.entries(fw.picks).map(([player,picks])=>({player,picks,score:fantasyScore(s,w,picks,fw.tiers)}));
+  if(!entries.length){fw.paid=true;fw.winners=[];return;}
+  const top=Math.max(...entries.map(x=>x.score));
+  const winners=entries.filter(x=>x.score===top).map(x=>x.player);
+  const prize=(s.payouts&&s.payouts.fantasyPrize)||50000;
+  const each=Math.floor(prize/winners.length);
+  s.chips=s.chips||{};
+  winners.forEach(p=>s.chips[p]=(s.chips[p]!=null?s.chips[p]:1000)+each);
+  fw.paid=true; fw.winners=winners; fw.winningScore=top; fw.prizeEach=each;
+  log('GW'+w.n+' fantasy: '+winners.join(', ')+' won '+each+' chips each on '+top+' points');
+}
+function settleBounties(s,log) {
+  if(!s.bounties||!s.bounties.length) return;
+  s.chips=s.chips||{};
+  s.bounties.forEach(b=>{
+    if(b.status!=='open') return;
+    const g=findGame(s,b.game).g;
+    if(!g){
+      s.chips[b.sponsor]=(s.chips[b.sponsor]!=null?s.chips[b.sponsor]:1000)+b.amount;
+      b.status='void'; log('Bounty void; '+b.amount+' returned to '+b.sponsor); return;
+    }
+    if(!played(g)) return;
+    if(winner(g)===b.hunter){
+      s.chips[b.hunter]=(s.chips[b.hunter]!=null?s.chips[b.hunter]:1000)+b.amount;
+      b.status='claimed'; b.claimedBy=b.hunter;
+      log(b.hunter+' claimed '+b.amount+' bounty chips for beating '+b.target);
+    } else {
+      s.chips[b.sponsor]=(s.chips[b.sponsor]!=null?s.chips[b.sponsor]:1000)+b.amount;
+      b.status='failed';
+      log('Bounty failed; '+b.amount+' returned to '+b.sponsor);
+    }
+  });
+}
+
 function MatchBetting({
   store,
   me,
@@ -3391,11 +3526,13 @@ function CasinoPageInner({
     dice: ['Dice', DiceGame],
     cases: ['Cases', null],
     wheel: ['Free Spin', null],
-    bets: ['Match Betting', null]
+    bets: ['Match Betting', null],
+    scorebets: ['Correct Score', null]
   };
   const isCases = game === 'cases',
     isWheel = game === 'wheel',
-    isBets = game === 'bets';
+    isBets = game === 'bets',
+    isScoreBets = game === 'scorebets';
   const [, GameComp] = games[game];
   const cb = store.payouts.chipBase || 500,
     cw = store.payouts.chipPerWin || 100,
@@ -3447,6 +3584,11 @@ function CasinoPageInner({
     me: me,
     dispatch: dispatch,
     toast: toast,
+    balance: balance
+  }) : isScoreBets ? /*#__PURE__*/React.createElement(CorrectScoreBetting, {
+    store: store,
+    me: me,
+    dispatch: dispatch,
     balance: balance
   }) : balance <= 0 ? /*#__PURE__*/React.createElement("p", {
     className: "muted"
@@ -3550,7 +3692,12 @@ function BsPlacement({
     if (cells.some(([cx, cy]) => cx > 9 || cy > 9)) return;
     const movingOcc = new Set();
     ships.filter(s => s.id !== id).forEach(s => s.cells.forEach(([cx, cy]) => movingOcc.add(cx + ',' + cy)));
-    if (cells.some(([cx, cy]) => movingOcc.has(cx + ',' + cy))) return;
+    if (cells.some(([cx, cy]) => {
+      for (let ax = cx - 1; ax <= cx + 1; ax++) for (let ay = cy - 1; ay <= cy + 1; ay++) {
+        if (movingOcc.has(ax + ',' + ay)) return true;
+      }
+      return false;
+    })) return;
     const next = ships.filter(s => s.id !== id).concat([{
       id,
       cells
@@ -5775,6 +5922,155 @@ function StatsPage({
 }
 
 /* ---------- Knockout ---------- */
+
+function CorrectScoreBetting({store,me,dispatch,balance}) {
+  const h=React.createElement;
+  const w=store.weeks[store.weeks.length-1];
+  const games=(w.fixtures||[]).filter(g=>g.p1&&g.p2&&g.s1==null&&g.status==='open'&&g.p1!==me&&g.p2!==me);
+  const [gid,setGid]=useState(games[0]&&games[0].id||'');
+  const [score,setScore]=useState('8-4');
+  const [stake,setStake]=useState(Math.min(50,balance||0));
+  const g=games.find(x=>x.id===gid)||games[0];
+  const parts=score.split('-').map(Number);
+  const odds=correctScoreOdds(parts[0],parts[1]);
+  const cap=store.payouts.casinoMaxBet||500;
+  const already=g?(store.scoreBets||[]).filter(b=>b.player===me&&b.game===g.id&&b.status==='open').reduce((t,b)=>t+b.stake,0):0;
+  const maxStake=Math.max(0,Math.min(balance,cap-already));
+  const options=[];
+  for(let k=0;k<=7;k++){options.push([8,k]);options.push([k,8]);}
+  const mine=[...(store.scoreBets||[])].filter(b=>b.player===me).reverse();
+  return h('div',null,
+    h('p',{className:'small muted'},'Exact-score singles on this game week. Pick the final race-to-8 score. These are separate from normal winner bets and accumulators.'),
+    !g?h('p',{className:'muted'},'No open matches available for correct-score betting.'):
+    h('div',{className:'okbox',style:{marginBottom:12}},
+      h('div',{className:'row',style:{flexWrap:'wrap'}},
+        h('select',{value:g.id,onChange:e=>setGid(e.target.value)},games.map(x=>h('option',{key:x.id,value:x.id},x.p1+' v '+x.p2))),
+        h('select',{value:score,onChange:e=>setScore(e.target.value)},options.map(([a,b])=>h('option',{key:a+'-'+b,value:a+'-'+b},a+'-'+b+' @ '+correctScoreOdds(a,b).toFixed(2))))
+      ),
+      h('p',{style:{margin:'8px 0'}},g.p1,' ',parts[0],'-',parts[1],' ',g.p2,' — ',h('b',null,odds.toFixed(2))),
+      h(BetBar,{bet:stake,setBet:setStake,max:maxStake}),
+      h('p',{className:'small muted'},'Returns ',Math.round(stake*odds).toLocaleString(),' chips if it lands.'),
+      h('button',{className:'btn',disabled:!odds||stake<=0||stake>maxStake,onClick:()=>dispatch({t:'placeScoreBet',game:g.id,s1:parts[0],s2:parts[1],stake,by:me})},'Place correct-score bet')
+    ),
+    mine.length>0&&h('div',null,h('h3',null,'Your correct-score bets'),mine.slice(0,15).map(b=>h('div',{key:b.id,className:'row spread small',style:{padding:'5px 0',borderBottom:'1px solid var(--smoke)'}},
+      h('span',null,b.label,': ',b.s1,'-',b.s2,' @ ',(+b.odds).toFixed(2),', stake ',b.stake),
+      h('span',{className:'stamp '+(b.status==='won'?'ok':b.status==='lost'?'bad':b.status==='void'?'grey':'warn')},b.status==='open'?'open, returns '+Math.round(b.stake*b.odds):b.status==='won'?'won '+b.payout:b.status==='lost'?'lost':'void, refunded')
+    )))
+  );
+}
+function ProgressPage({store,me,dispatch}) {
+  const h=React.createElement;
+  const p=playerProgress(store,me);
+  const stats=weeklyChallengeProgress(store,me);
+  const claims=store.challengeClaims||[];
+  const claimed=id=>claims.some(x=>+x.week===+stats.week&&x.player===me&&x.key===id);
+  const board=store.players.filter(x=>x.active).map(x=>({name:x.name,...playerProgress(store,x.name)})).sort((a,b)=>b.prestige-a.prestige||b.level-a.level||b.xp-a.xp);
+  return h('div',null,
+    h('div',{className:'page-title'},h('h1',null,'Progression'),h('span',{className:'sub'},'Levels, prestige and weekly graft.')),
+    h('div',{className:'grid g2'},
+      h('div',{className:'panel'},
+        h('h2',null,'Your rank'),
+        h('div',{className:'display',style:{fontSize:42}},'Level ',p.level),
+        h('p',null,'Prestige ',h('b',null,p.prestige),' · ',p.xp.toLocaleString(),' XP this prestige'),
+        h('div',{style:{height:10,background:'rgba(255,255,255,.08)',borderRadius:10,overflow:'hidden'}},h('div',{style:{height:'100%',width:(p.level>=25?100:Math.round(p.into/5))+'%',background:'var(--brass)'}})),
+        h('p',{className:'small muted'},p.level>=25?'Max level reached. Prestige resets your level/XP bar but keeps your prestige count.':p.into+' / 500 XP to next level. Pool match: 100 XP, win +200, positive ball diff +10 each. PvP also gives XP.'),
+        h('button',{className:'btn',disabled:!p.canPrestige,onClick:()=>dispatch({t:'prestige',by:me})},p.canPrestige?'Prestige now':'Reach level 25 to prestige')
+      ),
+      h('div',{className:'panel'},
+        h('h2',null,'GW'+stats.week+' weekly challenges'),
+        WEEKLY_CHALLENGES.map(c=>{
+          const done=weeklyChallengeDone(stats,c.id), got=claimed(c.id);
+          const prog=c.id==='wins3'?stats.wins+'/3 wins':c.id==='play4'?stats.played+'/4 games':stats.diff+'/+10 diff';
+          return h('div',{key:c.id,className:'row spread',style:{padding:'8px 0',borderBottom:'1px solid var(--smoke)'}},
+            h('span',null,h('b',null,c.name),' — ',c.desc,h('span',{className:'small muted'},' ',prog,' · ',c.reward.toLocaleString(),' chips')),
+            h('button',{className:'btn sm'+(done&&!got?'':' ghost'),disabled:!done||got,onClick:()=>dispatch({t:'claimWeekly',key:c.id,by:me})},got?'Claimed':done?'Claim':'Not yet')
+          );
+        })
+      )
+    ),
+    h('div',{className:'panel',style:{marginTop:18}},h('h2',null,'Progression leaderboard'),
+      h('table',{className:'plain'},h('tbody',null,board.map((r,i)=>h('tr',{key:r.name,className:r.name===me?'me':''},h('td',{className:'n muted'},i+1),h('td',null,h(Nm,{n:r.name,size:16})),h('td',{className:'n'},'P',r.prestige),h('td',{className:'n'},'Lv ',r.level),h('td',{className:'n'},r.xp.toLocaleString(),' XP')))))
+    )
+  );
+}
+function FantasyPage({store,me,dispatch}) {
+  const h=React.createElement;
+  const w=store.weeks[store.weeks.length-1];
+  const fw=(store.fantasyWeeks||{})[String(w.n)]||{tiers:fantasySnapshot(store),picks:{},paid:false};
+  const tiers=fw.tiers||fantasySnapshot(store);
+  const existing=fw.picks&&fw.picks[me]||[];
+  const [elite,setElite]=useState(existing[0]||tiers.elite[0]||'');
+  const [challenger,setChallenger]=useState(existing[1]||tiers.challenger[0]||'');
+  const [mong1,setMong1]=useState(existing[2]||tiers.mongs[0]||'');
+  const [mong2,setMong2]=useState(existing[3]||tiers.mongs[1]||tiers.mongs[0]||'');
+  useEffect(()=>{const p=fw.picks&&fw.picks[me];if(p){setElite(p[0]);setChallenger(p[1]);setMong1(p[2]);setMong2(p[3]);}},[w.n,me]);
+  const locked=w.closed||(w.fixtures||[]).some(played);
+  const picks=[elite,challenger,mong1,mong2];
+  const valid=picks.every(Boolean)&&new Set(picks).size===4&&tiers.elite.includes(elite)&&tiers.challenger.includes(challenger)&&tiers.mongs.includes(mong1)&&tiers.mongs.includes(mong2);
+  const board=Object.entries(fw.picks||{}).map(([player,p])=>({player,picks:p,score:fantasyScore(store,w,p,tiers)})).sort((a,b)=>b.score-a.score||a.player.localeCompare(b.player));
+  const sel=(value,setter,list)=>h('select',{value,onChange:e=>setter(e.target.value),disabled:locked},list.map(n=>h('option',{key:n,value:n},n)));
+  return h('div',null,
+    h('div',{className:'page-title'},h('h1',null,'Fantasy'),h('span',{className:'sub'},'GW',w.n,' — 1 Elite, 1 Challenger, 2 Mongs.')),
+    h('div',{className:'grid g2'},
+      h('div',{className:'panel'},
+        h('h2',null,'Your four'),
+        h('p',{className:'small muted'},'Tiers are frozen from the Master sheet at the start of the week. Picks lock when the first league result lands.'),
+        h('label',{className:'f'},'Elite (Master 1–4)',h('br'),sel(elite,setElite,tiers.elite||[])),
+        h('label',{className:'f'},'Challenger (Master 5–8)',h('br'),sel(challenger,setChallenger,tiers.challenger||[])),
+        h('label',{className:'f'},'Mong #1',h('br'),sel(mong1,setMong1,tiers.mongs||[])),
+        h('label',{className:'f'},'Mong #2',h('br'),sel(mong2,setMong2,tiers.mongs||[])),
+        h('button',{className:'btn',disabled:locked||!valid,onClick:()=>dispatch({t:'fantasyPick',picks,by:me})},locked?'Picks locked':existing.length?'Update team':'Lock team'),
+        existing.length>0&&h('p',{className:'small muted'},'Current score: ',fantasyScore(store,w,existing,tiers),' points')
+      ),
+      h('div',{className:'panel'},
+        h('h2',null,'Scoring'),
+        h('p',null,h('b',null,'Elite:'),' 10 per win'),
+        h('p',null,h('b',null,'Challenger:'),' 12 per win'),
+        h('p',null,h('b',null,'Mong:'),' 15 per win'),
+        h('p',null,h('b',null,'Everyone:'),' +2 per point of ball difference — negative difference also subtracts points.'),
+        h('p',{className:'display',style:{fontSize:26}},((store.payouts&&store.payouts.fantasyPrize)||50000).toLocaleString(),' chips'),
+        h('p',{className:'small muted'},'Weekly winner takes the prize. A tied top score splits it equally.')
+      )
+    ),
+    h('div',{className:'panel',style:{marginTop:18}},h('h2',null,'GW'+w.n+' fantasy leaderboard'),
+      board.length===0?h('p',{className:'muted'},'Nobody has submitted a team yet.'):
+      h('table',{className:'plain'},h('tbody',null,board.map((r,i)=>h('tr',{key:r.player,className:r.player===me?'me':''},h('td',{className:'n muted'},i+1),h('td',null,h(Nm,{n:r.player,size:16})),h('td',{className:'small muted'},r.picks.join(', ')),h('td',{className:'n'},r.score)))))
+    )
+  );
+}
+function BountiesPage({store,me,dispatch}) {
+  const h=React.createElement;
+  const w=store.weeks[store.weeks.length-1];
+  const games=(w.fixtures||[]).filter(g=>g.p1&&g.p2&&!played(g)&&g.status==='open');
+  const [gid,setGid]=useState(games[0]&&games[0].id||'');
+  const g=games.find(x=>x.id===gid)||games[0];
+  const [hunter,setHunter]=useState(g&&g.p1||'');
+  const [amount,setAmount]=useState(10000);
+  useEffect(()=>{if(g&&hunter!==g.p1&&hunter!==g.p2)setHunter(g.p1);},[gid]);
+  const balance=chipsOf(store,me);
+  const open=(store.bounties||[]).filter(b=>b.status==='open');
+  const recent=[...(store.bounties||[])].filter(b=>b.status!=='open').reverse().slice(0,12);
+  return h('div',null,
+    h('div',{className:'page-title'},h('h1',null,'Bounties'),h('span',{className:'sub'},'Put chips on somebody to beat somebody at pool.')),
+    h('div',{className:'panel',style:{marginBottom:18}},
+      h('h2',null,'Post a bounty'),
+      !g?h('p',{className:'muted'},'No untouched league fixtures available right now.'):
+      h('div',null,
+        h('select',{value:g.id,onChange:e=>setGid(e.target.value)},games.map(x=>h('option',{key:x.id,value:x.id},x.p1+' v '+x.p2))),
+        h('div',{className:'row',style:{marginTop:8}},h('span',null,'Pay if '),h('select',{value:hunter,onChange:e=>setHunter(e.target.value)},[g.p1,g.p2].map(n=>h('option',{key:n,value:n},n))),h('span',null,' wins')),
+        h(BetBar,{bet:amount,setBet:setAmount,max:Math.min(balance,100000),step:1000}),
+        h('p',{className:'small muted'},amount.toLocaleString(),' chips are escrowed now. If ',hunter,' wins, they get the bounty. If they lose, your chips come back.'),
+        h('button',{className:'btn',disabled:amount<1000||amount>balance,onClick:()=>dispatch({t:'bountyPost',game:g.id,hunter,amount,by:me})},'Post bounty')
+      )
+    ),
+    open.length>0&&h('div',{className:'panel',style:{marginBottom:18}},h('h2',null,'Open bounties'),open.map(b=>h('div',{key:b.id,className:'row spread',style:{padding:'7px 0',borderBottom:'1px solid var(--smoke)'}},
+      h('span',null,h('b',null,b.hunter),' to beat ',b.target,' — ',b.amount.toLocaleString(),' chips by ',b.sponsor),
+      b.sponsor===me?h('button',{className:'btn sm ghost',onClick:()=>dispatch({t:'bountyCancel',id:b.id,by:me})},'Cancel'):null
+    ))),
+    recent.length>0&&h('div',{className:'panel'},h('h2',null,'Recent bounties'),recent.map(b=>h('p',{key:b.id,className:'small'},b.hunter,' v ',b.target,' — ',b.amount.toLocaleString(),' chips — ',b.status)))
+  );
+}
+
 function PredictionsPage({
   store,
   me,
@@ -7679,30 +7975,32 @@ const BS_REQUIRED = {
 };
 function bsValidShips(ships) {
   if (!Array.isArray(ships) || ships.length !== 5) return false;
-  const seen = new Set(),
-    used = new Set();
-  for (const s of ships) {
-    if (!s || !BS_REQUIRED[s.id] || seen.has(s.id)) return false;
-    seen.add(s.id);
-    const len = BS_REQUIRED[s.id];
-    if (!Array.isArray(s.cells) || s.cells.length !== len) return false;
-    const xs = [],
-      ys = [];
-    for (const c of s.cells) {
+  const seen = new Set(), used = new Map();
+  for (const ship of ships) {
+    if (!ship || !BS_REQUIRED[ship.id] || seen.has(ship.id)) return false;
+    seen.add(ship.id);
+    const len = BS_REQUIRED[ship.id];
+    if (!Array.isArray(ship.cells) || ship.cells.length !== len) return false;
+    const xs = [], ys = [];
+    for (const c of ship.cells) {
       if (!Array.isArray(c) || c.length !== 2) return false;
       const [x, y] = c;
       if (x == null || y == null || x < 0 || x > 9 || y < 0 || y > 9) return false;
       const key = x + ',' + y;
       if (used.has(key)) return false;
-      used.add(key);
-      xs.push(x);
-      ys.push(y);
+      xs.push(x); ys.push(y);
     }
-    const dx = new Set(xs),
-      dy = new Set(ys);
+    const dx = new Set(xs), dy = new Set(ys);
     const okVert = dx.size === 1 && dy.size === len && Math.max(...ys) - Math.min(...ys) + 1 === len;
     const okHoriz = dy.size === 1 && dx.size === len && Math.max(...xs) - Math.min(...xs) + 1 === len;
     if (!okVert && !okHoriz) return false;
+    for (const [x, y] of ship.cells) {
+      for (let ax = x - 1; ax <= x + 1; ax++) for (let ay = y - 1; ay <= y + 1; ay++) {
+        const other = used.get(ax + ',' + ay);
+        if (other && other !== ship.id) return false;
+      }
+    }
+    ship.cells.forEach(([x,y]) => used.set(x + ',' + y, ship.id));
   }
   return true;
 }
@@ -7721,7 +8019,13 @@ function bsRandomFleet() {
         const y = Math.floor(Math.random() * (horiz ? 10 : 10 - len + 1));
         const cells = [];
         for (let i = 0; i < len; i++) cells.push(horiz ? [x + i, y] : [x, y + i]);
-        if (cells.every(([cx, cy]) => !used.has(cx + ',' + cy))) {
+        const clear = cells.every(([cx, cy]) => {
+          for (let ax = cx - 1; ax <= cx + 1; ax++) for (let ay = cy - 1; ay <= cy + 1; ay++) {
+            if (used.has(ax + ',' + ay)) return false;
+          }
+          return true;
+        });
+        if (clear) {
           cells.forEach(([cx, cy]) => used.add(cx + ',' + cy));
           ships.push({
             id,
@@ -7954,6 +8258,7 @@ function reduce(store, a) {
         });
         log('GW' + w.n + ' closed, paid out ' + pr.map(p => p.player + ' £' + p.amount).join(', '));
         log('Chips topped up for GW' + w.n + ' (' + cbBase + ' base + ' + cbWin + '/win + ' + cbDiff + '/point of positive diff): ' + grants.join(', '));
+        settleFantasyWeek(s,w,log);
         break;
       }
     case 'newWeek':
@@ -7977,6 +8282,8 @@ function reduce(store, a) {
           prizes: []
         });
         s.players.filter(p => p.active).forEach(p => s.rollcall[p.name] = 'in');
+        s.fantasyWeeks=s.fantasyWeeks||{};
+        s.fantasyWeeks[String(n)]={tiers:fantasySnapshot(s),picks:{},paid:false};
         log('GW' + n + ' opened with ' + a.players.join(', '));
         if (n % 4 === 1 && s.knockouts[s.knockouts.length - 1].after < n - 1) {
           s.knockouts.push(drawKnockout(s, n - 1));
@@ -8298,6 +8605,93 @@ function reduce(store, a) {
         break;
       }
 
+
+    case 'placeScoreBet':
+      {
+        const g=findGame(s,a.game).g;
+        if(!g||!g.p1||!g.p2) throw new Error('That match no longer exists.');
+        if(g.s1!=null||g.status!=='open') throw new Error('Betting is closed on that match.');
+        if(a.by===g.p1||a.by===g.p2) throw new Error("You can't bet on your own match.");
+        const s1=Math.floor(+a.s1),s2=Math.floor(+a.s2),od=correctScoreOdds(s1,s2),stake=Math.floor(+a.stake);
+        if(!od) throw new Error('Pick a valid race-to-8 score.');
+        if(!(stake>0)) throw new Error('Bad stake.');
+        const cap=s.payouts.casinoMaxBet||500;
+        s.scoreBets=s.scoreBets||[];
+        const already=s.scoreBets.filter(x=>x.player===a.by&&x.game===g.id&&x.status==='open').reduce((t,x)=>t+x.stake,0);
+        if(stake>cap||stake+already>cap) throw new Error('Max '+cap+' chips on one correct-score market.');
+        s.chips=s.chips||{};
+        const cur=s.chips[a.by]!=null?s.chips[a.by]:1000;
+        if(stake>cur) throw new Error('You cannot bet more than your chip balance.');
+        s.chips[a.by]=cur-stake;
+        s.scoreBets.push({id:'sb'+Date.now(),player:a.by,game:g.id,label:g.p1+' v '+g.p2,s1,s2,stake,odds:od,status:'open',payout:0,placedAt:Date.now()});
+        log(a.by+' bet '+stake+' chips on '+g.p1+' '+s1+'-'+s2+' '+g.p2+' at '+od);
+        break;
+      }
+    case 'claimWeekly':
+      {
+        const c=WEEKLY_CHALLENGES.find(x=>x.id===a.key);
+        if(!c) throw new Error('Unknown challenge.');
+        const st=weeklyChallengeProgress(s,a.by);
+        s.challengeClaims=s.challengeClaims||[];
+        if(s.challengeClaims.some(x=>+x.week===+st.week&&x.player===a.by&&x.key===a.key)) throw new Error('Already claimed.');
+        if(!weeklyChallengeDone(st,a.key)) throw new Error('Challenge is not complete yet.');
+        s.chips=s.chips||{};
+        s.chips[a.by]=(s.chips[a.by]!=null?s.chips[a.by]:1000)+c.reward;
+        s.challengeClaims.push({week:st.week,player:a.by,key:a.key,reward:c.reward,at:Date.now()});
+        log(a.by+' claimed '+c.reward+' chips for '+c.name);
+        break;
+      }
+    case 'prestige':
+      {
+        const p=playerProgress(s,a.by);
+        if(!p.canPrestige) throw new Error('Reach level 25 first.');
+        s.progression=s.progression||{};
+        s.progression[a.by]={prestige:p.prestige+1,xpOffset:p.raw,at:Date.now()};
+        log(a.by+' prestiged to P'+(p.prestige+1));
+        break;
+      }
+    case 'fantasyPick':
+      {
+        const w=s.weeks[s.weeks.length-1];
+        if(w.closed||w.fixtures.some(played)) throw new Error('Fantasy picks are locked for this game week.');
+        s.fantasyWeeks=s.fantasyWeeks||{};
+        const k=String(w.n);
+        const fw=s.fantasyWeeks[k]||(s.fantasyWeeks[k]={tiers:fantasySnapshot(s),picks:{},paid:false});
+        const picks=Array.isArray(a.picks)?a.picks:[];
+        if(picks.length!==4||new Set(picks).size!==4) throw new Error('Pick four different players.');
+        if(!fw.tiers.elite.includes(picks[0])||!fw.tiers.challenger.includes(picks[1])||!fw.tiers.mongs.includes(picks[2])||!fw.tiers.mongs.includes(picks[3])) throw new Error('Team must be 1 Elite, 1 Challenger and 2 Mongs.');
+        fw.picks=fw.picks||{}; fw.picks[a.by]=picks;
+        log(a.by+' picked a GW'+w.n+' fantasy team');
+        break;
+      }
+    case 'bountyPost':
+      {
+        const g=findGame(s,a.game).g;
+        if(!g||!s.weeks[s.weeks.length-1].fixtures.some(x=>x.id===g.id)) throw new Error('Pick a current game-week league fixture.');
+        if(played(g)||g.status!=='open') throw new Error('That match has already started reporting or finished.');
+        if(a.hunter!==g.p1&&a.hunter!==g.p2) throw new Error('Pick one of the two players.');
+        const amount=Math.floor(+a.amount);
+        if(!(amount>=1000&&amount<=100000)) throw new Error('Bounties are 1,000 to 100,000 chips.');
+        s.chips=s.chips||{}; const cur=s.chips[a.by]!=null?s.chips[a.by]:1000;
+        if(amount>cur) throw new Error('Not enough chips.');
+        s.chips[a.by]=cur-amount;
+        s.bounties=s.bounties||[];
+        s.bounties.push({id:'bo'+Date.now(),sponsor:a.by,game:g.id,hunter:a.hunter,target:a.hunter===g.p1?g.p2:g.p1,amount,status:'open',at:Date.now()});
+        log(a.by+' posted '+amount+' chips on '+a.hunter+' to beat '+(a.hunter===g.p1?g.p2:g.p1));
+        break;
+      }
+    case 'bountyCancel':
+      {
+        const b=(s.bounties||[]).find(x=>x.id===a.id);
+        if(!b||b.status!=='open') throw new Error('That bounty is no longer open.');
+        if(b.sponsor!==a.by) throw new Error('Only the sponsor can cancel it.');
+        const g=findGame(s,b.game).g;
+        if(g&&g.status!=='open') throw new Error('Too late to cancel; score reporting has started.');
+        s.chips=s.chips||{};s.chips[a.by]=(s.chips[a.by]!=null?s.chips[a.by]:1000)+b.amount;
+        b.status='cancelled';b.cancelledAt=Date.now();
+        log(a.by+' cancelled a '+b.amount+' chip bounty');
+        break;
+      }
     case 'c4Create':
       {
         if (!a.opponent || a.opponent === a.by) throw new Error('Pick someone else to challenge.');
@@ -8686,6 +9080,8 @@ function reduce(store, a) {
   }
   if (s.log && s.log.length > 300) s.log = s.log.slice(-300);
   settleBets(s, log);
+  settleScoreBets(s, log);
+  settleBounties(s, log);
   return s;
 }
 
@@ -8716,7 +9112,7 @@ function Login({
     style: {
       fontSize: 96
     }
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.8.1")), /*#__PURE__*/React.createElement("p", {
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.8.7")), /*#__PURE__*/React.createElement("p", {
     className: "muted"
   }, "Twelve players. Six games. One office. Report to the table."), /*#__PURE__*/React.createElement("div", {
     className: "pinbox"
@@ -8831,7 +9227,7 @@ function App() {
     const off = api.subscribeChat(check, 'chat-badge');
     return () => { alive = false; clearInterval(iv); off(); };
   }, [me, tab]);
-  useEffect(() => { document.title = (chatUnread + hogPending + bsPending + c4Pending > 0 ? '(' + (chatUnread + hogPending + bsPending + c4Pending) + ') ' : '') + 'Book1.8.1'; }, [chatUnread, hogPending, bsPending, c4Pending]);
+  useEffect(() => { document.title = (chatUnread + hogPending + bsPending + c4Pending > 0 ? '(' + (chatUnread + hogPending + bsPending + c4Pending) + ') ' : '') + 'Book1.8.7'; }, [chatUnread, hogPending, bsPending, c4Pending]);
   const cloudEmpty = !!(store && !store.weeks);
   const persistCred = c => {
     setCred(c);
@@ -8842,7 +9238,7 @@ function App() {
   };
   const dispatch = async a => {
     if (!store) return;
-    const playerActionTypes = ['submit', 'rollcall', 'profile', 'recall', 'casino', 'tourneyVote', 'ping', 'predict', 'equipCard', 'unlock', 'placeBet', 'placeAcca', 'requestChips', 'cashOutBet', 'c4Create', 'c4Accept', 'c4Decline', 'c4Cancel', 'c4Drop', 'c4Forfeit', 'bsCreate', 'bsDecline', 'bsPlaceShips', 'bsFire', 'bsForfeit', 'sellCard'];
+    const playerActionTypes = ['submit', 'rollcall', 'profile', 'recall', 'casino', 'tourneyVote', 'ping', 'predict', 'equipCard', 'unlock', 'placeBet', 'placeAcca', 'placeScoreBet', 'claimWeekly', 'prestige', 'fantasyPick', 'bountyPost', 'bountyCancel', 'requestChips', 'cashOutBet', 'c4Create', 'c4Accept', 'c4Decline', 'c4Cancel', 'c4Drop', 'c4Forfeit', 'bsCreate', 'bsDecline', 'bsPlaceShips', 'bsFire', 'bsForfeit', 'sellCard'];
     // A player's own roll-call response belongs on the player RPC. Regime approval/denial
     // must stay on the admin-save path because the player RPC only acts as p_name and
     // deliberately does not accept the final admin-only "out" state.
@@ -8949,7 +9345,7 @@ function App() {
     style: {
       fontSize: 96
     }
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.8.1"));
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.8.7"));
   if (!store) return /*#__PURE__*/React.createElement("div", {
     className: "login"
   }, mark, /*#__PURE__*/React.createElement("p", {
@@ -8994,7 +9390,7 @@ function App() {
     onClick: () => persistCred(undefined)
   }, "Log out"));
   const wIdx = weekIdx == null ? store.weeks.length - 1 : Math.min(weekIdx, store.weeks.length - 1);
-  const tabs = [['table', 'Table'], ['me', 'My book'], ['casino', 'Casino'], ['hogs', 'Hogs'], ['battleships', 'Battleships'], ['connect4', 'Connect 4'], ['eightman', '8 Man'], ['predict', 'Predictions'], ['chat', 'Chat'], ['master', 'Master'], ['stats', 'Dossier'], ['ko', 'Knockout']];
+  const tabs = [['table', 'Table'], ['me', 'My book'], ['progress', 'Progress'], ['fantasy', 'Fantasy'], ['bounties', 'Bounties'], ['casino', 'Casino'], ['hogs', 'Hogs'], ['battleships', 'Battleships'], ['connect4', 'Connect 4'], ['eightman', '8 Man'], ['predict', 'Predictions'], ['chat', 'Chat'], ['master', 'Master'], ['stats', 'Dossier'], ['ko', 'Knockout']];
   if (isAdmin) tabs.push(['regime', 'Regime']);
   const live = store.weeks[store.weeks.length - 1];
   const pending = isAdmin ? live.fixtures.concat(live.playoffs).filter(g => g.status === 'disputed').length + (store.chipRequests || []).filter(r => r.status === 'pending').length : 0;
@@ -9016,7 +9412,19 @@ function App() {
   }, /*#__PURE__*/React.createElement("h2", null, "Log in to see your book."), /*#__PURE__*/React.createElement("button", {
     className: "btn",
     onClick: () => persistCred(undefined)
-  }, "Log in")) : tab === 'casino' ? me ? /*#__PURE__*/React.createElement(CasinoPage, {
+  }, "Log in")) : tab === 'progress' ? me ? /*#__PURE__*/React.createElement(ProgressPage, {
+    store: store,
+    me: me,
+    dispatch: dispatch
+  }) : /*#__PURE__*/React.createElement("div", { className: "panel" }, "Log in to see progression.") : tab === 'fantasy' ? me ? /*#__PURE__*/React.createElement(FantasyPage, {
+    store: store,
+    me: me,
+    dispatch: dispatch
+  }) : /*#__PURE__*/React.createElement("div", { className: "panel" }, "Log in to play fantasy.") : tab === 'bounties' ? me ? /*#__PURE__*/React.createElement(BountiesPage, {
+    store: store,
+    me: me,
+    dispatch: dispatch
+  }) : /*#__PURE__*/React.createElement("div", { className: "panel" }, "Log in to post bounties.") : tab === 'casino' ? me ? /*#__PURE__*/React.createElement(CasinoPage, {
     store: store,
     me: me,
     cred: cred,
@@ -9108,7 +9516,7 @@ function App() {
     className: "rail"
   }, /*#__PURE__*/React.createElement("div", {
     className: "wordmark"
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.8.1")), /*#__PURE__*/React.createElement("div", {
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.8.7")), /*#__PURE__*/React.createElement("div", {
     className: "decree"
   }, decree), /*#__PURE__*/React.createElement("div", {
     className: "nav"
