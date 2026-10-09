@@ -5240,6 +5240,8 @@ function MyPage({
   const [np2, setNp2] = useState('');
   const w = store.weeks[store.weeks.length - 1];
   const mine = w.fixtures.concat(w.playoffs).filter(g => g.p1 === me || g.p2 === me);
+  const currentIds=new Set(w.fixtures.concat(w.playoffs).map(g=>g.id));
+  const otherMarkets=marketGames(store).filter(g=>(g.p1===me||g.p2===me)&&!currentIds.has(g.id));
   const st = playerStats(store, me);
   const at = allTime(store, false).find(r => r.name === me) || {};
   const rc = store.rollcall[me];
@@ -5371,7 +5373,23 @@ function MyPage({
     style: {
       marginTop: 10
     }
-  }, "Both players report. Matching scores go straight on the table. If they differ, either of you can amend; if it stays disputed the regime rules on it.")), /*#__PURE__*/React.createElement("div", {
+  }, "Both players report. Matching scores go straight on the table. If they differ, either of you can amend; if it stays disputed the regime rules on it.")), otherMarkets.length > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "panel"
+  }, /*#__PURE__*/React.createElement("h2", null, "Other live pool matches"), /*#__PURE__*/React.createElement("p", {
+    className: "small muted"
+  }, "Knockout and 8-man matches also use the betting lock. Start them here before breaking."), otherMarkets.map(g => {
+    const lock=bettingLockOf(store,g.id);
+    return /*#__PURE__*/React.createElement("div", {
+      key:g.id,
+      className:"row spread",
+      style:{padding:'7px 0',borderBottom:'1px solid var(--smoke)'}
+    }, /*#__PURE__*/React.createElement("span", null, g.label, " · ", g.p1, " v ", g.p2), lock ? /*#__PURE__*/React.createElement("span", {
+      className:"stamp bad"
+    }, "LIVE · betting closed") : /*#__PURE__*/React.createElement("button", {
+      className:"btn sm",
+      onClick:()=>dispatch({t:'startMatch',id:g.id,by:me})
+    }, "Start match"));
+  })), /*#__PURE__*/React.createElement("div", {
     className: "panel"
   }, /*#__PURE__*/React.createElement("h2", null, "Next week"), /*#__PURE__*/React.createElement("p", null, "You are currently ", rc === 'in' ? /*#__PURE__*/React.createElement("span", {
     className: "pill in"
@@ -7843,20 +7861,23 @@ function bettingLockOf(store,id) {
 function isBettingLocked(store,id) {
   return !!bettingLockOf(store,id);
 }
-function bettableGames(store) {
+function marketGames(store) {
   const out = [];
   const add = (g, label) => {
-    if (g && g.p1 && g.p2 && g.s1 == null && g.status === 'open' && !isBettingLocked(store,g.id)) out.push({ id: g.id, p1: g.p1, p2: g.p2, label });
+    if (g && g.p1 && g.p2 && g.s1 == null && g.status === 'open') out.push({ id:g.id,p1:g.p1,p2:g.p2,label });
   };
-  const live = store.weeks[store.weeks.length - 1];
-  live.fixtures.forEach(g => add(g, 'GW' + live.n));
-  live.playoffs.forEach(g => add(g, 'GW' + live.n + ' play-off'));
-  const ko = store.knockouts[store.knockouts.length - 1];
-  if (ko) ko.leagues.forEach(l => l.games.forEach(g => add(g, 'Knockout, ' + l.name)));
-  (store.tournaments || []).forEach(t => {
-    if (t.bracket) ['qf', 'sf', 'final'].forEach(k => t.bracket[k].forEach(g => add(g, t.name)));
+  const live=store.weeks[store.weeks.length-1];
+  live.fixtures.forEach(g=>add(g,'GW'+live.n));
+  live.playoffs.forEach(g=>add(g,'GW'+live.n+' play-off'));
+  const ko=store.knockouts[store.knockouts.length-1];
+  if(ko) ko.leagues.forEach(l=>l.games.forEach(g=>add(g,'Knockout, '+l.name)));
+  (store.tournaments||[]).forEach(t=>{
+    if(t.bracket) ['qf','sf','final'].forEach(k=>(t.bracket[k]||[]).forEach(g=>add(g,t.name)));
   });
   return out;
+}
+function bettableGames(store) {
+  return marketGames(store).filter(g=>!isBettingLocked(store,g.id));
 }
 function settleBets(s, log) {
   if (!s.bets || !s.bets.length) return;
