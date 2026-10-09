@@ -80,9 +80,10 @@ as $function$
   ),
   games as (
     select g
-    from jsonb_array_elements(coalesce(p_data->'weeks','[]'::jsonb)) w
-    cross join lateral jsonb_array_elements(coalesce(w->'fixtures','[]'::jsonb)) g
+    from jsonb_array_elements(coalesce(p_data->'weeks','[]'::jsonb)) with ordinality as ww(w,ord)
+    cross join lateral jsonb_array_elements(coalesce(ww.w->'fixtures','[]'::jsonb)) g
     where g->>'s1' is not null
+      and ww.ord < jsonb_array_length(coalesce(p_data->'weeks','[]'::jsonb))
   ),
   stats as (
     select
