@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Book1.8.7</title>
+<title>Book1.8.8</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -504,7 +504,7 @@ const {
 } = React;
 const STORE_KEY = 'book1.2-local';
 const CFG = window.BOOK_CONFIG || {};
-const APP_SQL_VERSION = 29; // bump this whenever a new SQL script adds or changes a server function
+const APP_SQL_VERSION = 30; // bump this whenever a new SQL script adds or changes a server function
 const CLOUD = !!(CFG.url && CFG.key);
 const ADMINS = ['Chef', 'Lorcan'];
 const DECREES = ['Abstention is not permitted.', 'The Book sees all results.', 'Ball difference is destiny.', 'The Dictator collects. The Dictator distributes.', 'Report your score. Report it honestly.', 'Twelfth place is a service to the office.', 'The mong off is not optional.', 'Disputes are settled by the regime.'];
@@ -596,6 +596,7 @@ function buildStore() {
     challengeClaims: [],
     fantasyWeeks: {},
     bounties: [],
+    bettingLocks: {},
     log: [],
     nextId: id
   };
@@ -1356,6 +1357,7 @@ function Form({
 let PROF = {};
 let CARDS = {};
 let CATALOG = [];
+let PROGRESS_STORE = null;
 const RARITY_COLORS = {
   common: '#9CA3AF',
   uncommon: '#3FA34D',
@@ -1407,6 +1409,7 @@ function EmblemModal({
   if (!name) return null;
   const p = PROF[name] || {};
   const s = playerStats(store, name);
+  const prog = playerProgress(store,name);
   return /*#__PURE__*/React.createElement("div", {
     className: "modal-backdrop",
     onClick: onClose
@@ -1433,7 +1436,7 @@ function EmblemModal({
     className: "small muted"
   }, "No crest set yet."), /*#__PURE__*/React.createElement("p", {
     className: "small muted"
-  }, s.weeks, " weeks played · ", s.w, "-", s.l, " · ", s.mong, " mong off", s.mong === 1 ? '' : 's', s.worst ? ' \u00b7 ' + s.worst + ' worst player ' + (s.worst > 1 ? 'trophies' : 'trophy') : ''), /*#__PURE__*/React.createElement("button", {
+  }, "Prestige ", prog.prestige, " · Level ", prog.level, " · ", prog.xp.toLocaleString(), " XP this prestige · ", s.weeks, " weeks played · ", s.w, "-", s.l, " · ", s.mong, " mong off", s.mong === 1 ? '' : 's', s.worst ? ' \u00b7 ' + s.worst + ' worst player ' + (s.worst > 1 ? 'trophies' : 'trophy') : ''), /*#__PURE__*/React.createElement("button", {
     className: "btn sm",
     onClick: onOpenDossier
   }, "Open full dossier")));
@@ -1467,6 +1470,19 @@ function Emblem({
     }
   });
 }
+function prestigeEmblem(level) {
+  const p=Math.max(0,+level||0);
+  if(!p) return null;
+  const tier=p>=10?'mythic':p>=5?'red':p>=3?'gold':p>=2?'silver':'bronze';
+  const cfg={
+    bronze:{bg:'#2A2626',c:'#C9824B',g:'star'},
+    silver:{bg:'#20242A',c:'#D7DCE2',g:'shield'},
+    gold:{bg:'#0A0A0A',c:'#C9A227',g:'crown'},
+    red:{bg:'#2B0508',c:'#EDE6D6',g:'crown'},
+    mythic:{bg:'#000000',c:'#C9A227',g:'skull'}
+  }[tier];
+  return {bg:cfg.bg,shape:'shield',layers:[{g:cfg.g,c:cfg.c,x:0,y:-4,s:.72,r:0}]};
+}
 function Nm({
   n,
   size = 20,
@@ -1476,6 +1492,8 @@ function Nm({
   const openBig = useContext(EmblemCtx);
   const cardId = CARDS[n] && CARDS[n].equipped;
   const card = cardId && CATALOG.find(c => c.id === cardId);
+  const prog = PROGRESS_STORE && PROGRESS_STORE.weeks ? playerProgress(PROGRESS_STORE,n) : null;
+  const pBadge = prog && prestigeEmblem(prog.prestige);
   return /*#__PURE__*/React.createElement("button", {
     type: "button",
     className: "nm-click",
@@ -1483,7 +1501,15 @@ function Nm({
       e.stopPropagation();
       openBig(n);
     }
-  }, p && p.emblem && /*#__PURE__*/React.createElement(Emblem, {
+  }, pBadge && /*#__PURE__*/React.createElement(Emblem, {
+    e: pBadge,
+    size: Math.round(size * .9),
+    style: {
+      marginRight: 5,
+      border: '1px solid var(--brass)',
+      borderRadius: '50%'
+    }
+  }), p && p.emblem && /*#__PURE__*/React.createElement(Emblem, {
     e: p.emblem,
     size: size,
     style: {
@@ -1502,7 +1528,13 @@ function Nm({
       opacity: .75,
       fontWeight: 700
     }
-  }, "[", p.tag, "] "), n);
+  }, "[", p.tag, "] "), n, prog && /*#__PURE__*/React.createElement("span", {
+    className: "small muted",
+    style: {
+      marginLeft: 5,
+      fontSize: Math.max(10,Math.round(size*.55))
+    }
+  }, "Lv", prog.level));
 }
 function EmblemStudio({
   me,
@@ -3038,6 +3070,7 @@ function rawPlayerXp(store, p) {
     xp += 25;
     if (g.winner === p) xp += 50;
   });
+  xp += (store.challengeClaims || []).filter(c => c.player === p).reduce((t,c)=>t+(+c.xp||0),0);
   return xp;
 }
 function playerProgress(store,p) {
@@ -3047,20 +3080,34 @@ function playerProgress(store,p) {
   const level = Math.min(25, 1 + Math.floor(xp / 500));
   return { raw, xp, level, prestige:+rec.prestige||0, into:xp % 500, canPrestige:xp >= 12000 };
 }
-const WEEKLY_CHALLENGES = [
-  {id:'wins3',name:'Hat-trick',desc:'Win 3 pool games this game week.',reward:10000},
-  {id:'play4',name:'Clock in',desc:'Complete 4 pool games this game week.',reward:5000},
-  {id:'diff10',name:'Run it up',desc:'Reach +10 ball difference this game week.',reward:7500}
-];
+const CHALLENGE_POOL = {
+  wins3:{id:'wins3',name:'Hat-trick',desc:'Win 3 pool games this game week.',reward:10000,xp:750},
+  play4:{id:'play4',name:'Clock in',desc:'Complete 4 pool games this game week.',reward:5000,xp:400},
+  diff10:{id:'diff10',name:'Run it up',desc:'Reach +10 ball difference this game week.',reward:7500,xp:750},
+  c4wins2:{id:'c4wins2',name:'Four in a Row',desc:'Win 2 Connect 4 games this game week.',reward:5000,xp:500},
+  bswin1:{id:'bswin1',name:'Naval Warfare',desc:'Win a Battleships game this game week.',reward:5000,xp:500},
+  hogwin1:{id:'hogwin1',name:'Hog Supremacy',desc:'Win a Hog duel this game week.',reward:3000,xp:300}
+};
+function weeklyChallengesForWeek(n) {
+  const core=['wins3','play4','diff10'], mini=['c4wins2','bswin1','hogwin1'];
+  const i=Math.max(0,(+n||1)-1)%3;
+  return [CHALLENGE_POOL[core[i]],CHALLENGE_POOL[mini[i]],CHALLENGE_POOL[core[(i+1)%3]]];
+}
 function weeklyChallengeProgress(store,p) {
   const w=store.weeks[store.weeks.length-1];
   const gs=(w.fixtures||[]).filter(g=>played(g)&&(g.p1===p||g.p2===p));
   const wins=gs.filter(g=>winner(g)===p).length;
   const d=gs.reduce((t,g)=>t+diff(g,p),0);
-  return {week:w.n,wins,played:gs.length,diff:d};
+  const c4wins=(store.connect4||[]).filter(g=>+g.week===+w.n&&g.status==='done'&&g.winner===p).length;
+  const bswins=(store.battleships||[]).filter(g=>+g.week===+w.n&&g.status==='done'&&g.winner===p).length;
+  const hogwins=(store.hogDuels||[]).filter(g=>+g.week===+w.n&&g.status==='done'&&g.winner===p).length;
+  return {week:w.n,wins,played:gs.length,diff:d,c4wins,bswins,hogwins};
 }
 function weeklyChallengeDone(stats,id) {
-  return id==='wins3' ? stats.wins>=3 : id==='play4' ? stats.played>=4 : id==='diff10' ? stats.diff>=10 : false;
+  return id==='wins3'?stats.wins>=3:id==='play4'?stats.played>=4:id==='diff10'?stats.diff>=10:id==='c4wins2'?stats.c4wins>=2:id==='bswin1'?stats.bswins>=1:id==='hogwin1'?stats.hogwins>=1:false;
+}
+function weeklyChallengeProgressText(stats,id) {
+  return id==='wins3'?stats.wins+'/3 wins':id==='play4'?stats.played+'/4 games':id==='diff10'?stats.diff+'/+10 diff':id==='c4wins2'?stats.c4wins+'/2 C4 wins':id==='bswin1'?stats.bswins+'/1 Battleships win':stats.hogwins+'/1 Hog win';
 }
 function fantasySnapshot(store) {
   const history = store.weeks && store.weeks.length > 1 ? {...store,weeks:store.weeks.slice(0,-1)} : store;
@@ -5980,11 +6027,11 @@ function ProgressPage({store,me,dispatch}) {
       ),
       h('div',{className:'panel'},
         h('h2',null,'GW'+stats.week+' weekly challenges'),
-        WEEKLY_CHALLENGES.map(c=>{
+        weeklyChallengesForWeek(stats.week).map(c=>{
           const done=weeklyChallengeDone(stats,c.id), got=claimed(c.id);
-          const prog=c.id==='wins3'?stats.wins+'/3 wins':c.id==='play4'?stats.played+'/4 games':stats.diff+'/+10 diff';
+          const prog=weeklyChallengeProgressText(stats,c.id);
           return h('div',{key:c.id,className:'row spread',style:{padding:'8px 0',borderBottom:'1px solid var(--smoke)'}},
-            h('span',null,h('b',null,c.name),' — ',c.desc,h('span',{className:'small muted'},' ',prog,' · ',c.reward.toLocaleString(),' chips')),
+            h('span',null,h('b',null,c.name),' — ',c.desc,h('span',{className:'small muted'},' ',prog,' · ',c.reward.toLocaleString(),' chips · ',c.xp.toLocaleString(),' XP')),
             h('button',{className:'btn sm'+(done&&!got?'':' ghost'),disabled:!done||got,onClick:()=>dispatch({t:'claimWeekly',key:c.id,by:me})},got?'Claimed':done?'Claim':'Not yet')
           );
         })
@@ -8631,16 +8678,16 @@ function reduce(store, a) {
       }
     case 'claimWeekly':
       {
-        const c=WEEKLY_CHALLENGES.find(x=>x.id===a.key);
-        if(!c) throw new Error('Unknown challenge.');
         const st=weeklyChallengeProgress(s,a.by);
+        const c=weeklyChallengesForWeek(st.week).find(x=>x.id===a.key);
+        if(!c) throw new Error('That challenge is not active this week.');
         s.challengeClaims=s.challengeClaims||[];
         if(s.challengeClaims.some(x=>+x.week===+st.week&&x.player===a.by&&x.key===a.key)) throw new Error('Already claimed.');
         if(!weeklyChallengeDone(st,a.key)) throw new Error('Challenge is not complete yet.');
         s.chips=s.chips||{};
         s.chips[a.by]=(s.chips[a.by]!=null?s.chips[a.by]:1000)+c.reward;
-        s.challengeClaims.push({week:st.week,player:a.by,key:a.key,reward:c.reward,at:Date.now()});
-        log(a.by+' claimed '+c.reward+' chips for '+c.name);
+        s.challengeClaims.push({week:st.week,player:a.by,key:a.key,reward:c.reward,xp:c.xp,at:Date.now()});
+        log(a.by+' claimed '+c.reward+' chips and '+c.xp+' XP for '+c.name);
         break;
       }
     case 'prestige':
@@ -8706,7 +8753,7 @@ function reduce(store, a) {
         s.connect4 = s.connect4 || [];
         if (s.connect4.some(g => ['pending','playing'].includes(g.status) && ((g.challenger===a.by&&g.opponent===a.opponent)||(g.opponent===a.by&&g.challenger===a.opponent)))) throw new Error('You already have a Connect 4 game with them.');
         if (stake > 0) s.chips[a.by] = cur - stake;
-        s.connect4.push({id:'c4'+Date.now(),challenger:a.by,opponent:a.opponent,stake,status:'pending',turn:null,winner:null,board:Array(42).fill(null),createdAt:Date.now()});
+        s.connect4.push({id:'c4'+Date.now(),week:s.weeks[s.weeks.length-1].n,challenger:a.by,opponent:a.opponent,stake,status:'pending',turn:null,winner:null,board:Array(42).fill(null),createdAt:Date.now()});
         log(a.by+' challenged '+a.opponent+' to Connect 4'+(stake>0?' for '+stake+' chips':''));
         break;
       }
@@ -8784,7 +8831,7 @@ function reduce(store, a) {
         s.battleships = s.battleships || [];
         if (s.battleships.some(g => ['setup', 'playing'].includes(g.status) && ((g.challenger === a.by && g.opponent === a.opponent) || (g.opponent === a.by && g.challenger === a.opponent)))) throw new Error('You already have a game with them.');
         if (stake > 0) s.chips[a.by] = cur - stake;
-        s.battleships.push({ id: 'bs' + Date.now(), challenger: a.by, opponent: a.opponent, stake, status: 'setup', turn: null, winner: null, ready: { [a.by]: false, [a.opponent]: false }, shots: { [a.by]: [], [a.opponent]: [] }, sunk: { [a.by]: [], [a.opponent]: [] }, ships: {}, createdAt: Date.now() });
+        s.battleships.push({ id: 'bs' + Date.now(), week: s.weeks[s.weeks.length-1].n, challenger: a.by, opponent: a.opponent, stake, status: 'setup', turn: null, winner: null, ready: { [a.by]: false, [a.opponent]: false }, shots: { [a.by]: [], [a.opponent]: [] }, sunk: { [a.by]: [], [a.opponent]: [] }, ships: {}, createdAt: Date.now() });
         log(`${a.by} challenged ${a.opponent} to Battleships${stake > 0 ? ' for ' + stake + ' chips' : ''}`);
         break;
       }
@@ -9114,7 +9161,7 @@ function Login({
     style: {
       fontSize: 96
     }
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.8.7")), /*#__PURE__*/React.createElement("p", {
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.8.8")), /*#__PURE__*/React.createElement("p", {
     className: "muted"
   }, "Twelve players. Six games. One office. Report to the table."), /*#__PURE__*/React.createElement("div", {
     className: "pinbox"
@@ -9200,6 +9247,7 @@ function App() {
   PROF = store && store.profiles || {};
   CARDS = store && store.cards || {};
   CATALOG = store && store.cardCatalog && store.cardCatalog.length ? store.cardCatalog : defaultCardCatalog();
+  PROGRESS_STORE = store;
   const me = cred ? cred.name : cred;
   const isAdmin = !!(cred && cred.role === 'admin');
   const hogPending = store && me ? (store.hogDuels || []).filter(d => d.status === 'open' && d.opponent === me).length : 0;
@@ -9229,7 +9277,7 @@ function App() {
     const off = api.subscribeChat(check, 'chat-badge');
     return () => { alive = false; clearInterval(iv); off(); };
   }, [me, tab]);
-  useEffect(() => { document.title = (chatUnread + hogPending + bsPending + c4Pending > 0 ? '(' + (chatUnread + hogPending + bsPending + c4Pending) + ') ' : '') + 'Book1.8.7'; }, [chatUnread, hogPending, bsPending, c4Pending]);
+  useEffect(() => { document.title = (chatUnread + hogPending + bsPending + c4Pending > 0 ? '(' + (chatUnread + hogPending + bsPending + c4Pending) + ') ' : '') + 'Book1.8.8'; }, [chatUnread, hogPending, bsPending, c4Pending]);
   const cloudEmpty = !!(store && !store.weeks);
   const persistCred = c => {
     setCred(c);
@@ -9347,7 +9395,7 @@ function App() {
     style: {
       fontSize: 96
     }
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.8.7"));
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.8.8"));
   if (!store) return /*#__PURE__*/React.createElement("div", {
     className: "login"
   }, mark, /*#__PURE__*/React.createElement("p", {
@@ -9518,7 +9566,7 @@ function App() {
     className: "rail"
   }, /*#__PURE__*/React.createElement("div", {
     className: "wordmark"
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.8.7")), /*#__PURE__*/React.createElement("div", {
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.8.8")), /*#__PURE__*/React.createElement("div", {
     className: "decree"
   }, decree), /*#__PURE__*/React.createElement("div", {
     className: "nav"
