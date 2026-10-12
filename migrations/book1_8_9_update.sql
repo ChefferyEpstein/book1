@@ -690,3 +690,19 @@ revoke all on function public.book_chess_action(text,text,jsonb) from public;
 revoke all on function public.book_claim_wheel(text,text,text) from public;
 grant execute on function public.book_chess_action(text,text,jsonb) to anon, authenticated, service_role;
 grant execute on function public.book_claim_wheel(text,text,text) to anon, authenticated, service_role;
+
+
+-- Fix search paths on functions introduced or replaced by 1.8.9.
+alter function public.book_prestige_xp_required() set search_path = public, extensions;
+alter function public.book_wheel_cooldown_minutes(jsonb,text) set search_path = public, extensions;
+alter function public.book_chess_initial_board() set search_path = public, extensions;
+alter function public.book_chess_clear_path(jsonb,int,int) set search_path = public, extensions;
+alter function public.book_chess_attacked(jsonb,int,text) set search_path = public, extensions;
+alter function public.book_chess_in_check(jsonb,text) set search_path = public, extensions;
+alter function public.book_chess_apply_state(jsonb,int,int,text,jsonb,int,text) set search_path = public, extensions;
+alter function public.book_chess_is_legal(jsonb,int,int,text,jsonb,int,text) set search_path = public, extensions;
+alter function public.book_chess_has_legal_move(jsonb,text,jsonb,int) set search_path = public, extensions;
+alter function public.book_chess_settle_189(jsonb,int,text,text) set search_path = public, extensions;
+alter function public.book_weekly_challenge_189(jsonb,text,text) set search_path = public, extensions;
+alter function public.book_player_xp(jsonb,text) set search_path = public, extensions;
+alter function public.book_version() set search_path = public, extensions;
