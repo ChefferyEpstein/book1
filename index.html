@@ -3162,7 +3162,7 @@ const PRESTIGE_REWARDS = [
   {p:5,label:'Free spin cooldown: 10 minutes'},
   {p:10,label:'Free spin cooldown: 5 minutes'}
 ];
-const CHALLENGE_POOLconst CHALLENGE_POOL = {
+const CHALLENGE_POOL = {
   wins3:{id:'wins3',name:'Hat-trick',desc:'Win 3 pool games this game week.',reward:10000,xp:750},
   play4:{id:'play4',name:'Clock in',desc:'Complete 4 pool games this game week.',reward:5000,xp:400},
   diff10:{id:'diff10',name:'Run it up',desc:'Reach +10 ball difference this game week.',reward:7500,xp:750},
@@ -3196,7 +3196,7 @@ function weeklyChallengeDone(stats,id) {
 function weeklyChallengeProgressText(stats,id) {
   return id==='wins3'?stats.wins+'/3 wins':id==='play4'?stats.played+'/4 games':id==='diff10'?stats.diff+'/+10 diff':id==='c4wins2'?stats.c4wins+'/2 C4 wins':id==='bswin1'?stats.bswins+'/1 Battleships win':id==='hogwin1'?stats.hogwins+'/1 Hog win':stats.chesswins+'/1 Chess win';
 }
-function fantasySnapshotfunction fantasySnapshot(store) {
+function fantasySnapshot(store) {
   const history = store.weeks && store.weeks.length > 1 ? {...store,weeks:store.weeks.slice(0,-1)} : store;
   let rows=allTime(history,false).filter(r => store.players.some(p=>p.name===r.name&&p.active));
   const ranked=new Set(rows.map(r=>r.name));
@@ -6419,7 +6419,7 @@ function ProgressPage({store,me,dispatch}) {
     )
   );
 }
-function FantasyPagefunction FantasyPage({store,me,dispatch}) {
+function FantasyPage({store,me,dispatch}) {
   const h=React.createElement;
   const w=store.weeks[store.weeks.length-1];
   const fw=(store.fantasyWeeks||{})[String(w.n)]||{tiers:fantasySnapshot(store),picks:{},paid:false};
