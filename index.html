@@ -593,7 +593,6 @@ function buildStore() {
     connect4: [],
     chess: [],
     chessRatings: {},
-    wheelPending: {},
     scoreBets: [],
     progression: {},
     challengeClaims: [],
@@ -869,11 +868,6 @@ const api = CLOUD ? {
     if (error) throw error;
     return data;
   },
-  async claimWheel(cred, spinId) {
-    const { data, error } = await sb.rpc('book_claim_wheel', { p_name: cred.name, p_pin: cred.pin, p_spin_id: spinId });
-    if (error) throw error;
-    return data;
-  },
   async chessAction(cred, action) {
     const { data, error } = await sb.rpc('book_chess_action', { p_name: cred.name, p_pin: cred.pin, p_action: action });
     if (error) throw error;
@@ -1014,21 +1008,30 @@ const api = CLOUD ? {
     return { ...picked, duplicate: isDup, refund };
   },
   async spinWheel(cred) {
-    const s=loadStore(),now=Date.now();s.wheelSpins=s.wheelSpins||{};s.wheelPending=s.wheelPending||{};
-    if(s.wheelPending[cred.name])return {...s.wheelPending[cred.name],spinId:s.wheelPending[cred.name].id,resumed:true};
-    const cooldownMinutes=prestigeWheelMinutes(s,cred.name),cooldownMs=cooldownMinutes*60000,last=s.wheelSpins[cred.name];
-    if(last&&now-last<cooldownMs){const m=Math.ceil((cooldownMs-(now-last))/60000);throw new Error('Not ready yet, '+m+' minute'+(m===1?'':'s')+' left.');}
-    const segs=s.wheelSegments&&s.wheelSegments.length?s.wheelSegments:[{amount:1500,weight:1},{amount:750,weight:2},{amount:400,weight:4},{amount:250,weight:8},{amount:150,weight:12},{amount:100,weight:18},{amount:75,weight:25},{amount:50,weight:30}];
-    const total=segs.reduce((a,x)=>a+(+x.weight||0),0)||1,roll=Math.random()*total;let amt=null,cum=0;
-    for(const x of segs){cum+=+x.weight||0;if(amt==null&&roll<cum)amt=+x.amount;}if(amt==null)amt=+segs[segs.length-1].amount;
-    const id='ws'+now+Math.floor(Math.random()*100000);s.wheelSpins[cred.name]=now;s.wheelPending[cred.name]={id,spinId:id,amount:amt,next:now+cooldownMs,cooldownMinutes};saveStore(s);
-    return {...s.wheelPending[cred.name],resumed:false};
-  },
-  async claimWheel(cred, spinId) {
-    const s=loadStore();s.wheelPending=s.wheelPending||{};const p=s.wheelPending[cred.name];
-    if(!p||p.id!==spinId)throw new Error('No wheel result is waiting.');
-    s.chips=s.chips||{};s.chips[cred.name]=(s.chips[cred.name]??1000)+p.amount;delete s.wheelPending[cred.name];saveStore(s);
-    return {amount:p.amount,next:p.next,cooldownMinutes:p.cooldownMinutes};
+    const st = loadStore();
+    const now = Date.now();
+    st.wheelSpins = st.wheelSpins || {};
+    const cooldownMinutes = prestigeWheelMinutes(st, cred.name);
+    const cooldownMs = cooldownMinutes * 60000;
+    const last = st.wheelSpins[cred.name];
+    if (last && now - last < cooldownMs) {
+      const m = Math.ceil((cooldownMs - (now - last)) / 60000);
+      throw new Error('Not ready yet, ' + m + ' minute' + (m === 1 ? '' : 's') + ' left.');
+    }
+    const segs = st.wheelSegments && st.wheelSegments.length ? st.wheelSegments : [{amount:1500,weight:1},{amount:750,weight:2},{amount:400,weight:4},{amount:250,weight:8},{amount:150,weight:12},{amount:100,weight:18},{amount:75,weight:25},{amount:50,weight:30}];
+    const total = segs.reduce((a,x)=>a+(+x.weight||0),0) || 1;
+    const roll = Math.random() * total;
+    let amt = null, cum = 0;
+    for (const x of segs) {
+      cum += +x.weight || 0;
+      if (amt == null && roll < cum) amt = +x.amount;
+    }
+    if (amt == null) amt = +segs[segs.length - 1].amount;
+    st.chips = st.chips || {};
+    st.chips[cred.name] = (st.chips[cred.name] != null ? st.chips[cred.name] : 1000) + amt;
+    st.wheelSpins[cred.name] = now;
+    saveStore(st);
+    return { amount: amt, next: now + cooldownMs, cooldownMinutes };
   }
 };
 
@@ -2638,7 +2641,8 @@ function DiceGame({
   store,
   me,
   spinFn,
-  claimFn,
+  syncFn,
+  onBalanceHold,
   toast
 }) {
   const [spinning, setSpinning] = useState(false);
@@ -2653,8 +2657,7 @@ function DiceGame({
   const now = Date.now();
   const cooldownMinutes = prestigeWheelMinutes(store,me);
   const remain = Math.max(0, cooldownMinutes * 60000 - (now - last));
-  const pendingSpin = store.wheelPending && store.wheelPending[me];
-  const ready = !!pendingSpin || remain <= 0;
+  const ready = remain <= 0;
   const mins = Math.floor(remain / 60000),
     secs = Math.floor(remain % 60000 / 1000);
   const raw = store.wheelSegments && store.wheelSegments.length ? store.wheelSegments : [{
@@ -2683,8 +2686,15 @@ function DiceGame({
     if (!ready || spinning) return;
     setSpinning(true);
     setResult(null);
+    if (onBalanceHold) onBalanceHold(Date.now() + 5000);
     const r = await spinFn();
-    const amt = r && r.amount != null ? r.amount : segs[0];
+    if (!r) {
+      if (onBalanceHold) onBalanceHold(0);
+      setSpinning(false);
+      return;
+    }
+    if (onBalanceHold) onBalanceHold(Date.now() + 2900);
+    const amt = r.amount != null ? r.amount : segs[0];
     let idx = segs.indexOf(amt);
     if (idx < 0) idx = 0;
     const target = (360 - (idx * step + step / 2) + 360) % 360;
@@ -2692,16 +2702,14 @@ function DiceGame({
       const base = a - a % 360 + 360 * 4;
       return base + target;
     });
-    setTimeout(async () => {
-      try {
-        const settled = r && claimFn ? await claimFn(r.spinId || r.id) : r;
-        if (settled) setResult(settled.amount);
-      } catch (e) {
-        toast(e.message || 'Could not settle that spin.');
-      } finally {
-        setSpinning(false);
-      }
+    setTimeout(() => {
+      setSpinning(false);
+      setResult(amt);
     }, 1900);
+    setTimeout(() => {
+      if (syncFn) syncFn();
+      if (onBalanceHold) onBalanceHold(0);
+    }, 2900);
   };
   return /*#__PURE__*/React.createElement("div", {
     style: {
@@ -2748,7 +2756,7 @@ function DiceGame({
     className: "btn",
     disabled: !ready || spinning,
     onClick: spin
-  }, spinning ? 'Spinning…' : pendingSpin ? 'Finish the spin' : ready ? 'Spin the wheel' : 'Ready in ' + mins + ':' + String(secs).padStart(2, '0')), result != null && /*#__PURE__*/React.createElement("div", {
+  }, spinning ? 'Spinning…' : ready ? 'Spin the wheel' : 'Ready in ' + mins + ':' + String(secs).padStart(2, '0')), result != null && /*#__PURE__*/React.createElement("div", {
     className: "okbox",
     style: {
       marginTop: 12
@@ -3638,10 +3646,18 @@ function CasinoPageInner({
   dispatch,
   toast,
   openCase,
-  spinWheel
+  spinWheel,
+  syncWheel
 }) {
   const [game, setGame] = useState('roulette');
   const balance = chipsOf(store, me);
+  const [displayBalance, setDisplayBalance] = useState(balance);
+  const [wheelBalanceHoldUntil, setWheelBalanceHoldUntil] = useState(0);
+  useEffect(() => {
+    const wait = Math.max(0, wheelBalanceHoldUntil - Date.now());
+    const id = setTimeout(() => setDisplayBalance(balance), wait);
+    return () => clearTimeout(id);
+  }, [balance, wheelBalanceHoldUntil]);
   const cap = store.payouts.casinoMaxBet || 500;
   const betLimit = Math.min(balance, cap);
   const unlockCost = store.payouts.casinoUnlockCost || 0;
@@ -3655,7 +3671,7 @@ function CasinoPageInner({
   });
   const board = [...store.players].filter(p => p.active).map(p => ({
     name: p.name,
-    chips: chipsOf(store, p.name)
+    chips: p.name === me ? displayBalance : chipsOf(store, p.name)
   })).sort((a, b) => b.chips - a.chips);
   const games = {
     roulette: ['Roulette', Roulette],
@@ -3692,7 +3708,7 @@ function CasinoPageInner({
   }, /*#__PURE__*/React.createElement("div", {
     className: "row spread"
   }, /*#__PURE__*/React.createElement("h2", null, games[game][0]), /*#__PURE__*/React.createElement(ChipBadge, {
-    n: balance
+    n: displayBalance
   })), /*#__PURE__*/React.createElement("div", {
     className: "row",
     style: {
@@ -3714,7 +3730,8 @@ function CasinoPageInner({
     store: store,
     me: me,
     spinFn: spinWheel,
-    claimFn: claimWheel,
+    syncFn: syncWheel,
+    onBalanceHold: setWheelBalanceHoldUntil,
     toast: toast
   }) : isBets ? /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(MatchBetting, {
     store: store,
@@ -9797,19 +9814,7 @@ function App() {
   };
   const spinWheel = async () => {
     try {
-      const r = await api.spinWheel(cred);
-      await refresh();
-      return r;
-    } catch (e) {
-      toast(e.message);
-      return null;
-    }
-  };
-  const claimWheel = async spinId => {
-    try {
-      const r = await api.claimWheel(cred, spinId);
-      await refresh();
-      return r;
+      return await api.spinWheel(cred);
     } catch (e) {
       toast(e.message);
       return null;
@@ -9934,7 +9939,7 @@ function App() {
     toast: toast,
     openCase: openCase,
     spinWheel: spinWheel,
-    claimWheel: claimWheel
+    syncWheel: refresh
   }) : /*#__PURE__*/React.createElement("div", {
     className: "panel"
   }, /*#__PURE__*/React.createElement("h2", null, "Log in to play."), /*#__PURE__*/React.createElement("button", {
