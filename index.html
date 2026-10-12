@@ -2653,7 +2653,8 @@ function DiceGame({
   const now = Date.now();
   const cooldownMinutes = prestigeWheelMinutes(store,me);
   const remain = Math.max(0, cooldownMinutes * 60000 - (now - last));
-  const ready = remain <= 0;
+  const pendingSpin = store.wheelPending && store.wheelPending[me];
+  const ready = !!pendingSpin || remain <= 0;
   const mins = Math.floor(remain / 60000),
     secs = Math.floor(remain % 60000 / 1000);
   const raw = store.wheelSegments && store.wheelSegments.length ? store.wheelSegments : [{
@@ -2747,7 +2748,7 @@ function DiceGame({
     className: "btn",
     disabled: !ready || spinning,
     onClick: spin
-  }, spinning ? 'Spinning…' : ready ? 'Spin the wheel' : 'Ready in ' + mins + ':' + String(secs).padStart(2, '0')), result != null && /*#__PURE__*/React.createElement("div", {
+  }, spinning ? 'Spinning…' : pendingSpin ? 'Finish the spin' : ready ? 'Spin the wheel' : 'Ready in ' + mins + ':' + String(secs).padStart(2, '0')), result != null && /*#__PURE__*/React.createElement("div", {
     className: "okbox",
     style: {
       marginTop: 12
