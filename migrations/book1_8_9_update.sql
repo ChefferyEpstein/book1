@@ -568,12 +568,24 @@ security definer
 set search_path = public, extensions
 as $function$
 declare
-  d jsonb; v int; last_spin bigint; now_ms bigint; roll numeric; amt int; wi int; stamp text; wait_mins int;
+  d jsonb; v int; last_spin bigint; now_ms bigint; roll numeric; amt int; stamp text; wait_mins int;
   segs jsonb; total_w numeric; cum numeric; seg jsonb; cooldown_mins int; cooldown_ms bigint;
+  pending jsonb; spin_id text;
 begin
   if public.book_check(p_name,p_pin) is null then raise exception 'Wrong name or PIN'; end if;
   select data,version into d,v from public.book where id=1 for update;
-  stamp:=to_char(now() at time zone 'Europe/London','DD Mon HH24:MI'); now_ms:=(extract(epoch from now())*1000)::bigint;
+  now_ms:=(extract(epoch from now())*1000)::bigint;
+  d:=jsonb_set(d,'{wheelPending}',coalesce(d->'wheelPending','{}'::jsonb),true);
+  pending:=d->'wheelPending'->p_name;
+  if pending is not null then
+    return jsonb_build_object(
+      'spinId',pending->>'id','amount',(pending->>'amount')::int,'next',(pending->>'next')::bigint,
+      'cooldownMinutes',coalesce((pending->>'cooldownMinutes')::int,public.book_wheel_cooldown_minutes(d,p_name)),
+      'resumed',true
+    );
+  end if;
+
+  stamp:=to_char(now() at time zone 'Europe/London','DD Mon HH24:MI');
   cooldown_mins:=public.book_wheel_cooldown_minutes(d,p_name); cooldown_ms:=cooldown_mins*60000::bigint;
   last_spin:=nullif(d->'wheelSpins'->>p_name,'')::bigint;
   if last_spin is not null and now_ms-last_spin<cooldown_ms then
@@ -584,16 +596,46 @@ begin
   if segs is null or jsonb_array_length(segs)=0 then
     segs:='[{"amount":1500,"weight":1},{"amount":750,"weight":2},{"amount":400,"weight":4},{"amount":250,"weight":8},{"amount":150,"weight":12},{"amount":100,"weight":18},{"amount":75,"weight":25},{"amount":50,"weight":30}]'::jsonb;
   end if;
-  select sum((s->>'weight')::numeric) into total_w from jsonb_array_elements(segs) s; if total_w is null or total_w<=0 then total_w:=1; end if;
+  select sum((x->>'weight')::numeric) into total_w from jsonb_array_elements(segs) x; if total_w is null or total_w<=0 then total_w:=1; end if;
   roll:=random()*total_w; cum:=0; amt:=null;
-  for seg in select * from jsonb_array_elements(segs) loop cum:=cum+coalesce((seg->>'weight')::numeric,0); if amt is null and roll<cum then amt:=(seg->>'amount')::int; end if; end loop;
+  for seg in select * from jsonb_array_elements(segs) loop
+    cum:=cum+coalesce((seg->>'weight')::numeric,0); if amt is null and roll<cum then amt:=(seg->>'amount')::int; end if;
+  end loop;
   if amt is null then amt:=(segs->(jsonb_array_length(segs)-1)->>'amount')::int; end if;
-  wi:=coalesce((d->'chips'->>p_name)::int,1000);
-  d:=jsonb_set(d,'{chips}',coalesce(d->'chips','{}'::jsonb),true); d:=jsonb_set(d,array['chips',p_name],to_jsonb(wi+amt),true);
-  d:=jsonb_set(d,'{wheelSpins}',coalesce(d->'wheelSpins','{}'::jsonb),true); d:=jsonb_set(d,array['wheelSpins',p_name],to_jsonb(now_ms),true);
+
+  spin_id:='ws'||now_ms::text||floor(random()*100000)::int::text;
+  d:=jsonb_set(d,'{wheelSpins}',coalesce(d->'wheelSpins','{}'::jsonb),true);
+  d:=jsonb_set(d,array['wheelSpins',p_name],to_jsonb(now_ms),true);
+  d:=jsonb_set(d,array['wheelPending',p_name],jsonb_build_object(
+    'id',spin_id,'amount',amt,'createdAt',now_ms,'next',now_ms+cooldown_ms,'cooldownMinutes',cooldown_mins
+  ),true);
+  update public.book set data=d,version=v+1,updated_at=now() where id=1;
+  return jsonb_build_object('spinId',spin_id,'amount',amt,'next',now_ms+cooldown_ms,'cooldownMinutes',cooldown_mins,'resumed',false);
+end
+$function$;
+
+create or replace function public.book_claim_wheel(p_name text, p_pin text, p_spin_id text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, extensions
+as $function$
+declare
+  d jsonb; v int; pending jsonb; amt int; wi int; stamp text;
+begin
+  if public.book_check(p_name,p_pin) is null then raise exception 'Wrong name or PIN'; end if;
+  select data,version into d,v from public.book where id=1 for update;
+  pending:=d->'wheelPending'->p_name;
+  if pending is null then raise exception 'No wheel result is waiting.'; end if;
+  if pending->>'id'<>p_spin_id then raise exception 'That wheel result is no longer current.'; end if;
+  amt:=(pending->>'amount')::int; wi:=coalesce((d->'chips'->>p_name)::int,1000);
+  d:=jsonb_set(d,'{chips}',coalesce(d->'chips','{}'::jsonb),true);
+  d:=jsonb_set(d,array['chips',p_name],to_jsonb(wi+amt),true);
+  d:=jsonb_set(d,array['wheelPending'],coalesce(d->'wheelPending','{}'::jsonb)-p_name,true);
+  stamp:=to_char(now() at time zone 'Europe/London','DD Mon HH24:MI');
   d:=jsonb_set(d,'{log}',coalesce(d->'log','[]'::jsonb)||to_jsonb(stamp||' '||p_name||' spun the wheel and won '||amt||' chips'),true);
   update public.book set data=d,version=v+1,updated_at=now() where id=1;
-  return jsonb_build_object('amount',amt,'next',now_ms+cooldown_ms,'cooldownMinutes',cooldown_mins);
+  return jsonb_build_object('amount',amt,'next',(pending->>'next')::bigint,'cooldownMinutes',(pending->>'cooldownMinutes')::int);
 end
 $function$;
 
@@ -618,8 +660,11 @@ $patch$;
 
 update public.book
 set data = jsonb_set(
-  jsonb_set(data,'{chess}',coalesce(data->'chess','[]'::jsonb),true),
-  '{chessRatings}',coalesce(data->'chessRatings','{}'::jsonb),true
+  jsonb_set(
+    jsonb_set(data,'{chess}',coalesce(data->'chess','[]'::jsonb),true),
+    '{chessRatings}',coalesce(data->'chessRatings','{}'::jsonb),true
+  ),
+  '{wheelPending}',coalesce(data->'wheelPending','{}'::jsonb),true
 ), updated_at=now()
 where id=1;
 
@@ -642,4 +687,6 @@ revoke all on function public.book_wheel_cooldown_minutes(jsonb,text) from publi
 revoke all on function public.book_prestige_xp_required() from public;
 revoke all on function public.book_weekly_challenge_189(jsonb,text,text) from public;
 revoke all on function public.book_chess_action(text,text,jsonb) from public;
+revoke all on function public.book_claim_wheel(text,text,text) from public;
 grant execute on function public.book_chess_action(text,text,jsonb) to anon, authenticated, service_role;
+grant execute on function public.book_claim_wheel(text,text,text) to anon, authenticated, service_role;
