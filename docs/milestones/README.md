@@ -4,7 +4,7 @@ GitHub is the code source of truth. These milestone files are the shared handoff
 
 Every work session should update the active milestone before handoff.
 
-**Active release:** [M04 — Book1 1.8.8 Bookmaker, Progression & Betting Integrity](M04-1.8.8-bookmaker-progression-integrity.md)
+**Active release:** [M05 — Book1 1.8.9 Chess, Rivalries & Prestige Rewards](M05-1.8.9-chess-rivalries-progression.md)
 
 Handoff log format:
 
