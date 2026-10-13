@@ -72,3 +72,34 @@ Chess games earn XP and the weekly minigame rotation now includes:
 - Free Spin payout is now two-stage so realtime balance refresh cannot reveal it early
 - Progression now uses a 25-level scaling XP curve
 - Prestige gate is server-side at 20,000 XP
+
+
+## 🧠 CONNECT 4 INTELLIGENCE REPORT
+
+The Book now keeps enough evidence to stop arguments about who is actually good at Connect 4.
+
+The Connect 4 page now shows:
+
+- games played
+- wins / losses / draws
+- win percentage
+- average moves to win / lose
+- quick wins and humiliations (13 moves or fewer)
+- inferred first-player and second-player win rates
+- current and best streaks
+- favourite victim
+- nemesis
+- full head-to-head dossier
+- shortest recorded humiliation
+
+And, because apparently normal statistics weren't sufficiently insulting:
+
+**MONG INDEX**
+
+80% weighted loss rate + 20% how often your losses happen in 13 moves or fewer.
+
+Higher number = thicker.
+
+Players under 5 completed games are marked provisional, because winning one game and retiring undefeated is cowardice, not statistical significance.
+
+New Connect 4 games also record first player, move history and explicit forfeits, so future analysis can get even more forensic.
