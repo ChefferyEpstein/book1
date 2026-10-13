@@ -504,7 +504,7 @@ const {
 } = React;
 const STORE_KEY = 'book1.2-local';
 const CFG = window.BOOK_CONFIG || {};
-const APP_SQL_VERSION = 31; // bump this whenever a new SQL script adds or changes a server function
+const APP_SQL_VERSION = 32; // bump this whenever a new SQL script adds or changes a server function
 const CLOUD = !!(CFG.url && CFG.key);
 const ADMINS = ['Chef', 'Lorcan'];
 const DECREES = ['Abstention is not permitted.', 'The Book sees all results.', 'Ball difference is destiny.', 'The Dictator collects. The Dictator distributes.', 'Report your score. Report it honestly.', 'Twelfth place is a service to the office.', 'The mong off is not optional.', 'Disputes are settled by the regime.'];
@@ -4243,11 +4243,113 @@ function c4DropRow(board, col) {
   for (let r = 5; r >= 0; r--) if (!board[r * 7 + col]) return r;
   return -1;
 }
+
+function c4MoveCount(g) {
+  return (g && g.board || []).filter(Boolean).length;
+}
+function c4Other(g, p) {
+  return g.challenger === p ? g.opponent : g.challenger;
+}
+function c4FirstPlayer(g) {
+  if (!g) return null;
+  if (g.first) return g.first;
+  if (g.forfeitBy || g.resultReason === 'forfeit') return null;
+  if (g.status !== 'done' || !g.winner) return null;
+  const moves = c4MoveCount(g);
+  if (!moves) return null;
+  return moves % 2 === 1 ? g.winner : c4Other(g, g.winner);
+}
+function c4Outcome(g, p) {
+  if (g.status === 'draw') return 'D';
+  return g.winner === p ? 'W' : 'L';
+}
+function c4MongTier(n) {
+  if (n == null) return 'PROVISIONAL';
+  if (n < 25) return 'Annoyingly competent';
+  if (n < 40) return 'Functional adult';
+  if (n < 55) return 'Questionable';
+  if (n < 70) return 'Needs supervision';
+  if (n < 85) return 'Thick';
+  return 'Industrial-grade mong';
+}
+function c4Stats(store) {
+  const finished = (store.connect4 || []).filter(g => g.status === 'done' || g.status === 'draw');
+  const names = [...new Set(finished.flatMap(g => [g.challenger, g.opponent]).filter(Boolean))];
+  const rows = names.map(player => {
+    const games = finished.filter(g => g.challenger === player || g.opponent === player).slice().sort((a,b)=>(+a.doneAt||0)-(+b.doneAt||0));
+    const wins = games.filter(g => g.winner === player).length;
+    const draws = games.filter(g => g.status === 'draw').length;
+    const losses = games.length - wins - draws;
+    const winGames = games.filter(g => g.winner === player);
+    const lossGames = games.filter(g => g.status === 'done' && g.winner !== player);
+    const moveCounts = games.map(c4MoveCount).filter(Boolean);
+    const winMoves = winGames.map(c4MoveCount).filter(Boolean);
+    const lossMoves = lossGames.map(c4MoveCount).filter(Boolean);
+    const quickWins = winGames.filter(g => c4MoveCount(g) <= 13).length;
+    const quickLosses = lossGames.filter(g => c4MoveCount(g) <= 13).length;
+    const firstGames = games.filter(g => c4FirstPlayer(g) === player);
+    const secondGames = games.filter(g => c4FirstPlayer(g) && c4FirstPlayer(g) !== player);
+    const firstWins = firstGames.filter(g => g.winner === player).length;
+    const secondWins = secondGames.filter(g => g.winner === player).length;
+    const byOpp = {};
+    games.forEach(g => {
+      const o = c4Other(g, player);
+      byOpp[o] = byOpp[o] || {opponent:o,games:0,wins:0,losses:0,draws:0};
+      byOpp[o].games++;
+      if (g.status === 'draw') byOpp[o].draws++;
+      else if (g.winner === player) byOpp[o].wins++;
+      else byOpp[o].losses++;
+    });
+    const h2h = Object.values(byOpp).sort((a,b)=>b.games-a.games || b.wins-a.wins || a.opponent.localeCompare(b.opponent));
+    const victim = h2h.slice().sort((a,b)=>b.wins-a.wins || a.losses-b.losses || b.games-a.games)[0] || null;
+    const nemesis = h2h.slice().sort((a,b)=>b.losses-a.losses || a.wins-b.wins || b.games-a.games)[0] || null;
+    let bestWin = 0, bestLoss = 0, curW = 0, curL = 0, runType = '', run = 0;
+    games.forEach(g => {
+      const o = c4Outcome(g, player);
+      if (o === 'W') { curW++; curL=0; bestWin=Math.max(bestWin,curW); }
+      else if (o === 'L') { curL++; curW=0; bestLoss=Math.max(bestLoss,curL); }
+      else { curW=0; curL=0; }
+      if (o === runType) run++; else { runType=o; run=1; }
+    });
+    const lossBurden = games.length ? (losses + draws * 0.5) / games.length : 0;
+    const quickLossBurden = losses ? quickLosses / losses : 0;
+    const mongRaw = Math.round(100 * (lossBurden * 0.8 + quickLossBurden * 0.2));
+    const mongIndex = games.length >= 5 ? mongRaw : null;
+    return {
+      player, games:games.length, wins, losses, draws,
+      winPct:games.length ? 100*wins/games.length : 0,
+      avgMoves:moveCounts.length ? moveCounts.reduce((a,b)=>a+b,0)/moveCounts.length : null,
+      avgWinMoves:winMoves.length ? winMoves.reduce((a,b)=>a+b,0)/winMoves.length : null,
+      avgLossMoves:lossMoves.length ? lossMoves.reduce((a,b)=>a+b,0)/lossMoves.length : null,
+      shortestWin:winMoves.length ? Math.min(...winMoves) : null,
+      shortestLoss:lossMoves.length ? Math.min(...lossMoves) : null,
+      quickWins, quickLosses,
+      firstGames:firstGames.length, firstWins,
+      secondGames:secondGames.length, secondWins,
+      bestWinStreak:bestWin, bestLossStreak:bestLoss,
+      currentStreak:games.length ? runType + run : '—',
+      victim, nemesis, h2h, mongIndex, mongTier:c4MongTier(mongIndex)
+    };
+  });
+  const decisive = finished.filter(g => g.status === 'done' && g.winner);
+  const knownFirst = decisive.map(g => ({g,first:c4FirstPlayer(g)})).filter(x => x.first);
+  const firstWins = knownFirst.filter(x => x.g.winner === x.first).length;
+  const shortest = decisive.slice().sort((a,b)=>c4MoveCount(a)-c4MoveCount(b))[0] || null;
+  return {
+    finished,
+    rows:rows.sort((a,b)=>b.winPct-a.winPct || b.games-a.games),
+    firstWinPct:knownFirst.length ? 100*firstWins/knownFirst.length : null,
+    shortest,
+    avgMoves:decisive.length ? decisive.reduce((t,g)=>t+c4MoveCount(g),0)/decisive.length : null
+  };
+}
 function Connect4Page({ store, me, dispatch }) {
   const h = React.createElement;
   const [opp, setOpp] = useState('');
   const [stake, setStake] = useState(0);
   const [selected, setSelected] = useState(null);
+  const stats = c4Stats(store);
+  const [statsPlayer, setStatsPlayer] = useState(me);
   const games = (store.connect4 || []).filter(g => g.challenger === me || g.opponent === me);
   const others = store.players.filter(p => p.active && p.name !== me).map(p => p.name);
   const target = others.includes(opp) ? opp : others[0] || '';
@@ -4257,6 +4359,13 @@ function Connect4Page({ store, me, dispatch }) {
   const active = games.filter(g => g.status === 'playing');
   const recent = games.filter(g => g.status === 'done' || g.status === 'draw').slice().reverse().slice(0, 12);
   const sel = selected ? games.find(g => g.id === selected) : null;
+  const qualified = stats.rows.filter(r => r.games >= 10);
+  const topDog = qualified.slice().sort((a,b)=>b.winPct-a.winPct || b.games-a.games)[0] || null;
+  const thickest = qualified.slice().filter(r=>r.mongIndex!=null).sort((a,b)=>b.mongIndex-a.mongIndex || a.winPct-b.winPct)[0] || null;
+  const fastest = stats.shortest;
+  const dossier = stats.rows.find(r => r.player === statsPlayer) || stats.rows.find(r => r.player === me) || stats.rows[0] || null;
+  const pc = n => n == null ? '—' : n.toFixed(1) + '%';
+  const mv = n => n == null ? '—' : Number(n).toFixed(1);
 
   if (sel && ['playing','done','draw'].includes(sel.status)) {
     const board = Array.from({ length: 42 }, (_, i) => (sel.board || [])[i] || null);
@@ -4338,13 +4447,68 @@ function Connect4Page({ store, me, dispatch }) {
         );
       })
     ),
+
+    h('div',{className:'panel',style:{marginBottom:18}},
+      h('div',{className:'page-title',style:{marginBottom:10}},h('h2',null,'Connect 4 Intelligence Report'),h('span',{className:'sub'},stats.finished.length,' completed/drawn games. Evidence-based office slander.')),
+      h('div',{className:'grid g2',style:{marginBottom:14}},
+        h('div',{className:'warnbox'},h('b',null,'Top dog'),h('div',{className:'display',style:{fontSize:28}},topDog?topDog.player:'—'),h('div',{className:'small muted'},topDog?pc(topDog.winPct)+' · '+topDog.wins+'–'+topDog.losses+'–'+topDog.draws:'Need 10 games')),
+        h('div',{className:'warnbox'},h('b',null,'Thickest qualified'),h('div',{className:'display',style:{fontSize:28}},thickest?thickest.player:'—'),h('div',{className:'small muted'},thickest?'Mong Index '+thickest.mongIndex+' · '+thickest.mongTier:'Need 10 games')),
+        h('div',{className:'warnbox'},h('b',null,'Fastest humiliation'),h('div',{className:'display',style:{fontSize:28}},fastest?c4Other(fastest,fastest.winner):'—'),h('div',{className:'small muted'},fastest?'Lost to '+fastest.winner+' in '+c4MoveCount(fastest)+' moves':'—')),
+        h('div',{className:'warnbox'},h('b',null,'First-move edge'),h('div',{className:'display',style:{fontSize:28}},stats.firstWinPct==null?'—':pc(stats.firstWinPct)),h('div',{className:'small muted'},'Historical first mover inferred where possible · avg decisive game '+mv(stats.avgMoves)+' moves'))
+      ),
+      h('div',{style:{overflowX:'auto'}},
+        h('table',{className:'plain',style:{minWidth:980}},
+          h('thead',null,h('tr',null,
+            ['Player','GP','W-L-D','Win %','Avg win','Quick L','1st %','2nd %','Streak','Victim','Nemesis','Mong Index'].map(x=>h('th',{key:x},x))
+          )),
+          h('tbody',null,stats.rows.map(r=>h('tr',{key:r.player,className:r.player===me?'me':''},
+            h('td',null,h(Nm,{n:r.player,size:16})),
+            h('td',{className:'n'},r.games),
+            h('td',{className:'n'},r.wins+'-'+r.losses+'-'+r.draws),
+            h('td',{className:'n'},pc(r.winPct)),
+            h('td',{className:'n'},r.avgWinMoves==null?'—':mv(r.avgWinMoves)),
+            h('td',{className:'n'},r.quickLosses),
+            h('td',{className:'n'},r.firstGames?pc(100*r.firstWins/r.firstGames):'—'),
+            h('td',{className:'n'},r.secondGames?pc(100*r.secondWins/r.secondGames):'—'),
+            h('td',{className:'n'},r.currentStreak),
+            h('td',null,r.victim&&r.victim.wins?r.victim.opponent+' '+r.victim.wins+'–'+r.victim.losses:'—'),
+            h('td',null,r.nemesis&&r.nemesis.losses?r.nemesis.opponent+' '+r.nemesis.wins+'–'+r.nemesis.losses:'—'),
+            h('td',{className:'n'},r.mongIndex==null?'PROV':r.mongIndex)
+          )))
+        )
+      ),
+      h('p',{className:'small muted',style:{marginTop:10}},'Mong Index = 80% weighted loss rate + 20% share of losses suffered in 13 moves or fewer. Higher = thicker. Under 5 games is provisional. This is a banter metric, not a medical diagnosis.')
+    ),
+
+    dossier && h('div',{className:'panel',style:{marginBottom:18}},
+      h('div',{className:'row spread',style:{alignItems:'flex-start',gap:12,flexWrap:'wrap'}},
+        h('div',null,h('h2',null,'Player dossier'),h('p',{className:'small muted'},'Who is farming who?')),
+        h('select',{value:dossier.player,onChange:e=>setStatsPlayer(e.target.value)},stats.rows.map(r=>h('option',{key:r.player,value:r.player},r.player)))
+      ),
+      h('div',{className:'grid g2'},
+        h('div',null,
+          h('p',null,h('b',null,dossier.player),': ',dossier.wins,'–',dossier.losses,'–',dossier.draws,' · ',pc(dossier.winPct)),
+          h('p',{className:'small muted'},'Average win: ',mv(dossier.avgWinMoves),' moves · average loss: ',mv(dossier.avgLossMoves),' moves'),
+          h('p',{className:'small muted'},'Fastest win: ',dossier.shortestWin||'—',' moves · fastest loss: ',dossier.shortestLoss||'—',' moves'),
+          h('p',{className:'small muted'},'Best W streak: ',dossier.bestWinStreak,' · worst L streak: ',dossier.bestLossStreak,' · current: ',dossier.currentStreak),
+          h('p',{className:'small muted'},'Mong Index: ',dossier.mongIndex==null?'PROVISIONAL':dossier.mongIndex+' — '+dossier.mongTier)
+        ),
+        h('div',null,h('h3',null,'Head-to-head'),
+          dossier.h2h.length?h('div',null,dossier.h2h.map(x=>h('div',{key:x.opponent,className:'row spread',style:{padding:'5px 0',borderBottom:'1px solid var(--smoke)'}},
+            h('span',null,'v ',h('b',null,x.opponent)),
+            h('span',{className:'small'},x.wins+'–'+x.losses+(x.draws?'–'+x.draws:''))
+          ))):h('p',{className:'muted'},'No completed games.')
+        )
+      )
+    ),
+
     recent.length>0 && h('div',{className:'panel'},
-      h('h2',null,'Recent games'),
+      h('h2',null,'Your recent games'),
       recent.map(g=>{
         const other=g.challenger===me?g.opponent:g.challenger;
         const line=g.status==='draw'?'Draw with '+other:g.winner===me?'Beat '+other:'Lost to '+other;
         return h('div',{key:g.id,className:'row spread',style:{padding:'6px 0',borderBottom:'1px solid var(--smoke)'}},
-          h('span',{className:'small'},line,g.stake>0&&g.status!=='draw'?' ('+(g.winner===me?'+':'-')+g.stake.toLocaleString()+')':''),
+          h('span',{className:'small'},line,' · ',c4MoveCount(g),' moves',g.stake>0&&g.status!=='draw'?' ('+(g.winner===me?'+':'-')+g.stake.toLocaleString()+')':''),
           h('button',{className:'btn sm ghost',onClick:()=>setSelected(g.id)},'View')
         );
       })
@@ -9203,7 +9367,7 @@ function reduce(store, a) {
         s.connect4 = s.connect4 || [];
         if (s.connect4.some(g => ['pending','playing'].includes(g.status) && ((g.challenger===a.by&&g.opponent===a.opponent)||(g.opponent===a.by&&g.challenger===a.opponent)))) throw new Error('You already have a Connect 4 game with them.');
         if (stake > 0) s.chips[a.by] = cur - stake;
-        s.connect4.push({id:'c4'+Date.now(),week:s.weeks[s.weeks.length-1].n,challenger:a.by,opponent:a.opponent,stake,status:'pending',turn:null,winner:null,board:Array(42).fill(null),createdAt:Date.now()});
+        s.connect4.push({id:'c4'+Date.now(),week:s.weeks[s.weeks.length-1].n,challenger:a.by,opponent:a.opponent,stake,status:'pending',turn:null,first:null,winner:null,board:Array(42).fill(null),history:[],createdAt:Date.now()});
         log(a.by+' challenged '+a.opponent+' to Connect 4'+(stake>0?' for '+stake+' chips':''));
         break;
       }
@@ -9217,7 +9381,7 @@ function reduce(store, a) {
         const cur=s.chips[a.by]!=null?s.chips[a.by]:1000;
         if(g.stake>cur) throw new Error('You cannot stake more than your chip balance.');
         if(g.stake>0) s.chips[a.by]=cur-g.stake;
-        g.status='playing'; g.turn=Math.random()<.5?g.challenger:g.opponent; g.startedAt=Date.now();
+        g.status='playing'; g.turn=Math.random()<.5?g.challenger:g.opponent; g.first=g.turn; g.history=g.history||[]; g.startedAt=Date.now();
         log(g.challenger+' and '+g.opponent+' started Connect 4; '+g.turn+' goes first');
         break;
       }
@@ -9246,7 +9410,7 @@ function reduce(store, a) {
         const board=Array.from({length:42},(_,i)=>(g.board||[])[i]||null);
         const row=c4DropRow(board,col);
         if(row<0) throw new Error('That column is full.');
-        board[row*7+col]=a.by; g.board=board;
+        board[row*7+col]=a.by; g.board=board; g.history=(g.history||[]).concat([{p:a.by,col,row,at:Date.now()}]);
         if(c4Winner(board,a.by)){
           g.status='done';g.winner=a.by;g.turn=null;g.doneAt=Date.now();
           if(g.stake>0){s.chips=s.chips||{};s.chips[a.by]=(s.chips[a.by]!=null?s.chips[a.by]:1000)+g.stake*2;}
@@ -9265,7 +9429,7 @@ function reduce(store, a) {
         if(g.status!=='playing') throw new Error('That game is not in progress.');
         if(a.by!==g.challenger&&a.by!==g.opponent) throw new Error('That is not your game.');
         const winner=a.by===g.challenger?g.opponent:g.challenger;
-        g.status='done';g.winner=winner;g.turn=null;g.doneAt=Date.now();
+        g.status='done';g.winner=winner;g.turn=null;g.forfeitBy=a.by;g.resultReason='forfeit';g.doneAt=Date.now();
         if(g.stake>0){s.chips=s.chips||{};s.chips[winner]=(s.chips[winner]!=null?s.chips[winner]:1000)+g.stake*2;}
         log(a.by+' forfeited Connect 4 to '+winner);
         break;
