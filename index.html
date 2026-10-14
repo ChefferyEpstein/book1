@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Book1.8.10</title>
+<title>Book1.8.11</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -504,7 +504,7 @@ const {
 } = React;
 const STORE_KEY = 'book1.2-local';
 const CFG = window.BOOK_CONFIG || {};
-const APP_SQL_VERSION = 33; // bump this whenever a new SQL script adds or changes a server function
+const APP_SQL_VERSION = 34; // bump this whenever a new SQL script adds or changes a server function
 const CLOUD = !!(CFG.url && CFG.key);
 const ADMINS = ['Chef', 'Lorcan'];
 const DECREES = ['Abstention is not permitted.', 'The Book sees all results.', 'Ball difference is destiny.', 'The Dictator collects. The Dictator distributes.', 'Report your score. Report it honestly.', 'Twelfth place is a service to the office.', 'The mong off is not optional.', 'Disputes are settled by the regime.'];
@@ -3159,25 +3159,45 @@ function rawPlayerXp(store, p) {
   xp += (store.brainClaims || []).filter(c => c.player === p).reduce((t,c)=>t+(+c.xp||0),0);
   return xp;
 }
+const BASE_LEVEL_XP = Array.from({length:25},(_,i)=>Math.round((100 + i * (1400 / 24)) / 25) * 25);
+const PRESTIGE_BASE_XP = BASE_LEVEL_XP.reduce((a,b)=>a+b,0);
+function prestigeXpRequired(prestige) {
+  const p=Math.max(0,+prestige||0);
+  if(p<=4) return 20000 + p*5000;
+  if(p===5) return 50000;
+  if(p===6) return 60000;
+  if(p===7) return 75000;
+  if(p===8) return 90000;
+  if(p===9) return 110000;
+  return 130000 + (p-10)*20000;
+}
+function prestigeLevelXp(prestige) {
+  const target=prestigeXpRequired(prestige);
+  const scale=target/PRESTIGE_BASE_XP;
+  const out=BASE_LEVEL_XP.map(x=>Math.max(25,Math.round((x*scale)/25)*25));
+  out[out.length-1]+=target-out.reduce((a,b)=>a+b,0);
+  return out;
+}
 function playerProgress(store,p) {
   const rec = store.progression && store.progression[p] || {prestige:0,xpOffset:0};
+  const prestige=+rec.prestige||0;
   const raw = rawPlayerXp(store,p);
   const xp = Math.max(0, raw - (+rec.xpOffset || 0));
+  const levelXp=prestigeLevelXp(prestige);
+  const targetXp=prestigeXpRequired(prestige);
   let spent = 0, level = 1;
-  while (level < 25 && xp >= spent + LEVEL_XP[level - 1]) {
-    spent += LEVEL_XP[level - 1];
+  while (level < 25 && xp >= spent + levelXp[level - 1]) {
+    spent += levelXp[level - 1];
     level++;
   }
-  const nextNeed = LEVEL_XP[level - 1];
+  const nextNeed = levelXp[level - 1];
   const into = Math.max(0, Math.min(nextNeed, xp - spent));
   return {
-    raw, xp, level, spent, into, nextNeed,
-    prestige:+rec.prestige||0,
-    canPrestige:xp >= PRESTIGE_XP
+    raw, xp, level, spent, into, nextNeed, levelXp, targetXp,
+    prestige,
+    canPrestige:xp >= targetXp
   };
 }
-const LEVEL_XP = Array.from({length:25},(_,i)=>Math.round((100 + i * (1400 / 24)) / 25) * 25);
-const PRESTIGE_XP = LEVEL_XP.reduce((a,b)=>a+b,0);
 function prestigeWheelMinutesFromLevel(prestige) {
   const p=Math.max(0,+prestige||0);
   return p>=10?5:p>=5?10:p>=3?15:p>=2?20:p>=1?25:30;
@@ -6677,10 +6697,10 @@ function ProgressPage({store,me,dispatch}) {
       h('div',{className:'panel'},
         h('h2',null,'Your rank'),
         h('div',{className:'display',style:{fontSize:42}},'Level ',p.level),
-        h('p',null,'Prestige ',h('b',null,p.prestige),' · ',p.xp.toLocaleString(),' / ',PRESTIGE_XP.toLocaleString(),' XP this prestige'),
+        h('p',null,'Prestige ',h('b',null,p.prestige),' · ',p.xp.toLocaleString(),' / ',p.targetXp.toLocaleString(),' XP this prestige'),
         h('div',{style:{height:10,background:'rgba(255,255,255,.08)',borderRadius:10,overflow:'hidden'}},h('div',{style:{height:'100%',width:pct+'%',background:'var(--brass)'}})),
-        h('p',{className:'small muted'},p.canPrestige?'Level 25 complete — prestige is ready.':p.into.toLocaleString()+' / '+p.nextNeed.toLocaleString()+' XP for Level '+p.level+'. Level 1 starts at 100 XP; Level 25 needs 1,500 XP.'),
-        h('button',{className:'btn',disabled:!p.canPrestige,onClick:()=>dispatch({t:'prestige',by:me})},p.canPrestige?'Prestige now':'Reach 20,000 XP to prestige'),
+        h('p',{className:'small muted'},p.canPrestige?'Level 25 complete — prestige is ready.':p.into.toLocaleString()+' / '+p.nextNeed.toLocaleString()+' XP for Level '+p.level+'. This prestige needs '+p.targetXp.toLocaleString()+' XP total.'),
+        h('button',{className:'btn',disabled:!p.canPrestige,onClick:()=>dispatch({t:'prestige',by:me})},p.canPrestige?'Prestige now':'Reach '+p.targetXp.toLocaleString()+' XP to prestige'),
         h('div',{style:{marginTop:14,paddingTop:12,borderTop:'1px solid var(--smoke)'}},
           h('b',null,'Current prestige perks'),
           h('p',{className:'small muted',style:{margin:'5px 0'}},prestigePerkSummary(p.prestige)),
@@ -9983,7 +10003,7 @@ function Login({
     style: {
       fontSize: 96
     }
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.8.10")), /*#__PURE__*/React.createElement("p", {
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.8.11")), /*#__PURE__*/React.createElement("p", {
     className: "muted"
   }, "Twelve players. Six games. One office. Report to the table."), /*#__PURE__*/React.createElement("div", {
     className: "pinbox"
@@ -10100,7 +10120,7 @@ function App() {
     const off = api.subscribeChat(check, 'chat-badge');
     return () => { alive = false; clearInterval(iv); off(); };
   }, [me, tab]);
-  useEffect(() => { document.title = (chatUnread + hogPending + bsPending + c4Pending + chessPending > 0 ? '(' + (chatUnread + hogPending + bsPending + c4Pending + chessPending) + ') ' : '') + 'Book1.8.10'; }, [chatUnread, hogPending, bsPending, c4Pending, chessPending]);
+  useEffect(() => { document.title = (chatUnread + hogPending + bsPending + c4Pending + chessPending > 0 ? '(' + (chatUnread + hogPending + bsPending + c4Pending + chessPending) + ') ' : '') + 'Book1.8.11'; }, [chatUnread, hogPending, bsPending, c4Pending, chessPending]);
   const cloudEmpty = !!(store && !store.weeks);
   const persistCred = c => {
     setCred(c);
@@ -10232,7 +10252,7 @@ function App() {
     style: {
       fontSize: 96
     }
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.8.10"));
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.8.11"));
   if (!store) return /*#__PURE__*/React.createElement("div", {
     className: "login"
   }, mark, /*#__PURE__*/React.createElement("p", {
@@ -10414,7 +10434,7 @@ function App() {
     className: "rail"
   }, /*#__PURE__*/React.createElement("div", {
     className: "wordmark"
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.8.10")), /*#__PURE__*/React.createElement("div", {
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.8.11")), /*#__PURE__*/React.createElement("div", {
     className: "decree"
   }, decree), /*#__PURE__*/React.createElement("div", {
     className: "nav"
