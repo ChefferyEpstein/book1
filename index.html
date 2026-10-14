@@ -873,6 +873,17 @@ const api = CLOUD ? {
     if (error) throw error;
     return data;
   },
+  async brainClaim(cred, action) {
+    const { data, error } = await sb.rpc('book_brain_claim', {
+      p_name: cred.name,
+      p_pin: cred.pin,
+      p_type: action.type,
+      p_day: action.day,
+      p_answer: action.answer
+    });
+    if (error) throw error;
+    return data;
+  },
 
 } : {
   mode: 'local',
@@ -926,6 +937,11 @@ const api = CLOUD ? {
   },
   async chessAction(cred, action) {
     const st = reduceChessLocal(loadStore(), { ...action, by: cred.name });
+    saveStore(st);
+    return 1;
+  },
+  async brainClaim(cred, action) {
+    const st = reduce(loadStore(), { t:'brainClaim', ...action, by:cred.name, p:cred.name });
     saveStore(st);
     return 1;
   },
@@ -6709,7 +6725,7 @@ function ProgressPage({store,me,dispatch}) {
     )
   );
 }
-function BrainGymPage({store,me,dispatch}) {
+function BrainGymPage({store,me,claimBrain}) {
   const h=React.createElement, day=brainDayKey(), sdk=brainSudoku(day), cw=brainCrossword(day), tease=brainTeaser(day);
   const [cells,setCells]=useState(()=>sdk.puzzle.split('').map(x=>x==='0'?'':x));
   const [cross,setCross]=useState(()=>cw.words.map(()=>'')),[teaser,setTeaser]=useState('');
@@ -6718,7 +6734,7 @@ function BrainGymPage({store,me,dispatch}) {
   const sdkDone=cells.join('')===sdk.solution;
   const crossDone=cross.length===cw.words.length&&cross.every((x,i)=>brainNorm(x)===brainNorm(cw.words[i]));
   const teaserDone=tease.a.some(a=>brainNorm(a)===brainNorm(teaser));
-  const submit=(type,answer)=>dispatch({t:'brainClaim',type,day,answer,by:me});
+  const submit=(type,answer)=>claimBrain({type,day,answer});
   const today=(store.brainClaims||[]).filter(c=>c.player===me&&c.day===day);
   const streak=brainStreak(store,me);
   return h('div',null,
@@ -10095,7 +10111,7 @@ function App() {
   };
   const dispatch = async a => {
     if (!store) return;
-    const playerActionTypes = ['submit', 'rollcall', 'profile', 'recall', 'casino', 'tourneyVote', 'ping', 'predict', 'equipCard', 'unlock', 'placeBet', 'placeAcca', 'placeScoreBet', 'startMatch', 'claimWeekly', 'brainClaim', 'prestige', 'fantasyPick', 'bountyPost', 'bountyCancel', 'requestChips', 'cashOutBet', 'c4Create', 'c4Accept', 'c4Decline', 'c4Cancel', 'c4Drop', 'c4Forfeit', 'bsCreate', 'bsDecline', 'bsPlaceShips', 'bsFire', 'bsForfeit', 'sellCard'];
+    const playerActionTypes = ['submit', 'rollcall', 'profile', 'recall', 'casino', 'tourneyVote', 'ping', 'predict', 'equipCard', 'unlock', 'placeBet', 'placeAcca', 'placeScoreBet', 'startMatch', 'claimWeekly', 'prestige', 'fantasyPick', 'bountyPost', 'bountyCancel', 'requestChips', 'cashOutBet', 'c4Create', 'c4Accept', 'c4Decline', 'c4Cancel', 'c4Drop', 'c4Forfeit', 'bsCreate', 'bsDecline', 'bsPlaceShips', 'bsFire', 'bsForfeit', 'sellCard'];
     // A player's own roll-call response belongs on the player RPC. Regime approval/denial
     // must stay on the admin-save path because the player RPC only acts as p_name and
     // deliberately does not accept the final admin-only "out" state.
@@ -10182,6 +10198,14 @@ function App() {
       await refresh();
     } catch (e) {
       toast(e.message);
+    }
+  };
+  const brainAct = async a => {
+    try {
+      await api.brainClaim(cred, a);
+      await refresh();
+    } catch (e) {
+      toast((e.message || '').replace(/^.*?: /, ''));
     }
   };
   const hogAct = async a => {
@@ -10282,7 +10306,7 @@ function App() {
   }) : /*#__PURE__*/React.createElement("div", { className: "panel" }, "Log in to see progression.") : tab === 'brain' ? me ? /*#__PURE__*/React.createElement(BrainGymPage, {
     store: store,
     me: me,
-    dispatch: dispatch
+    claimBrain: brainAct
   }) : /*#__PURE__*/React.createElement("div", { className: "panel" }, "Log in to use Brain Gym.") : tab === 'fantasy' ? me ? /*#__PURE__*/React.createElement(FantasyPage, {
     store: store,
     me: me,
