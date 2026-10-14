@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Book1.8.9</title>
+<title>Book1.8.10</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -504,7 +504,7 @@ const {
 } = React;
 const STORE_KEY = 'book1.2-local';
 const CFG = window.BOOK_CONFIG || {};
-const APP_SQL_VERSION = 32; // bump this whenever a new SQL script adds or changes a server function
+const APP_SQL_VERSION = 33; // bump this whenever a new SQL script adds or changes a server function
 const CLOUD = !!(CFG.url && CFG.key);
 const ADMINS = ['Chef', 'Lorcan'];
 const DECREES = ['Abstention is not permitted.', 'The Book sees all results.', 'Ball difference is destiny.', 'The Dictator collects. The Dictator distributes.', 'Report your score. Report it honestly.', 'Twelfth place is a service to the office.', 'The mong off is not optional.', 'Disputes are settled by the regime.'];
@@ -3135,6 +3135,7 @@ function rawPlayerXp(store, p) {
     else if (g.status === 'draw') xp += 50;
   });
   xp += (store.challengeClaims || []).filter(c => c.player === p).reduce((t,c)=>t+(+c.xp||0),0);
+  xp += (store.brainClaims || []).filter(c => c.player === p).reduce((t,c)=>t+(+c.xp||0),0);
   return xp;
 }
 function playerProgress(store,p) {
@@ -3164,12 +3165,42 @@ function prestigeWheelMinutes(store,name) {
   const rec=store && store.progression && store.progression[name];
   return prestigeWheelMinutesFromLevel(rec && rec.prestige);
 }
+function prestigeCaseDiscountPct(prestige) {
+  const p=Math.max(0,+prestige||0);
+  return p>=10?30:p>=7?25:p>=5?20:p>=2?10:0;
+}
+function prestigeWeeklyBonusPct(prestige) {
+  const p=Math.max(0,+prestige||0);
+  return p>=10?25:p>=7?20:p>=5?15:p>=3?10:0;
+}
+function prestigeDupeBonusPct(prestige) {
+  const p=Math.max(0,+prestige||0);
+  return p>=10?25:p>=7?20:p>=4?10:0;
+}
+function effectiveCaseCost(store,name) {
+  const base=(store.payouts&&store.payouts.caseCost)||300;
+  const p=playerProgress(store,name).prestige;
+  return Math.max(1,Math.floor(base*(100-prestigeCaseDiscountPct(p))/100));
+}
+function effectiveChallengeReward(base,prestige) {
+  return Math.floor((+base||0)*(100+prestigeWeeklyBonusPct(prestige))/100);
+}
+function prestigePerkSummary(prestige) {
+  const p=Math.max(0,+prestige||0), bits=['Free Spin '+prestigeWheelMinutesFromLevel(p)+'m'];
+  const cd=prestigeCaseDiscountPct(p), wb=prestigeWeeklyBonusPct(p), db=prestigeDupeBonusPct(p);
+  if(cd) bits.push(cd+'% cheaper cases');
+  if(wb) bits.push('+'+wb+'% weekly challenge chips');
+  if(db) bits.push('+'+db+'pp duplicate refunds');
+  return bits.join(' · ');
+}
 const PRESTIGE_REWARDS = [
-  {p:1,label:'Free spin cooldown: 25 minutes'},
-  {p:2,label:'Free spin cooldown: 20 minutes'},
-  {p:3,label:'Free spin cooldown: 15 minutes'},
-  {p:5,label:'Free spin cooldown: 10 minutes'},
-  {p:10,label:'Free spin cooldown: 5 minutes'}
+  {p:1,label:'Free Spin cooldown drops to 25 minutes'},
+  {p:2,label:'Free Spin 20 minutes + 10% cheaper cases'},
+  {p:3,label:'Free Spin 15 minutes + 10% weekly challenge chip bonus'},
+  {p:4,label:'+10 percentage points on duplicate-card refunds'},
+  {p:5,label:'Free Spin 10 minutes + 20% cheaper cases + 15% weekly bonus'},
+  {p:7,label:'25% cheaper cases + 20% weekly bonus + 20pp duplicate refunds'},
+  {p:10,label:'Free Spin 5 minutes + 30% cheaper cases + 25% weekly bonus + 25pp duplicate refunds'}
 ];
 const CHALLENGE_POOL = {
   wins3:{id:'wins3',name:'Hat-trick',desc:'Win 3 pool games this game week.',reward:10000,xp:750},
@@ -3204,6 +3235,63 @@ function weeklyChallengeDone(stats,id) {
 }
 function weeklyChallengeProgressText(stats,id) {
   return id==='wins3'?stats.wins+'/3 wins':id==='play4'?stats.played+'/4 games':id==='diff10'?stats.diff+'/+10 diff':id==='c4wins2'?stats.c4wins+'/2 C4 wins':id==='bswin1'?stats.bswins+'/1 Battleships win':id==='hogwin1'?stats.hogwins+'/1 Hog win':stats.chesswins+'/1 Chess win';
+}
+function minigameLeaderboard(store) {
+  const board={};
+  const row=n=>board[n]||(board[n]={name:n,w:0,l:0,d:0,gp:0,c4:{w:0,l:0,d:0},chess:{w:0,l:0,d:0},bs:{w:0,l:0,d:0},hog:{w:0,l:0,d:0}});
+  const add=(g,key)=>{
+    if(!g||!g.challenger||!g.opponent)return;
+    const a=row(g.challenger),b=row(g.opponent); a.gp++;b.gp++;
+    if(g.status==='draw'||!g.winner){a.d++;b.d++;a[key].d++;b[key].d++;return;}
+    const win=row(g.winner), lose=row(g.winner===g.challenger?g.opponent:g.challenger);
+    win.w++;lose.l++;win[key].w++;lose[key].l++;
+  };
+  (store.connect4||[]).filter(g=>g.status==='done'||g.status==='draw').forEach(g=>add(g,'c4'));
+  (store.chess||[]).filter(g=>g.status==='done'||g.status==='draw').forEach(g=>add(g,'chess'));
+  (store.battleships||[]).filter(g=>g.status==='done').forEach(g=>add(g,'bs'));
+  (store.hogDuels||[]).filter(g=>g.status==='done').forEach(g=>add(g,'hog'));
+  return Object.values(board).map(r=>({...r,winPct:r.gp?100*r.w/r.gp:0})).sort((a,b)=>b.w-a.w||b.winPct-a.winPct||b.gp-a.gp||a.name.localeCompare(b.name));
+}
+function brainDayKey(ms=Date.now()) {
+  const parts=Object.fromEntries(new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/London',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date(ms)).filter(x=>x.type!=='literal').map(x=>[x.type,x.value]));
+  return parts.year+'-'+parts.month+'-'+parts.day;
+}
+function brainDayNumber(day=brainDayKey()) { return Math.floor(Date.parse(day+'T00:00:00Z')/86400000); }
+const BRAIN_SUDOKU_BASE='530070000600195000098000060800060003400803001700020006060000280000419005000080079';
+const BRAIN_SUDOKU_SOLUTION='534678912672195348198342567859761423426853791713924856961537284287419635345286179';
+function brainShiftDigits(str,off) { return str.replace(/[1-9]/g,d=>String(((+d-1+off)%9)+1)); }
+function brainSudoku(day=brainDayKey()) {
+  const off=((brainDayNumber(day)%9)+9)%9;
+  return {puzzle:brainShiftDigits(BRAIN_SUDOKU_BASE,off),solution:brainShiftDigits(BRAIN_SUDOKU_SOLUTION,off)};
+}
+const BRAIN_CROSSWORDS=[
+  {words:['BALL','AREA','LEAD','LADY'],clues:['Round object used in games','A region or space','To guide; also a metal','An adult woman']},
+  {words:['LIMB','IDEA','MEAL','BALL'],clues:['Arm or leg','A thought or concept','Food eaten at one sitting','A round object used in games']},
+  {words:['SALT','AREA','LEAN','TANK'],clues:['Seasoning from the sea','A region or space','To incline; also not fatty','A large container or armoured vehicle']},
+  {words:['CARE','AREA','REAR','EARL'],clues:['Attention or concern','A region or space','The back part','A British noble rank']}
+];
+function brainCrossword(day=brainDayKey()) { return BRAIN_CROSSWORDS[((brainDayNumber(day)%BRAIN_CROSSWORDS.length)+BRAIN_CROSSWORDS.length)%BRAIN_CROSSWORDS.length]; }
+const BRAIN_TEASERS=[
+  {q:'What gets wetter the more it dries?',a:['towel']},
+  {q:'What can travel around the world while staying in one corner?',a:['stamp']},
+  {q:'What has cities but no houses, forests but no trees, and water but no fish?',a:['map']},
+  {q:'What has a neck but no head?',a:['bottle']},
+  {q:'What comes once in a minute, twice in a moment, and never in a thousand years?',a:['m','letterm']},
+  {q:'What has keys but no locks and space but no rooms?',a:['keyboard']},
+  {q:'What speaks without a mouth and answers without ears?',a:['echo']}
+];
+function brainTeaser(day=brainDayKey()) { return BRAIN_TEASERS[((brainDayNumber(day)%BRAIN_TEASERS.length)+BRAIN_TEASERS.length)%BRAIN_TEASERS.length]; }
+function brainNorm(x){return String(x||'').toLowerCase().replace(/[^a-z0-9]/g,'');}
+function brainClaimed(store,p,day,type){return (store.brainClaims||[]).some(c=>c.player===p&&c.day===day&&c.type===type);}
+function brainFullDays(store,p) {
+  const m={};
+  (store.brainClaims||[]).filter(c=>c.player===p&&['sudoku','crossword','teaser'].includes(c.type)).forEach(c=>{m[c.day]=m[c.day]||new Set();m[c.day].add(c.type);});
+  return Object.entries(m).filter(([,set])=>set.size===3).map(([day])=>day).sort();
+}
+function brainStreak(store,p) {
+  const full=new Set(brainFullDays(store,p)); let streak=0; const d=new Date(brainDayKey()+'T00:00:00Z');
+  while(full.has(d.toISOString().slice(0,10))){streak++;d.setUTCDate(d.getUTCDate()-1);}
+  return streak;
 }
 function fantasySnapshot(store) {
   const history = store.weeks && store.weeks.length > 1 ? {...store,weeks:store.weeks.slice(0,-1)} : store;
@@ -9775,7 +9863,7 @@ function Login({
     style: {
       fontSize: 96
     }
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.8.9")), /*#__PURE__*/React.createElement("p", {
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.8.10")), /*#__PURE__*/React.createElement("p", {
     className: "muted"
   }, "Twelve players. Six games. One office. Report to the table."), /*#__PURE__*/React.createElement("div", {
     className: "pinbox"
@@ -9892,7 +9980,7 @@ function App() {
     const off = api.subscribeChat(check, 'chat-badge');
     return () => { alive = false; clearInterval(iv); off(); };
   }, [me, tab]);
-  useEffect(() => { document.title = (chatUnread + hogPending + bsPending + c4Pending + chessPending > 0 ? '(' + (chatUnread + hogPending + bsPending + c4Pending + chessPending) + ') ' : '') + 'Book1.8.9'; }, [chatUnread, hogPending, bsPending, c4Pending, chessPending]);
+  useEffect(() => { document.title = (chatUnread + hogPending + bsPending + c4Pending + chessPending > 0 ? '(' + (chatUnread + hogPending + bsPending + c4Pending + chessPending) + ') ' : '') + 'Book1.8.10'; }, [chatUnread, hogPending, bsPending, c4Pending, chessPending]);
   const cloudEmpty = !!(store && !store.weeks);
   const persistCred = c => {
     setCred(c);
@@ -10016,7 +10104,7 @@ function App() {
     style: {
       fontSize: 96
     }
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.8.9"));
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.8.10"));
   if (!store) return /*#__PURE__*/React.createElement("div", {
     className: "login"
   }, mark, /*#__PURE__*/React.createElement("p", {
@@ -10194,7 +10282,7 @@ function App() {
     className: "rail"
   }, /*#__PURE__*/React.createElement("div", {
     className: "wordmark"
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.8.9")), /*#__PURE__*/React.createElement("div", {
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.8.10")), /*#__PURE__*/React.createElement("div", {
     className: "decree"
   }, decree), /*#__PURE__*/React.createElement("div", {
     className: "nav"
