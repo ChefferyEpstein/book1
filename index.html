@@ -2897,7 +2897,10 @@ function CaseOpener({
   const [opening, setOpening] = useState(false);
   const [pending, setPending] = useState(null);
   const [result, setResult] = useState(null);
-  const cost = store.payouts.caseCost || 300;
+  const baseCost = store.payouts.caseCost || 300;
+  const prestige = playerProgress(store,me).prestige;
+  const caseDiscount = prestigeCaseDiscountPct(prestige);
+  const cost = effectiveCaseCost(store,me);
   const mine = store.cards && store.cards[me] || {
     owned: [],
     equipped: null
@@ -2938,7 +2941,7 @@ function CaseOpener({
   };
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", {
     className: "small muted"
-  }, "Spend ", cost.toLocaleString(), " chips for a random calling card. Odds: ", pct('legendary'), " legendary, ", pct('epic'), " epic, ", pct('rare'), " rare, ", pct('uncommon'), " uncommon, ", pct('common'), " common. You own ", owned.filter(id => CATALOG.some(c => c.id === id)).length, " of ", CATALOG.length, ". Duplicates give a partial chip refund based on rarity."), /*#__PURE__*/React.createElement("button", {
+  }, "Spend ", cost.toLocaleString(), " chips for a random calling card", caseDiscount ? " ("+caseDiscount+"% prestige discount; base "+baseCost.toLocaleString()+")" : "", ". Odds: ", pct('legendary'), " legendary, ", pct('epic'), " epic, ", pct('rare'), " rare, ", pct('uncommon'), " uncommon, ", pct('common'), " common. You own ", owned.filter(id => CATALOG.some(c => c.id === id)).length, " of ", CATALOG.length, ". Duplicates give a partial chip refund based on rarity."), /*#__PURE__*/React.createElement("button", {
     className: "btn",
     disabled: opening || balance < cost,
     onClick: open
@@ -6649,6 +6652,7 @@ function ProgressPage({store,me,dispatch}) {
   const claims=store.challengeClaims||[];
   const claimed=id=>claims.some(x=>+x.week===+stats.week&&x.player===me&&x.key===id);
   const board=store.players.filter(x=>x.active).map(x=>({name:x.name,...playerProgress(store,x.name)})).sort((a,b)=>b.prestige-a.prestige||b.level-a.level||b.xp-a.xp);
+  const miniBoard=minigameLeaderboard(store);
   const pct=p.level>=25&&p.canPrestige?100:Math.round((p.into/Math.max(1,p.nextNeed))*100);
   const nextReward=PRESTIGE_REWARDS.find(r=>r.p>p.prestige);
   return h('div',null,
@@ -6662,8 +6666,8 @@ function ProgressPage({store,me,dispatch}) {
         h('p',{className:'small muted'},p.canPrestige?'Level 25 complete — prestige is ready.':p.into.toLocaleString()+' / '+p.nextNeed.toLocaleString()+' XP for Level '+p.level+'. Level 1 starts at 100 XP; Level 25 needs 1,500 XP.'),
         h('button',{className:'btn',disabled:!p.canPrestige,onClick:()=>dispatch({t:'prestige',by:me})},p.canPrestige?'Prestige now':'Reach 20,000 XP to prestige'),
         h('div',{style:{marginTop:14,paddingTop:12,borderTop:'1px solid var(--smoke)'}},
-          h('b',null,'Current prestige perk'),
-          h('p',{className:'small muted',style:{margin:'5px 0'}},'Free Spin cooldown: ',prestigeWheelMinutesFromLevel(p.prestige),' minutes.'),
+          h('b',null,'Current prestige perks'),
+          h('p',{className:'small muted',style:{margin:'5px 0'}},prestigePerkSummary(p.prestige)),
           nextReward&&h('p',{className:'small muted',style:{margin:0}},'Next reward at P',nextReward.p,': ',nextReward.label)
         )
       ),
@@ -6672,8 +6676,9 @@ function ProgressPage({store,me,dispatch}) {
         weeklyChallengesForWeek(stats.week).map(c=>{
           const done=weeklyChallengeDone(stats,c.id), got=claimed(c.id);
           const prog=weeklyChallengeProgressText(stats,c.id);
+          const reward=effectiveChallengeReward(c.reward,p.prestige);
           return h('div',{key:c.id,className:'row spread',style:{padding:'8px 0',borderBottom:'1px solid var(--smoke)'}},
-            h('span',null,h('b',null,c.name),' — ',c.desc,h('span',{className:'small muted'},' ',prog,' · ',c.reward.toLocaleString(),' chips · ',c.xp.toLocaleString(),' XP')),
+            h('span',null,h('b',null,c.name),' — ',c.desc,h('span',{className:'small muted'},' ',prog,' · ',reward.toLocaleString(),' chips · ',c.xp.toLocaleString(),' XP',prestigeWeeklyBonusPct(p.prestige)?' (prestige bonus)':'')),
             h('button',{className:'btn sm'+(done&&!got?'':' ghost'),disabled:!done||got,onClick:()=>dispatch({t:'claimWeekly',key:c.id,by:me})},got?'Claimed':done?'Claim':'Not yet')
           );
         })
@@ -6688,6 +6693,80 @@ function ProgressPage({store,me,dispatch}) {
       ),
       h('div',{className:'panel'},h('h2',null,'Progression leaderboard'),
         h('table',{className:'plain'},h('tbody',null,board.map((r,i)=>h('tr',{key:r.name,className:r.name===me?'me':''},h('td',{className:'n muted'},i+1),h('td',null,h(Nm,{n:r.name,size:16})),h('td',{className:'n'},'P',r.prestige),h('td',{className:'n'},'Lv ',r.level),h('td',{className:'n'},r.xp.toLocaleString(),' XP')))))
+      )
+    ),
+    h('div',{className:'panel',style:{marginTop:18}},
+      h('div',{className:'page-title',style:{marginBottom:8}},h('h2',null,'All-minigame leaderboard'),h('span',{className:'sub'},'Connect 4 + Chess + Battleships + Hog Trumps.')),
+      miniBoard.length?h('div',{style:{overflowX:'auto'}},h('table',{className:'plain',style:{minWidth:900}},
+        h('thead',null,h('tr',null,['#','Player','GP','W','L','D','Win %','Connect 4','Chess','Battleships','Hogs'].map(x=>h('th',{key:x},x)))),
+        h('tbody',null,miniBoard.map((r,i)=>h('tr',{key:r.name,className:r.name===me?'me':''},
+          h('td',{className:'n muted'},i+1),h('td',null,h(Nm,{n:r.name,size:16})),h('td',{className:'n'},r.gp),
+          h('td',{className:'n'},r.w),h('td',{className:'n'},r.l),h('td',{className:'n'},r.d),h('td',{className:'n'},r.winPct.toFixed(1)+'%'),
+          h('td',{className:'n'},r.c4.w+'-'+r.c4.l+'-'+r.c4.d),h('td',{className:'n'},r.chess.w+'-'+r.chess.l+'-'+r.chess.d),
+          h('td',{className:'n'},r.bs.w+'-'+r.bs.l+'-'+r.bs.d),h('td',{className:'n'},r.hog.w+'-'+r.hog.l+'-'+r.hog.d)
+        )))
+      )):h('p',{className:'muted'},'No finished minigames yet.')
+    )
+  );
+}
+function BrainGymPage({store,me,dispatch}) {
+  const h=React.createElement, day=brainDayKey(), sdk=brainSudoku(day), cw=brainCrossword(day), tease=brainTeaser(day);
+  const [cells,setCells]=useState(()=>sdk.puzzle.split('').map(x=>x==='0'?'':x));
+  const [cross,setCross]=useState(()=>cw.words.map(()=>'')),[teaser,setTeaser]=useState('');
+  useEffect(()=>{setCells(sdk.puzzle.split('').map(x=>x==='0'?'':x));setCross(cw.words.map(()=>''));setTeaser('');},[day]);
+  const claimed=t=>brainClaimed(store,me,day,t);
+  const sdkDone=cells.join('')===sdk.solution;
+  const crossDone=cross.length===cw.words.length&&cross.every((x,i)=>brainNorm(x)===brainNorm(cw.words[i]));
+  const teaserDone=tease.a.some(a=>brainNorm(a)===brainNorm(teaser));
+  const submit=(type,answer)=>dispatch({t:'brainClaim',type,day,answer,by:me});
+  const today=(store.brainClaims||[]).filter(c=>c.player===me&&c.day===day);
+  const streak=brainStreak(store,me);
+  return h('div',null,
+    h('div',{className:'page-title'},h('h1',null,'Brain Gym'),h('span',{className:'sub'},'Daily puzzles. Useful neurons only. XP rewards, zero chip farming.')),
+    h('div',{className:'row',style:{marginBottom:18,flexWrap:'wrap'}},
+      h('span',{className:'chip on'},'Daily streak: '+streak),
+      h('span',{className:'chip'},'Today: '+today.reduce((t,c)=>t+(+c.xp||0),0)+' XP claimed'),
+      h('span',{className:'chip'},'Full clear: +200 XP')
+    ),
+    h('div',{className:'grid g2'},
+      h('div',{className:'panel'},
+        h('h2',null,'Sudoku · 300 XP'),
+        h('p',{className:'small muted'},'Every row, column and 3×3 box must contain 1–9 once.'),
+        h('div',{style:{display:'grid',gridTemplateColumns:'repeat(9,34px)',width:'fit-content',border:'2px solid var(--brass)',margin:'10px 0'}},
+          cells.map((v,i)=>{
+            const fixed=sdk.puzzle[i]!=='0',r=Math.floor(i/9),c=i%9;
+            return h('input',{key:i,value:v,maxLength:1,inputMode:'numeric',disabled:fixed||claimed('sudoku'),
+              onChange:e=>{const x=e.target.value.replace(/[^1-9]/g,'').slice(-1),n=cells.slice();n[i]=x;setCells(n);},
+              style:{width:34,height:34,textAlign:'center',padding:0,border:'none',
+                borderRight:(c===2||c===5)?'2px solid var(--brass)':'1px solid rgba(255,255,255,.12)',
+                borderBottom:(r===2||r===5)?'2px solid var(--brass)':'1px solid rgba(255,255,255,.12)',
+                background:fixed?'rgba(255,255,255,.12)':'rgba(0,0,0,.18)',fontWeight:fixed?800:500}
+            });
+          })
+        ),
+        h('button',{className:'btn',disabled:claimed('sudoku')||!sdkDone,onClick:()=>submit('sudoku',cells.join(''))},claimed('sudoku')?'Completed':sdkDone?'Claim 300 XP':'Solve to claim')
+      ),
+      h('div',{className:'panel'},
+        h('h2',null,'Mini crossword · 250 XP'),
+        h('p',{className:'small muted'},'Four answers form a word square: the same words read across and down.'),
+        cw.clues.map((clue,i)=>h('label',{key:i,className:'f',style:{display:'block',marginBottom:8}},(i+1)+'. '+clue,
+          h('input',{value:cross[i],maxLength:4,disabled:claimed('crossword'),onChange:e=>{const n=cross.slice();n[i]=e.target.value.toUpperCase().replace(/[^A-Z]/g,'');setCross(n);},style:{marginLeft:8,width:90,textTransform:'uppercase'}})
+        )),
+        h('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,34px)',width:'fit-content',margin:'12px 0',border:'1px solid var(--smoke)'}},
+          Array.from({length:16},(_,i)=>h('div',{key:i,style:{width:34,height:34,border:'1px solid rgba(255,255,255,.12)',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800}},(cross[Math.floor(i/4)]||'')[i%4]||''))
+        ),
+        h('button',{className:'btn',disabled:claimed('crossword')||!crossDone,onClick:()=>submit('crossword',cross.join('|'))},claimed('crossword')?'Completed':crossDone?'Claim 250 XP':'Solve to claim')
+      ),
+      h('div',{className:'panel'},
+        h('h2',null,'Brain teaser · 150 XP'),
+        h('p',null,tease.q),
+        h('input',{value:teaser,disabled:claimed('teaser'),onChange:e=>setTeaser(e.target.value),placeholder:'Your answer'}),
+        h('button',{className:'btn',style:{marginLeft:8},disabled:claimed('teaser')||!teaserDone,onClick:()=>submit('teaser',teaser)},claimed('teaser')?'Completed':teaserDone?'Claim 150 XP':'Think harder')
+      ),
+      h('div',{className:'panel'},
+        h('h2',null,'Daily rules'),
+        h('p',null,'Sudoku + crossword + teaser = 700 XP. Clear the lot and the server adds another 200 XP.'),
+        h('p',{className:'small muted'},'One claim per puzzle per London calendar day. No chips, no rerolls, no infinite reward loop. A tiny patch of productive behaviour inside this otherwise cursed application.')
       )
     )
   );
@@ -9405,7 +9484,7 @@ function reduce(store, a) {
         if(s.brainClaims.some(x=>x.player===a.by&&x.day===day&&x.type===type)) throw new Error('Already claimed today.');
         let ok=false,xp=0;
         if(type==='sudoku'){ok=answer===brainSudoku(day).solution;xp=300;}
-        if(type==='crossword'){ok=answer.split('|').every((x,i)=>brainNorm(x)===brainNorm(brainCrossword(day).words[i]));xp=250;}
+        if(type==='crossword'){const parts=answer.split('|'), words=brainCrossword(day).words;ok=parts.length===words.length&&parts.every((x,i)=>brainNorm(x)===brainNorm(words[i]));xp=250;}
         if(type==='teaser'){ok=brainTeaser(day).a.some(x=>brainNorm(x)===brainNorm(answer));xp=150;}
         if(!ok) throw new Error('Not quite. Keep thinking.');
         s.brainClaims.push({player:a.by,day,type,xp,at:Date.now()});
@@ -10174,7 +10253,7 @@ function App() {
     onClick: () => persistCred(undefined)
   }, "Log out"));
   const wIdx = weekIdx == null ? store.weeks.length - 1 : Math.min(weekIdx, store.weeks.length - 1);
-  const tabs = [['table', 'Table'], ['me', 'My book'], ['progress', 'Progress'], ['fantasy', 'Fantasy'], ['bounties', 'Bounties'], ['casino', 'Casino'], ['hogs', 'Hogs'], ['battleships', 'Battleships'], ['connect4', 'Connect 4'], ['chess', 'Chess'], ['eightman', '8 Man'], ['predict', 'Predictions'], ['chat', 'Chat'], ['master', 'Master'], ['stats', 'Dossier'], ['ko', 'Knockout']];
+  const tabs = [['table', 'Table'], ['me', 'My book'], ['progress', 'Progress'], ['brain', 'Brain Gym'], ['fantasy', 'Fantasy'], ['bounties', 'Bounties'], ['casino', 'Casino'], ['hogs', 'Hogs'], ['battleships', 'Battleships'], ['connect4', 'Connect 4'], ['chess', 'Chess'], ['eightman', '8 Man'], ['predict', 'Predictions'], ['chat', 'Chat'], ['master', 'Master'], ['stats', 'Dossier'], ['ko', 'Knockout']];
   if (isAdmin) tabs.push(['regime', 'Regime']);
   const live = store.weeks[store.weeks.length - 1];
   const pending = isAdmin ? live.fixtures.concat(live.playoffs).filter(g => g.status === 'disputed').length + (store.chipRequests || []).filter(r => r.status === 'pending').length : 0;
@@ -10200,7 +10279,11 @@ function App() {
     store: store,
     me: me,
     dispatch: dispatch
-  }) : /*#__PURE__*/React.createElement("div", { className: "panel" }, "Log in to see progression.") : tab === 'fantasy' ? me ? /*#__PURE__*/React.createElement(FantasyPage, {
+  }) : /*#__PURE__*/React.createElement("div", { className: "panel" }, "Log in to see progression.") : tab === 'brain' ? me ? /*#__PURE__*/React.createElement(BrainGymPage, {
+    store: store,
+    me: me,
+    dispatch: dispatch
+  }) : /*#__PURE__*/React.createElement("div", { className: "panel" }, "Log in to use Brain Gym.") : tab === 'fantasy' ? me ? /*#__PURE__*/React.createElement(FantasyPage, {
     store: store,
     me: me,
     dispatch: dispatch
