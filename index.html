@@ -980,7 +980,9 @@ const api = CLOUD ? {
   },
   async openCase(cred) {
     const s = loadStore();
-    const cost = s.payouts.caseCost || 300;
+    const prestige = playerProgress(s,cred.name).prestige;
+    const baseCost = s.payouts.caseCost || 300;
+    const cost = Math.max(1,Math.floor(baseCost*(100-prestigeCaseDiscountPct(prestige))/100));
     const bal = s.chips && s.chips[cred.name] != null ? s.chips[cred.name] : 1000;
     if (bal < cost) throw new Error('Not enough chips for a case.');
     const od = Object.assign({ common: 60, uncommon: 25, rare: 10, epic: 4, legendary: 1 }, s.rarityOdds || {});
@@ -1000,7 +1002,7 @@ const api = CLOUD ? {
     const dr = Object.assign({ common: 20, uncommon: 30, rare: 45, epic: 65, legendary: 90 }, s.payouts && s.payouts.dupeRefund || {});
     let refund = 0;
     if (isDup) {
-      refund = Math.floor(cost * (+dr[picked.rarity] || 0) / 100);
+      refund = Math.floor(cost * Math.min(100,(+dr[picked.rarity] || 0)+prestigeDupeBonusPct(prestige)) / 100);
       s.chips[cred.name] += refund;
     }
     s.cards[cred.name].owned.push(picked.id);
@@ -4804,8 +4806,9 @@ function ChessPage({store,me,act}){
           h('div',{className:'row spread',style:{marginBottom:8}},h('span',null,sel.black,' ♚ ',chessClockText(btime)),h('span',null,sel.white,' ♔ ',chessClockText(wtime))),
           h('div',{style:{display:'grid',gridTemplateColumns:'repeat(8,minmax(34px,58px))',width:'fit-content',maxWidth:'100%',margin:'0 auto',border:'2px solid var(--brass)'}},
             order.map(i=>{const r=chessRow(i),c=chessCol(i),p=sel.board[i],light=(r+c)%2===0,legal=from!=null&&canMove&&chessIsLegal(sel.board,from,i,mine,sel.castling,sel.enPassant,promotion);
-              return h('button',{key:i,onClick:()=>clickSq(i),disabled:!canMove,style:{aspectRatio:'1/1',minWidth:0,border:'none',fontSize:'clamp(24px,5vw,40px)',background:from===i?'var(--brass)':legal?'rgba(63,163,77,.55)':light?'#d7c3a1':'#7a2e38',color:'#111',padding:0,position:'relative'}},
-                p?CHESS_GLYPH[p]:'',h('span',{style:{position:'absolute',bottom:1,right:2,fontSize:8,opacity:.45}},chessSquare(i)));
+              return h('button',{key:i,onClick:()=>clickSq(i),disabled:!canMove,style:{aspectRatio:'1/1',minWidth:0,border:'none',fontSize:'clamp(24px,5vw,40px)',background:from===i?'var(--brass)':legal?'rgba(63,163,77,.55)':light?'#d7c3a1':'#7a2e38',padding:0,position:'relative'}},
+                p?h('span',{style:{color:chessColour(p)==='w'?'#fff1bd':'#15171c',textShadow:chessColour(p)==='w'?'0 1px 0 #000, 0 0 3px #000':'0 1px 0 #fff, 0 0 3px rgba(255,255,255,.85)',fontWeight:900}},CHESS_GLYPH[p]):'',
+                h('span',{style:{position:'absolute',bottom:1,right:2,fontSize:8,opacity:.45,color:light?'#311':'#fff'}},chessSquare(i)));
             })
           ),
           canMove&&h('div',{className:'row',style:{marginTop:10}},h('span',{className:'small muted'},from==null?'Select one of your pieces.':'Selected '+chessSquare(from)+'. Pick a destination.'),h('select',{value:promotion,onChange:e=>setPromotion(e.target.value)},['Q','R','B','N'].map(x=>h('option',{key:x,value:x},'Promote to '+x)))),
@@ -9386,10 +9389,32 @@ function reduce(store, a) {
         s.challengeClaims=s.challengeClaims||[];
         if(s.challengeClaims.some(x=>+x.week===+st.week&&x.player===a.by&&x.key===a.key)) throw new Error('Already claimed.');
         if(!weeklyChallengeDone(st,a.key)) throw new Error('Challenge is not complete yet.');
+        const pp=playerProgress(s,a.by).prestige, reward=effectiveChallengeReward(c.reward,pp);
         s.chips=s.chips||{};
-        s.chips[a.by]=(s.chips[a.by]!=null?s.chips[a.by]:1000)+c.reward;
-        s.challengeClaims.push({week:st.week,player:a.by,key:a.key,reward:c.reward,xp:c.xp,at:Date.now()});
-        log(a.by+' claimed '+c.reward+' chips and '+c.xp+' XP for '+c.name);
+        s.chips[a.by]=(s.chips[a.by]!=null?s.chips[a.by]:1000)+reward;
+        s.challengeClaims.push({week:st.week,player:a.by,key:a.key,reward,xp:c.xp,at:Date.now()});
+        log(a.by+' claimed '+reward+' chips and '+c.xp+' XP for '+c.name);
+        break;
+      }
+    case 'brainClaim':
+      {
+        const day=brainDayKey(), type=a.type, answer=String(a.answer||'');
+        if(a.day!==day) throw new Error('That daily puzzle has rolled over. Refresh Brain Gym.');
+        if(!['sudoku','crossword','teaser'].includes(type)) throw new Error('Unknown Brain Gym puzzle.');
+        s.brainClaims=s.brainClaims||[];
+        if(s.brainClaims.some(x=>x.player===a.by&&x.day===day&&x.type===type)) throw new Error('Already claimed today.');
+        let ok=false,xp=0;
+        if(type==='sudoku'){ok=answer===brainSudoku(day).solution;xp=300;}
+        if(type==='crossword'){ok=answer.split('|').every((x,i)=>brainNorm(x)===brainNorm(brainCrossword(day).words[i]));xp=250;}
+        if(type==='teaser'){ok=brainTeaser(day).a.some(x=>brainNorm(x)===brainNorm(answer));xp=150;}
+        if(!ok) throw new Error('Not quite. Keep thinking.');
+        s.brainClaims.push({player:a.by,day,type,xp,at:Date.now()});
+        const cleared=['sudoku','crossword','teaser'].every(k=>s.brainClaims.some(x=>x.player===a.by&&x.day===day&&x.type===k));
+        if(cleared&&!s.brainClaims.some(x=>x.player===a.by&&x.day===day&&x.type==='daily')){
+          s.brainClaims.push({player:a.by,day,type:'daily',xp:200,at:Date.now()});
+          log(a.by+' cleared the full Brain Gym for '+day+' (+200 XP bonus)');
+        }
+        log(a.by+' completed '+type+' in Brain Gym (+'+xp+' XP)');
         break;
       }
     case 'prestige':
@@ -9991,7 +10016,7 @@ function App() {
   };
   const dispatch = async a => {
     if (!store) return;
-    const playerActionTypes = ['submit', 'rollcall', 'profile', 'recall', 'casino', 'tourneyVote', 'ping', 'predict', 'equipCard', 'unlock', 'placeBet', 'placeAcca', 'placeScoreBet', 'startMatch', 'claimWeekly', 'prestige', 'fantasyPick', 'bountyPost', 'bountyCancel', 'requestChips', 'cashOutBet', 'c4Create', 'c4Accept', 'c4Decline', 'c4Cancel', 'c4Drop', 'c4Forfeit', 'bsCreate', 'bsDecline', 'bsPlaceShips', 'bsFire', 'bsForfeit', 'sellCard'];
+    const playerActionTypes = ['submit', 'rollcall', 'profile', 'recall', 'casino', 'tourneyVote', 'ping', 'predict', 'equipCard', 'unlock', 'placeBet', 'placeAcca', 'placeScoreBet', 'startMatch', 'claimWeekly', 'brainClaim', 'prestige', 'fantasyPick', 'bountyPost', 'bountyCancel', 'requestChips', 'cashOutBet', 'c4Create', 'c4Accept', 'c4Decline', 'c4Cancel', 'c4Drop', 'c4Forfeit', 'bsCreate', 'bsDecline', 'bsPlaceShips', 'bsFire', 'bsForfeit', 'sellCard'];
     // A player's own roll-call response belongs on the player RPC. Regime approval/denial
     // must stay on the admin-save path because the player RPC only acts as p_name and
     // deliberately does not accept the final admin-only "out" state.
