@@ -4,7 +4,7 @@ GitHub is the code source of truth. These milestone files are the shared handoff
 
 Every work session should update the active milestone before handoff.
 
-**Active release:** [M06 — Book1 1.8.10 Minigame Rankings, Prestige & Brain Gym](M06-1.8.10-minigames-prestige-brain-gym.md)
+**Active release:** [M07 — Book1 1.8.11 Progressive Prestige Curve](M07-1.8.11-prestige-curve.md)
 
 Handoff log format:
 
