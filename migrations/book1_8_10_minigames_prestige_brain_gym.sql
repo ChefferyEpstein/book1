@@ -1,7 +1,6 @@
 -- Book1 1.8.10 — minigame standings, prestige rewards and Brain Gym
 -- Database function version: 33
 
--- Add Brain Gym XP to the canonical progression calculation.
 create or replace function public.book_player_xp(p_data jsonb, p_player text)
 returns integer
 language plpgsql
@@ -48,7 +47,6 @@ begin
 end
 $function$;
 
--- Patch the existing case-opening RPC without replacing the embedded card catalogue.
 do $patch_open_case$
 declare
   f text;
@@ -67,7 +65,6 @@ begin
     'already_owned boolean; refund int; dr jsonb;',
     'already_owned boolean; refund int; dr jsonb; prestige int; discount int; dupe_bonus int;'
   );
-
   f := replace(
     f,
     'cost := coalesce((d->''payouts''->>''caseCost'')::int, 300);',
@@ -77,7 +74,6 @@ begin
   dupe_bonus := case when prestige>=10 then 25 when prestige>=7 then 20 when prestige>=4 then 10 else 0 end;
   cost := greatest(1,floor(cost::numeric*(100-discount)/100)::int);'
   );
-
   f := replace(
     f,
     'refund := floor(cost * coalesce((dr->>rarity)::numeric, 0) / 100);',
@@ -94,12 +90,10 @@ begin
 end
 $patch_open_case$;
 
--- Patch the player action RPC with weekly prestige bonuses and server-validated Brain Gym claims.
-do $patch_player_action$
+do $patch_weekly$
 declare
   f text;
   original text;
-  brain_branch text;
 begin
   select pg_get_functiondef(p.oid) into f
   from pg_proc p join pg_namespace n on n.oid=p.pronamespace
@@ -116,88 +110,128 @@ begin
     wi := floor((g->>''reward'')::numeric * (100 + case when s2>=10 then 25 when s2>=7 then 20 when s2>=5 then 15 when s2>=3 then 10 else 0 end) / 100)::int;'
   );
 
-  brain_branch := $brain$
-elsif t = 'brainClaim' then
-    bid := to_char(now() at time zone 'Europe/London','YYYY-MM-DD');
-    if p_action->>'day' <> bid then raise exception 'That daily puzzle has rolled over. Refresh Brain Gym.'; end if;
-    kind := p_action->>'type';
-    if kind not in ('sudoku','crossword','teaser') then raise exception 'Unknown Brain Gym puzzle.'; end if;
-
-    d := jsonb_set(d,'{brainClaims}',coalesce(d->'brainClaims','[]'::jsonb),true);
-    if exists (
-      select 1 from jsonb_array_elements(d->'brainClaims') x
-      where x->>'player'=p_name and x->>'day'=bid and x->>'type'=kind
-    ) then raise exception 'Already claimed today.'; end if;
-
-    opp := lower(regexp_replace(coalesce(p_action->>'answer',''),'[^a-zA-Z0-9|]','','g'));
-    s2 := (bid::date - date '1970-01-01');
-
-    if kind='sudoku' then
-      s1 := 300;
-      if opp <> translate(
-        '534678912672195348198342567859761423426853791713924856961537284287419635345286179',
-        '123456789',
-        substring('123456789123456789' from ((s2 % 9)+9)%9 + 1 for 9)
-      ) then raise exception 'Not quite. Keep thinking.'; end if;
-    elsif kind='crossword' then
-      s1 := 250;
-      opp := replace(opp,' ','');
-      if opp <> case ((s2 % 4)+4)%4
-        when 0 then 'ball|area|lead|lady'
-        when 1 then 'limb|idea|meal|ball'
-        when 2 then 'salt|area|lean|tank'
-        else 'care|area|rear|earl'
-      end then raise exception 'Not quite. Keep thinking.'; end if;
-    else
-      s1 := 150;
-      if not (
-        (((s2 % 7)+7)%7=0 and opp='towel') or
-        (((s2 % 7)+7)%7=1 and opp='stamp') or
-        (((s2 % 7)+7)%7=2 and opp='map') or
-        (((s2 % 7)+7)%7=3 and opp='bottle') or
-        (((s2 % 7)+7)%7=4 and opp in ('m','letterm')) or
-        (((s2 % 7)+7)%7=5 and opp='keyboard') or
-        (((s2 % 7)+7)%7=6 and opp='echo')
-      ) then raise exception 'Not quite. Keep thinking.'; end if;
-    end if;
-
-    d := jsonb_set(d,'{brainClaims}',(d->'brainClaims') || jsonb_build_array(jsonb_build_object(
-      'player',p_name,'day',bid,'type',kind,'xp',s1,'at',(extract(epoch from now())*1000)::bigint
-    )),true);
-
-    if (
-      select count(distinct x->>'type')
-      from jsonb_array_elements(d->'brainClaims') x
-      where x->>'player'=p_name and x->>'day'=bid and x->>'type' in ('sudoku','crossword','teaser')
-    ) = 3 and not exists (
-      select 1 from jsonb_array_elements(d->'brainClaims') x
-      where x->>'player'=p_name and x->>'day'=bid and x->>'type'='daily'
-    ) then
-      d := jsonb_set(d,'{brainClaims}',(d->'brainClaims') || jsonb_build_array(jsonb_build_object(
-        'player',p_name,'day',bid,'type','daily','xp',200,'at',(extract(epoch from now())*1000)::bigint
-      )),true);
-      d := jsonb_set(d,'{log}',(d->'log') || to_jsonb(format('%s cleared the full Brain Gym for %s (+200 XP bonus)',p_name,bid)));
-    end if;
-
-    d := jsonb_set(d,'{log}',(d->'log') || to_jsonb(format('%s completed %s in Brain Gym (+%s XP)',p_name,kind,s1)));
-
-  $brain$;
-
-  if position('elsif t = ''prestige'' then' in f)=0 then raise exception 'prestige branch not found'; end if;
-  f := replace(f, 'elsif t = ''prestige'' then', brain_branch || 'elsif t = ''prestige'' then');
-
-  if f = original
-     or position('brainClaim' in f)=0
-     or position('weekly challenge' in f)=0
-     or position('case when s2>=10 then 25' in f)=0 then
-    raise exception 'book_player_action 1.8.10 patch incomplete';
+  if f = original or position('case when s2>=10 then 25' in f)=0 then
+    raise exception 'weekly prestige patch incomplete';
   end if;
 
   execute f;
 end
-$patch_player_action$;
+$patch_weekly$;
 
--- Keep the state shape explicit for clients loading old data.
+create or replace function public.book_brain_claim(
+  p_name text,
+  p_pin text,
+  p_type text,
+  p_day text,
+  p_answer text
+)
+returns integer
+language plpgsql
+security definer
+set search_path = public, extensions
+as $function$
+declare
+  d jsonb;
+  v int;
+  day_key text;
+  answer_norm text;
+  day_no int;
+  xp_award int;
+  expected text;
+  full_count int;
+begin
+  if public.book_check(p_name,p_pin) is null then raise exception 'Wrong name or PIN'; end if;
+
+  select data,version into d,v
+  from public.book
+  where id=1
+  for update;
+
+  day_key := to_char(now() at time zone 'Europe/London','YYYY-MM-DD');
+  if p_day is distinct from day_key then
+    raise exception 'That daily puzzle has rolled over. Refresh Brain Gym.';
+  end if;
+  if p_type not in ('sudoku','crossword','teaser') then
+    raise exception 'Unknown Brain Gym puzzle.';
+  end if;
+
+  d := jsonb_set(d,'{brainClaims}',coalesce(d->'brainClaims','[]'::jsonb),true);
+  if exists (
+    select 1
+    from jsonb_array_elements(d->'brainClaims') x
+    where x->>'player'=p_name and x->>'day'=day_key and x->>'type'=p_type
+  ) then
+    raise exception 'Already claimed today.';
+  end if;
+
+  answer_norm := lower(regexp_replace(coalesce(p_answer,''),'[^a-zA-Z0-9|]','','g'));
+  day_no := day_key::date - date '1970-01-01';
+
+  if p_type='sudoku' then
+    xp_award := 300;
+    expected := translate(
+      '534678912672195348198342567859761423426853791713924856961537284287419635345286179',
+      '123456789',
+      substring('123456789123456789' from (((day_no % 9)+9)%9)+1 for 9)
+    );
+    if answer_norm <> expected then raise exception 'Not quite. Keep thinking.'; end if;
+
+  elsif p_type='crossword' then
+    xp_award := 250;
+    expected := case (((day_no % 4)+4)%4)
+      when 0 then 'ball|area|lead|lady'
+      when 1 then 'limb|idea|meal|ball'
+      when 2 then 'salt|area|lean|tank'
+      else 'care|area|rear|earl'
+    end;
+    if answer_norm <> expected then raise exception 'Not quite. Keep thinking.'; end if;
+
+  else
+    xp_award := 150;
+    expected := case (((day_no % 7)+7)%7)
+      when 0 then 'towel'
+      when 1 then 'stamp'
+      when 2 then 'map'
+      when 3 then 'bottle'
+      when 4 then 'm'
+      when 5 then 'keyboard'
+      else 'echo'
+    end;
+    if (((day_no % 7)+7)%7)=4 then
+      if answer_norm not in ('m','letterm') then raise exception 'Not quite. Keep thinking.'; end if;
+    elsif answer_norm <> expected then
+      raise exception 'Not quite. Keep thinking.';
+    end if;
+  end if;
+
+  d := jsonb_set(d,'{brainClaims}',(d->'brainClaims') || jsonb_build_array(jsonb_build_object(
+    'player',p_name,'day',day_key,'type',p_type,'xp',xp_award,'at',(extract(epoch from now())*1000)::bigint
+  )),true);
+
+  select count(distinct x->>'type')::int into full_count
+  from jsonb_array_elements(d->'brainClaims') x
+  where x->>'player'=p_name and x->>'day'=day_key and x->>'type' in ('sudoku','crossword','teaser');
+
+  if full_count=3 and not exists (
+    select 1 from jsonb_array_elements(d->'brainClaims') x
+    where x->>'player'=p_name and x->>'day'=day_key and x->>'type'='daily'
+  ) then
+    d := jsonb_set(d,'{brainClaims}',(d->'brainClaims') || jsonb_build_array(jsonb_build_object(
+      'player',p_name,'day',day_key,'type','daily','xp',200,'at',(extract(epoch from now())*1000)::bigint
+    )),true);
+    d := jsonb_set(d,'{log}',coalesce(d->'log','[]'::jsonb) || to_jsonb(format('%s cleared the full Brain Gym for %s (+200 XP bonus)',p_name,day_key)),true);
+  end if;
+
+  d := jsonb_set(d,'{log}',coalesce(d->'log','[]'::jsonb) || to_jsonb(format('%s completed %s in Brain Gym (+%s XP)',p_name,p_type,xp_award)),true);
+
+  update public.book
+  set data=d,version=v+1,updated_at=now()
+  where id=1;
+
+  return v+1;
+end
+$function$;
+
 update public.book
 set data = jsonb_set(data,'{brainClaims}',coalesce(data->'brainClaims','[]'::jsonb),true),
     updated_at = now()
