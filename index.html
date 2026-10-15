@@ -781,13 +781,12 @@ const api = CLOUD ? {
     if (error) throw error;
     return data;
   },
-  subscribe(fn) {
-    const ch = sb.channel('book').on('postgres_changes', {
-      event: 'UPDATE',
-      schema: 'public',
-      table: 'book_pulse'
-    }, () => fn()).subscribe();
-    return () => sb.removeChannel(ch);
+  subscribe() {
+    // Global Book state intentionally does not use Realtime.
+    // Player actions refresh the actor immediately; other clients use the
+    // lightweight version poll below, avoiding one full-state download per
+    // connected browser for every Book mutation.
+    return () => {};
   },
   async loadMessages(limit) {
     const {
@@ -10079,7 +10078,7 @@ function App() {
       if (document.hidden) return;
       try { const v = await api.loadVersion(); if (v !== versionRef.current) await refresh(); } catch (e) {}
     };
-    const iv = setInterval(tick, 60000);
+    const iv = setInterval(tick, 30000);
     const vis = () => { if (!document.hidden) tick(); };
     document.addEventListener('visibilitychange', vis);
     api.getServerVersion().then(setDbVersion);
