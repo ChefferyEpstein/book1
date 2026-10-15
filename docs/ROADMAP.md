@@ -97,15 +97,15 @@ The scheduler should use the existing Book1 player identities and make it obviou
 
 ---
 
-## Planned — Bokemongs
+## Planned — Bokémongs
 
-A Book1-native collectible creature system: **Bokemongs**. The goal is to make progression, minigames and weekly activity feed into a persistent collection without turning Book1 into a full monster-battler project.
+A Book1-native collectible creature system: **Bokémongs**. The goal is to make progression, minigames and weekly activity feed into a persistent collection without turning Book1 into a full monster-battler project.
 
 ### Core concept
 
 Players collect original Book1 creatures inspired by the office, pool league, casino, minigames, prestige system and existing Book1 lore.
 
-Bokemongs should be earned primarily through actually using Book1:
+Bokémongs should be earned primarily through actually using Book1:
 
 - weekly challenges
 - pool and minigame milestones
@@ -114,9 +114,9 @@ Bokemongs should be earned primarily through actually using Book1:
 - eggs / mystery rewards
 - limited seasonal drops
 
-### Bokemong identity
+### Bokémong identity
 
-Each Bokemong can have:
+Each Bokémong can have:
 
 - name
 - original artwork / sprite
@@ -146,7 +146,7 @@ Possible Book1-specific types include:
 
 ### Activity-driven progression
 
-Existing Book1 activity should contribute to Bokemong progression rather than creating a separate grind.
+Existing Book1 activity should contribute to Bokémong progression rather than creating a separate grind.
 
 Examples:
 
@@ -154,13 +154,13 @@ Examples:
 - Chess → intelligence / strategy XP
 - Connect 4 → strategy XP
 - Battleships → tactics XP
-- weekly challenges → general Bokemong XP
+- weekly challenges → general Bokémong XP
 - prestige milestones → rare unlocks / evolutions
 - special achievements → unusual evolution conditions
 
 ### Collection
 
-Add a **Bokemongs collection / dex** showing:
+Add a **Bokémongs collection / dex** showing:
 
 - owned creatures
 - undiscovered silhouettes
@@ -174,7 +174,7 @@ Add a **Bokemongs collection / dex** showing:
 
 Keep V1 deliberately simple:
 
-- 3 Bokemongs per team
+- 3 Bokémongs per team
 - turn-based PvP
 - clear type strengths / weaknesses
 - 3–4 moves per creature
@@ -186,7 +186,7 @@ Do **not** attempt a huge competitive battle simulator in the first release.
 
 ### Evolution
 
-Bokemongs can evolve through Book1-specific conditions rather than only raw level.
+Bokémongs can evolve through Book1-specific conditions rather than only raw level.
 
 Examples:
 
@@ -200,7 +200,7 @@ Examples:
 
 ### Starter flow
 
-When Bokemongs launches, each player chooses **one of three starters**.
+When Bokémongs launches, each player chooses **one of three starters**.
 
 The starters should be original Book1 creatures with distinct roles and deliberately inappropriate personalities. Starter choice is permanent unless an admin recovery is needed.
 
@@ -222,7 +222,7 @@ Creature names, artwork, moves and flavour text should lean heavily into Book1's
 
 Target an initial release with roughly:
 
-- 20 original Bokemongs
+- 20 original Bokémongs
 - 3 starters
 - collection / dex
 - XP and levelling
@@ -238,7 +238,7 @@ Potential follow-ons:
 
 - trading
 - ranked weekly league
-- seasonal Bokemongs
+- seasonal Bokémongs
 - eggs / incubation
 - items
 - breeding or fusion-style systems
@@ -249,11 +249,11 @@ Potential follow-ons:
 - cosmetics
 - deeper battle formats
 
-Trading and any chip economy around Bokemongs must include duplication, farming and transfer-abuse protections before release.
+Trading and any chip economy around Bokémongs must include duplication, farming and transfer-abuse protections before release.
 
 ### Design principle
 
-Bokemongs should feel like **a ridiculous collectible ecosystem growing out of Book1**, not a separate game bolted onto it.
+Bokémongs should feel like **a ridiculous collectible ecosystem growing out of Book1**, not a separate game bolted onto it.
 
 Every major Book1 activity should eventually have at least one creature, unlock, evolution, move or reward associated with it.
 
