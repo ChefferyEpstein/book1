@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Book1.9.0</title>
+<title>Book1.9.1</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -504,7 +504,7 @@ const {
 } = React;
 const STORE_KEY = 'book1.2-local';
 const CFG = window.BOOK_CONFIG || {};
-const APP_SQL_VERSION = 35; // bump this whenever a new SQL script adds or changes a server function
+const APP_SQL_VERSION = 36; // bump this whenever a new SQL script adds or changes a server function
 const CLOUD = !!(CFG.url && CFG.key);
 const ADMINS = ['Chef', 'Lorcan'];
 const DECREES = ['Abstention is not permitted.', 'The Book sees all results.', 'Ball difference is destiny.', 'The Dictator collects. The Dictator distributes.', 'Report your score. Report it honestly.', 'Twelfth place is a service to the office.', 'The mong off is not optional.', 'Disputes are settled by the regime.'];
@@ -867,6 +867,15 @@ const api = CLOUD ? {
     if (error) throw error;
     return data;
   },
+  async bokemongAction(cred, action) {
+    const { data, error } = await sb.rpc('book_bokemong_action', {
+      p_name: cred.name,
+      p_pin: cred.pin,
+      p_action: action
+    });
+    if (error) throw error;
+    return data;
+  },
   async getServerVersion() {
     try {
       const {
@@ -931,7 +940,7 @@ const api = CLOUD ? {
   },
   async gameDetail(kind, id) {
     const st = loadStore();
-    const list = kind === 'connect4' ? st.connect4 : kind === 'chess' ? st.chess : kind === 'battleships' ? st.battleships : [];
+    const list = kind === 'connect4' ? st.connect4 : kind === 'chess' ? st.chess : kind === 'battleships' ? st.battleships : kind === 'bokemong' ? ((st.bokemongs&&st.bokemongs.battles)||[]) : [];
     return (list || []).find(g => g.id === id) || null;
   },
   async myBets(cred, limit) {
@@ -1042,6 +1051,9 @@ const api = CLOUD ? {
     const st = reduce(loadStore(), { ...action, by: cred.name });
     saveStore(st);
     return 1;
+  },
+  async bokemongAction() {
+    throw new Error('Turn-based Bokémong battles need the shared Book database.');
   },
   async getServerVersion() {
     return APP_SQL_VERSION;
@@ -6938,25 +6950,94 @@ const BOKEMONGS=[
 ];
 function bokById(id){return BOKEMONGS.find(x=>x.id===id);}
 function bokXp(store,p){return rawPlayerXp(store,p);}
+const BOKEMONG_MOVE_SETS={
+  Machine:[['Servo Smack','Reliable metal-on-bone damage.'],['Overclock','Harder hit with a small miss chance.'],['Firewall','Guard against the next attack.'],['Critical Error','Huge damage. Dubious reliability.']],
+  Finance:[['Invoice Bite','A basic charge nobody remembers approving.'],['Compound Interest','Type attack that gets expensive quickly.'],['Hedge Position','Guard against the next attack.'],['Audit Bomb','High-risk financial devastation.']],
+  Regime:[['Decree Slap','The decision has already been made.'],['Red Stamp','Type attack. Appeal not permitted.'],['Party Line','Guard against the next attack.'],['Purge','High-risk administrative violence.']],
+  Pool:[['Chalk Jab','Quick and dependable.'],['Bank Shot','Type attack off three cushions.'],['Safety Play','Guard against the next attack.'],['Golden Break','High-risk table-clearing violence.']],
+  Office:[['Teams Ping','Annoying, immediate damage.'],['Reply All','Type attack affecting morale.'],['Out of Office','Guard against the next attack.'],['Performance Review','High-risk career damage.']],
+  Arcade:[['Button Mash','Primitive but effective.'],['Combo Chain','Type attack. Do not drop it.'],['Pause Buffer','Guard against the next attack.'],['Final Boss','High-risk cabinet rattler.']],
+  Strategy:[['Pawn Prod','Small positional violence.'],['Fork','Type attack with two problems at once.'],['Castle Up','Guard against the next attack.'],['Mate Threat','High-risk calculated strike.']],
+  Abomination:[['Wet Slap','Nobody asked for this.'],['Mong Energy','Type attack powered by pure wrongness.'],['Feral Guard','Guard against the next attack.'],['Absolute State','High-risk biological incident.']],
+  Pub:[['Barstool Bash','Pub-standard blunt force.'],['Last Orders','Type attack. No extensions.'],['Round In','Guard against the next attack.'],['Closing Time','High-risk final bell.']],
+  Rave:[['Bass Kick','Four-to-the-floor damage.'],['Strobe Lock','Type attack. Vision optional.'],['Hydrate','Guard against the next attack.'],['The Drop','High-risk soundsystem event.']],
+  Food:[['Pan Slap','Straight from the pass.'],['Seasoning','Type attack. Correctly applied.'],['Mise en Place','Guard against the next attack.'],['SERVICE!','High-risk kitchen eruption.']]
+};
+function bokMoves(id){
+  const x=bokById(id), set=BOKEMONG_MOVE_SETS[(x&&x.type)||'Machine']||BOKEMONG_MOVE_SETS.Machine;
+  return set.map((m,i)=>({slot:i+1,name:m[0],desc:m[1],power:i===0?18:i===1?26:i===2?0:38,accuracy:i===0?100:i===1?92:i===2?100:72,guard:i===2}));
+}
+function BokHp({mon}){
+  const h=React.createElement,pct=mon&&mon.maxHp?Math.max(0,Math.round(mon.hp/mon.maxHp*100)):0;
+  return h('div',null,h('div',{className:'row spread small'},h('b',null,bokById(mon.id)?.name||mon.id),h('span',null,Math.max(0,mon.hp),' / ',mon.maxHp,' HP')),
+    h('div',{style:{height:12,background:'rgba(255,255,255,.08)',border:'1px solid var(--smoke)',overflow:'hidden'}},h('div',{style:{height:'100%',width:pct+'%',background:pct>50?'var(--ok)':pct>20?'var(--brass)':'var(--blood)',transition:'width .25s ease'}})));
+}
 function BokémongsPage({store,me,dispatch}){
   const h=React.createElement,b=(store.bokemongs||{players:{},battles:[]}),mine=(b.players||{})[me],xp=bokXp(store,me),level=Math.min(50,1+Math.floor(Math.sqrt(xp/400)));
-  const starters=BOKEMONGS.filter(x=>x.rarity==='starter');
-  const ownedIds=mine?(mine.owned||[]).map(x=>typeof x==='string'?x:x.id):[];
+  const starters=BOKEMONGS.filter(x=>x.rarity==='starter'),ownedIds=mine?(mine.owned||[]).map(x=>typeof x==='string'?x:x.id):[];
   const opponents=store.players.filter(p=>p.active&&p.name!==me&&(b.players||{})[p.name]).map(p=>p.name);
-  const [opp,setOpp]=useState(opponents[0]||'');
+  const [opp,setOpp]=useState(opponents[0]||''),[detail,setDetail]=useState(null),[busy,setBusy]=useState(false);
   useEffect(()=>{if(opponents.length&&!opponents.includes(opp))setOpp(opponents[0]);},[opponents.join('|')]);
-  const battles=[...(b.battles||[])].filter(x=>x.a===me||x.b===me).reverse().slice(0,12);
-  return h('div',null,
-    h('div',{className:'page-title'},h('h1',null,'Bokémongs'),h('span',{className:'sub'},'Catch workplace abominations. Make them fight.')),
-    !mine?h('div',{className:'panel'},h('h2',null,'Choose your starter'),h('p',{className:'small muted'},'You also receive Cue Goblin and Desk Rat so you can field a 3-mong team immediately.'),h('div',{className:'grid g3'},starters.map(x=>h('div',{key:x.id,className:'warnbox'},h('div',{className:'display',style:{fontSize:28}},x.name),h('p',null,x.type,' · Power ',x.power),h('p',{className:'small muted'},x.flavour),h('button',{className:'btn',onClick:()=>dispatch({t:'bokemongStarter',starter:x.id,by:me})},'Choose ',x.name))))):
-    h(React.Fragment,null,
+  const mineBattles=[...(b.battles||[])].filter(x=>x.a===me||x.b===me);
+  const liveBase=mineBattles.slice().reverse().find(x=>x.status==='pending'||x.status==='playing')||null;
+  const live=detail&&liveBase&&detail.id===liveBase.id?detail:liveBase;
+  const history=mineBattles.filter(x=>!x.status||['done','declined'].includes(x.status)).reverse().slice(0,12);
+  useEffect(()=>{
+    if(!liveBase||liveBase.status!=='playing'){setDetail(null);return()=>{};}
+    let stop=false,timer=null,loading=false,queued=false;
+    const pull=async()=>{if(stop)return;if(loading){queued=true;return;}loading=true;try{const g=await api.gameDetail('bokemong',liveBase.id);if(!stop&&g)setDetail(g);}catch(e){}loading=false;if(queued&&!stop){queued=false;pull();}};
+    pull();
+    const off=api.subscribeChess(()=>{clearTimeout(timer);timer=setTimeout(pull,80);},'bokemong-live-'+liveBase.id);
+    return()=>{stop=true;clearTimeout(timer);off();};
+  },[liveBase&&liveBase.id,liveBase&&liveBase.status]);
+  const act=async a=>{if(busy)return;setBusy(true);try{await dispatch(a);}finally{setBusy(false);}};
+  if(!mine)return h('div',null,h('div',{className:'page-title'},h('h1',null,'Bokémongs'),h('span',{className:'sub'},'Choose your first workplace abomination.')),
+    h('div',{className:'panel'},h('h2',null,'Choose your starter'),h('p',{className:'small muted'},'You also receive Cue Goblin and Desk Rat so you can field a 3-mong team immediately.'),
+      h('div',{className:'grid g3'},starters.map(x=>h('div',{key:x.id,className:'warnbox'},h('div',{className:'display',style:{fontSize:28}},x.name),h('p',null,x.type,' · Power ',x.power),h('p',{className:'small muted'},x.flavour),h('button',{className:'btn',onClick:()=>dispatch({t:'bokemongStarter',starter:x.id,by:me})},'Choose ',x.name))))));
+
+  if(live&&live.status==='pending'){
+    const incoming=live.b===me,other=incoming?live.a:live.b;
+    return h('div',null,
+      h('div',{className:'page-title'},h('h1',null,'Bokémong battle'),h('span',{className:'sub'},incoming?'Challenge received':'Challenge sent')),
+      h('div',{className:'panel'},h('div',{className:'display',style:{fontSize:38}},me,' v ',other),
+        incoming?h('div',null,h('p',null,other,' has challenged your three Bokémongs.'),h('button',{className:'btn',disabled:busy,onClick:()=>act({t:'bokemongAccept',id:live.id})},busy?'Opening battle…':'Accept battle'),h('button',{className:'btn ghost',style:{marginLeft:8},disabled:busy,onClick:()=>act({t:'bokemongDecline',id:live.id})},'Decline'))
+        :h('p',{className:'muted'},'Waiting for ',other,' to accept.'))
+    );
+  }
+
+  if(live&&live.status==='playing'&&live.teams){
+    const mySide=live.a===me?'a':'b',theirSide=mySide==='a'?'b':'a',myTeam=live.teams[mySide]||[],theirTeam=live.teams[theirSide]||[];
+    const myIdx=+(live[mySide==='a'?'activeA':'activeB']||0),theirIdx=+(live[theirSide==='a'?'activeA':'activeB']||0),myMon=myTeam[myIdx],theirMon=theirTeam[theirIdx];
+    const myTurn=live.turn===me,moves=myMon?bokMoves(myMon.id):[];
+    return h('div',null,
+      h('div',{className:'page-title'},h('h1',null,'Bokémong battle'),h('span',{className:'sub'},live.a,' v ',live.b)),
       h('div',{className:'grid g2'},
-        h('div',{className:'panel'},h('h2',null,'Your team'),h('div',{className:'display',style:{fontSize:34}},'Bond Level ',level),h('p',{className:'small muted'},xp.toLocaleString(),' activity XP from pool, minigames and challenges.'),(mine.team||[]).map(id=>{const x=bokById(id);return x&&h('div',{key:id,className:'row spread',style:{padding:'7px 0',borderBottom:'1px solid var(--smoke)'}},h('b',null,x.name),h('span',{className:'small muted'},x.type,' · ',x.power,' base'));})),
-        h('div',{className:'panel'},h('h2',null,'Battle'),opponents.length?h('div',null,h('select',{value:opp,onChange:e=>setOpp(e.target.value)},opponents.map(n=>h('option',{key:n,value:n},n))),h('button',{className:'btn',style:{marginLeft:8},onClick:()=>dispatch({t:'bokemongBattle',opponent:opp,by:me})},'3v3 battle'),h('p',{className:'small muted'},'Server resolves the current 3-mong teams from base power + Book1 activity level.')):h('p',{className:'muted'},'Nobody else has picked a starter yet.'))
+        h('div',{className:'panel'},h('div',{className:'small muted'},theirSide==='a'?live.a:live.b),theirMon&&h(BokHp,{mon:theirMon}),h('div',{className:'display',style:{fontSize:44,textAlign:'center',padding:'28px 0'}},bokById(theirMon&&theirMon.id)?.name||'Fainted'),
+          h('div',{className:'row',style:{justifyContent:'center'}},theirTeam.map((m,i)=>h('span',{key:i,className:'chip'+(i===theirIdx?' on':'')},m.hp>0?'●':'×')))),
+        h('div',{className:'panel'},h('div',{className:'small muted'},me),myMon&&h(BokHp,{mon:myMon}),h('div',{className:'display',style:{fontSize:44,textAlign:'center',padding:'28px 0'}},bokById(myMon&&myMon.id)?.name||'Fainted'),
+          h('div',{className:'row',style:{justifyContent:'center'}},myTeam.map((m,i)=>h('span',{key:i,className:'chip'+(i===myIdx?' on':'')},m.hp>0?'●':'×'))))
       ),
-      h('div',{className:'panel',style:{marginTop:18}},h('h2',null,'Bokedex · ',ownedIds.length,' / ',BOKEMONGS.length),h('div',{className:'grid g3'},BOKEMONGS.map(x=>h('div',{key:x.id,className:ownedIds.includes(x.id)?'okbox':'panel',style:{opacity:ownedIds.includes(x.id)?1:.45}},h('b',null,ownedIds.includes(x.id)?x.name:'???'),h('div',{className:'small muted'},x.type,' · ',x.rarity),ownedIds.includes(x.id)&&h('p',{className:'small'},x.flavour))))),
-      battles.length>0&&h('div',{className:'panel',style:{marginTop:18}},h('h2',null,'Battle history'),battles.map(x=>h('div',{key:x.id,className:'row spread small',style:{padding:'6px 0',borderBottom:'1px solid var(--smoke)'}},h('span',null,x.a,' v ',x.b),h('span',{className:x.winner===me?'stamp ok':'stamp bad'},x.winner===me?'WIN':'LOSS'))))
-    )
+      h('div',{className:'panel',style:{marginTop:18}},
+        h('div',{className:'row spread'},h('h2',null,myTurn?'Your move':'Waiting for '+live.turn),h('span',{className:myTurn?'stamp ok':'stamp warn'},myTurn?'YOUR TURN':'THEIR TURN')),
+        h('div',{className:'grid g2'},moves.map(m=>h('button',{key:m.slot,className:'btn'+(m.guard?' ghost':''),disabled:!myTurn||busy||!myMon,onClick:()=>act({t:'bokemongMove',id:live.id,move:m.slot})},
+          h('b',null,m.name),h('span',{className:'small',style:{display:'block'}},m.guard?'Guard':('Power '+m.power+' · '+m.accuracy+'%')),h('span',{className:'small muted',style:{display:'block'}},m.desc)
+        ))),
+        h(ConfirmButton,{className:'btn sm ghost',style:{marginTop:12},confirmText:'Forfeit this battle? Click again',onConfirm:()=>act({t:'bokemongForfeit',id:live.id})},'Forfeit')
+      ),
+      h('div',{className:'panel',style:{marginTop:18}},h('h2',null,'Battle log'),(live.log||[]).slice().reverse().map((line,i)=>h('p',{key:i,className:'small',style:{margin:'5px 0'}},line)))
+    );
+  }
+
+  const latest=history[0];
+  return h('div',null,
+    h('div',{className:'page-title'},h('h1',null,'Bokémongs'),h('span',{className:'sub'},'3v3 turn-based workplace warfare.')),
+    latest&&latest.winner&&h('div',{className:latest.winner===me?'okbox':'warnbox',style:{marginBottom:18}},h('div',{className:'row spread'},h('b',null,latest.winner===me?'Last battle: victory':'Last battle: defeat'),h('span',null,latest.winner,' won'))),
+    h('div',{className:'grid g2'},
+      h('div',{className:'panel'},h('h2',null,'Your team'),h('div',{className:'display',style:{fontSize:34}},'Bond Level ',level),h('p',{className:'small muted'},xp.toLocaleString(),' activity XP.'),(mine.team||[]).map(id=>{const x=bokById(id);return x&&h('div',{key:id,className:'row spread',style:{padding:'7px 0',borderBottom:'1px solid var(--smoke)'}},h('b',null,x.name),h('span',{className:'small muted'},x.type,' · ',x.power,' base'));})),
+      h('div',{className:'panel'},h('h2',null,'Challenge'),opponents.length?h('div',null,h('select',{value:opp,onChange:e=>setOpp(e.target.value),disabled:busy},opponents.map(n=>h('option',{key:n,value:n},n))),h('button',{className:'btn',style:{marginLeft:8},disabled:busy||!opp,onClick:()=>act({t:'bokemongChallenge',opponent:opp})},busy?'Sending…':'Challenge to 3v3'),h('p',{className:'small muted'},'They accept, then you alternate moves until all three Bokémongs on one side faint.')):h('p',{className:'muted'},'Nobody else has picked a starter yet.'))
+    ),
+    h('div',{className:'panel',style:{marginTop:18}},h('h2',null,'Bokedex · ',ownedIds.length,' / ',BOKEMONGS.length),h('div',{className:'grid g3'},BOKEMONGS.map(x=>h('div',{key:x.id,className:ownedIds.includes(x.id)?'okbox':'panel',style:{opacity:ownedIds.includes(x.id)?1:.45}},h('b',null,ownedIds.includes(x.id)?x.name:'???'),h('div',{className:'small muted'},x.type,' · ',x.rarity),ownedIds.includes(x.id)&&h('p',{className:'small'},x.flavour))))),
+    history.length>0&&h('div',{className:'panel',style:{marginTop:18}},h('h2',null,'Battle history'),history.map(x=>h('div',{key:x.id,className:'row spread small',style:{padding:'6px 0',borderBottom:'1px solid var(--smoke)'}},h('span',null,x.a,' v ',x.b),h('span',{className:x.winner===me?'stamp ok':'stamp bad'},x.winner?((x.winner===me?'WIN':'LOSS')+' · '+x.winner):x.status||'complete'))))
   );
 }
 
@@ -10334,7 +10415,7 @@ function Login({
     style: {
       fontSize: 96
     }
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.9.0")), /*#__PURE__*/React.createElement("p", {
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.9.1")), /*#__PURE__*/React.createElement("p", {
     className: "muted"
   }, "Twelve players. Six games. One office. Report to the table."), /*#__PURE__*/React.createElement("div", {
     className: "pinbox"
@@ -10455,7 +10536,7 @@ function App() {
     const off = api.subscribeChat(check, 'chat-badge');
     return () => { alive = false; clearInterval(iv); off(); };
   }, [me, tab]);
-  useEffect(() => { document.title = (chatUnread + hogPending + bsPending + c4Pending + chessPending > 0 ? '(' + (chatUnread + hogPending + bsPending + c4Pending + chessPending) + ') ' : '') + 'Book1.9.0'; }, [chatUnread, hogPending, bsPending, c4Pending, chessPending]);
+  useEffect(() => { document.title = (chatUnread + hogPending + bsPending + c4Pending + chessPending > 0 ? '(' + (chatUnread + hogPending + bsPending + c4Pending + chessPending) + ') ' : '') + 'Book1.9.1'; }, [chatUnread, hogPending, bsPending, c4Pending, chessPending]);
   const cloudEmpty = !!(store && !store.weeks);
   const persistCred = c => {
     setCred(c);
@@ -10467,12 +10548,20 @@ function App() {
   const dispatch = async a => {
     if (!store) return;
     const playerActionTypes = ['submit', 'rollcall', 'profile', 'recall', 'casino', 'tourneyVote', 'ping', 'predict', 'equipCard', 'unlock', 'placeBet', 'placeAcca', 'placeScoreBet', 'startMatch', 'claimWeekly', 'prestige', 'fantasyPick', 'bountyPost', 'bountyCancel', 'requestChips', 'cashOutBet', 'c4Create', 'c4Accept', 'c4Decline', 'c4Cancel', 'c4Drop', 'c4Forfeit', 'bsCreate', 'bsDecline', 'bsPlaceShips', 'bsFire', 'bsForfeit', 'sellCard'];
-    const feature19Types = ['milestoneClaim','eventCreate','eventRsvp','eventVote','eventConfirm','eventCancel','bokemongStarter','bokemongBattle'];
+    const feature19Types = ['milestoneClaim','eventCreate','eventRsvp','eventVote','eventConfirm','eventCancel','bokemongStarter'];
+    const bokemongActionTypes = ['bokemongChallenge','bokemongAccept','bokemongDecline','bokemongMove','bokemongForfeit'];
     // A player's own roll-call response belongs on the player RPC. Regime approval/denial
     // must stay on the admin-save path because the player RPC only acts as p_name and
     // deliberately does not accept the final admin-only "out" state.
     const adminRollcallAction = isAdmin && a.t === 'rollcall' && (a.v === 'out' || a.p && a.p !== me);
-    if (cred && feature19Types.includes(a.t)) {
+    if (cred && bokemongActionTypes.includes(a.t)) {
+      try {
+        await api.bokemongAction(cred, a);
+        await refresh();
+      } catch (e) {
+        toast((e.message || '').replace(/^.*?: /, ''));
+      }
+    } else if (cred && feature19Types.includes(a.t)) {
       try {
         await api.feature19Action(cred, a);
         await refresh();
@@ -10595,7 +10684,7 @@ function App() {
     style: {
       fontSize: 96
     }
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.9.0"));
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.9.1"));
   if (!store) return /*#__PURE__*/React.createElement("div", {
     className: "login"
   }, mark, /*#__PURE__*/React.createElement("p", {
@@ -10785,7 +10874,7 @@ function App() {
     className: "rail"
   }, /*#__PURE__*/React.createElement("div", {
     className: "wordmark"
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.9.0")), /*#__PURE__*/React.createElement("div", {
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.9.1")), /*#__PURE__*/React.createElement("div", {
     className: "decree"
   }, decree), /*#__PURE__*/React.createElement("div", {
     className: "nav"
