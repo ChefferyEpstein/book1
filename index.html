@@ -678,7 +678,7 @@ const api = CLOUD ? {
     const {
       data,
       error
-    } = await sb.from('book').select('data,version').eq('id', 1).single();
+    } = await sb.rpc('book_client_state');
     if (error) throw error;
     return data;
   },
@@ -10069,7 +10069,11 @@ function App() {
   useEffect(() => {
     refresh();
     let t = null;
-    const soon = () => { clearTimeout(t); t = setTimeout(refresh, 700); };
+    const soon = () => {
+      if (document.hidden) return;
+      clearTimeout(t);
+      t = setTimeout(refresh, 700);
+    };
     const off = api.subscribe(soon);
     const tick = async () => {
       if (document.hidden) return;
