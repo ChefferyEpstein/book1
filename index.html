@@ -6972,7 +6972,7 @@ function BokHp({mon}){
   return h('div',null,h('div',{className:'row spread small'},h('b',null,bokById(mon.id)?.name||mon.id),h('span',null,Math.max(0,mon.hp),' / ',mon.maxHp,' HP')),
     h('div',{style:{height:12,background:'rgba(255,255,255,.08)',border:'1px solid var(--smoke)',overflow:'hidden'}},h('div',{style:{height:'100%',width:pct+'%',background:pct>50?'var(--ok)':pct>20?'var(--brass)':'var(--blood)',transition:'width .25s ease'}})));
 }
-function BokémongsPage({store,me,dispatch}){
+function BokémongsPage({store,me,dispatch,sync}){
   const h=React.createElement,b=(store.bokemongs||{players:{},battles:[]}),mine=(b.players||{})[me],xp=bokXp(store,me),level=Math.min(50,1+Math.floor(Math.sqrt(xp/400)));
   const starters=BOKEMONGS.filter(x=>x.rarity==='starter'),ownedIds=mine?(mine.owned||[]).map(x=>typeof x==='string'?x:x.id):[];
   const opponents=store.players.filter(p=>p.active&&p.name!==me&&(b.players||{})[p.name]).map(p=>p.name);
@@ -6983,9 +6983,9 @@ function BokémongsPage({store,me,dispatch}){
   const live=detail&&liveBase&&detail.id===liveBase.id?detail:liveBase;
   const history=mineBattles.filter(x=>!x.status||['done','declined'].includes(x.status)).reverse().slice(0,12);
   useEffect(()=>{
-    if(!liveBase||liveBase.status!=='playing'){setDetail(null);return()=>{};}
+    if(!liveBase||!['pending','playing'].includes(liveBase.status)){setDetail(null);return()=>{};}
     let stop=false,timer=null,loading=false,queued=false;
-    const pull=async()=>{if(stop)return;if(loading){queued=true;return;}loading=true;try{const g=await api.gameDetail('bokemong',liveBase.id);if(!stop&&g)setDetail(g);}catch(e){}loading=false;if(queued&&!stop){queued=false;pull();}};
+    const pull=async()=>{if(stop)return;if(loading){queued=true;return;}loading=true;try{const g=await api.gameDetail('bokemong',liveBase.id);if(!stop&&g){setDetail(g);if(['done','declined'].includes(g.status)&&sync)sync();}}catch(e){}loading=false;if(queued&&!stop){queued=false;pull();}};
     pull();
     const off=api.subscribeChess(()=>{clearTimeout(timer);timer=setTimeout(pull,80);},'bokemong-live-'+liveBase.id);
     return()=>{stop=true;clearTimeout(timer);off();};
@@ -10758,7 +10758,8 @@ function App() {
   }) : /*#__PURE__*/React.createElement("div", { className: "panel" }, "Log in to see progression.") : tab === 'bokemongs' ? me ? /*#__PURE__*/React.createElement(BokémongsPage, {
     store: store,
     me: me,
-    dispatch: dispatch
+    dispatch: dispatch,
+    sync: refresh
   }) : /*#__PURE__*/React.createElement("div", { className: "panel" }, "Log in to see Bokémongs.") : tab === 'calendar' ? /*#__PURE__*/React.createElement(EventsPage, {
     store: store,
     me: me,
