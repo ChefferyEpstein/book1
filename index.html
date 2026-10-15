@@ -695,6 +695,15 @@ const api = CLOUD ? {
     if (error) throw error;
     return data;
   },
+  async myBets(cred, limit) {
+    const { data, error } = await sb.rpc('book_my_bets', {
+      p_name: cred.name,
+      p_pin: cred.pin,
+      p_limit: limit || 15
+    });
+    if (error) throw error;
+    return data || [];
+  },
   async bsMyShips(cred, gameId) {
     const {
       data,
@@ -904,6 +913,12 @@ const api = CLOUD ? {
     const st = loadStore();
     const list = kind === 'connect4' ? st.connect4 : kind === 'chess' ? st.chess : kind === 'battleships' ? st.battleships : [];
     return (list || []).find(g => g.id === id) || null;
+  },
+  async myBets(cred, limit) {
+    return [...(loadStore().bets || [])]
+      .filter(b => b.player === cred.name)
+      .sort((a,b) => (+b.placedAt || 0) - (+a.placedAt || 0))
+      .slice(0, limit || 15);
   },
   async bsMyShips(cred, gameId) {
     const st = loadStore();
@@ -3403,6 +3418,7 @@ function settleBounties(s,log) {
 function MatchBetting({
   store,
   me,
+  cred,
   dispatch,
   toast,
   balance
@@ -3411,12 +3427,25 @@ function MatchBetting({
   const accaCap = store.payouts.accaMaxBet || 2000;
   const [slip, setSlip] = useState([]);
   const [stake, setStake] = useState(Math.min(50, balance || 0));
+  const [betHistory, setBetHistory] = useState([]);
   const games = bettableGames(store).filter(g => g.p1 !== me && g.p2 !== me);
   const byId = {};
   games.forEach(g => {
     byId[g.id] = g;
   });
-  const mine = [...(store.bets || [])].filter(b => b.player === me).reverse();
+  const openMine = [...(store.bets || [])].filter(b => b.player === me);
+  const openKey = openMine.map(b => b.id + ':' + b.status).join('|');
+  useEffect(() => {
+    let stop = false;
+    if (!cred) return () => {};
+    api.myBets(cred, 15).then(rows => {
+      if (!stop) setBetHistory(rows || []);
+    }).catch(() => {});
+    return () => { stop = true; };
+  }, [me, openKey]);
+  const betMap = new Map();
+  [...openMine, ...betHistory].forEach(b => { if (b && b.id) betMap.set(b.id, b); });
+  const mine = [...betMap.values()].sort((a,b) => (+b.placedAt || 0) - (+a.placedAt || 0));
   const legs = slip.filter(l => byId[l.game]).map(l => {
     const g = byId[l.game];
     return {
@@ -3874,6 +3903,7 @@ function CasinoPageInner({
   }) : isBets ? /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(MatchBetting, {
     store: store,
     me: me,
+    cred: cred,
     dispatch: dispatch,
     toast: toast,
     balance: balance
