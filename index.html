@@ -6943,9 +6943,9 @@ const BOKEMONGS=[
   {id:'hr-parasite',name:'HR Parasite',type:'Office',rarity:'rare',power:69,flavour:'Signature move: Mandatory Training.'},
   {id:'connectivore',name:'Connectivore',type:'Arcade',rarity:'rare',power:71,flavour:'Feeds exclusively on vertical threats.'},
   {id:'mong',name:'The Mong',type:'Abomination',rarity:'epic',power:79,flavour:'Nobody remembers catching it.'},
-  {id:'pub-lich',name:'Pub Lich',type:'Pub',rarity:'rare',power:68,flavour:'Last orders have no authority here.'},
+  {id:'pub-lich',name:'Pub Lich',type:'Degenerate',rarity:'rare',power:68,flavour:'Has called in sick from the pub more than once.'},
   {id:'bookie-rat',name:'Bookie Rat',type:'Degenerate',rarity:'common',power:46,flavour:'Knows the odds, owes three people money.'},
-  {id:'kitchen-ogre',name:'Kitchen Ogre',type:'Food',rarity:'rare',power:75,flavour:'Calls every other creature chef.'},
+  {id:'kitchen-ogre',name:'Kitchen Ogre',type:'Work',rarity:'rare',power:75,flavour:'Treats every task like service and every colleague like a commis.'},
   {id:'regime-hound',name:'Regime Hound',type:'Regime',rarity:'legendary',power:92,flavour:'The Book sees all. So does this thing.'}
 ];
 function bokById(id){return BOKEMONGS.find(x=>x.id===id);}
@@ -6959,9 +6959,8 @@ const BOKEMONG_MOVE_SETS={
   Arcade:[['Button Mash','Primitive but effective.'],['Combo Chain','Type attack. Do not drop it.'],['Pause Buffer','Guard against the next attack.'],['Final Boss','High-risk cabinet rattler.']],
   Strategy:[['Pawn Prod','Small positional violence.'],['Fork','Type attack with two problems at once.'],['Castle Up','Guard against the next attack.'],['Mate Threat','High-risk calculated strike.']],
   Abomination:[['Wet Slap','Nobody asked for this.'],['Mong Energy','Type attack powered by pure wrongness.'],['Feral Guard','Guard against the next attack.'],['Absolute State','High-risk biological incident.']],
-  Pub:[['Barstool Bash','Pub-standard blunt force.'],['Last Orders','Type attack. No extensions.'],['Round In','Guard against the next attack.'],['Closing Time','High-risk final bell.']],
-  Degenerate:[['Loose Change','Small, grubby and immediate.'],['Double Down','Type attack powered by terrible judgement.'],['Hide the Wallet','Guard against the next attack.'],['All In','High-risk degenerate behaviour.']],
-  Food:[['Pan Slap','Straight from the pass.'],['Seasoning','Type attack. Correctly applied.'],['Mise en Place','Guard against the next attack.'],['SERVICE!','High-risk kitchen eruption.']]
+  Degenerate:[['Smoke Break','Somehow still counts as an attack.'],['Pub Maths','Type attack powered by terrible decisions.'],['Sick Day','Guard against the next attack.'],['One More Pint','High-risk degenerate behaviour.']],
+  Work:[['Pan Slap','Straight from the pass.'],['Understaffed','Type attack caused by one person doing three jobs.'],['Mise en Place','Guard against the next attack.'],['SERVICE!','High-risk workplace eruption.']]
 };
 function bokMoves(id){
   const x=bokById(id), set=BOKEMONG_MOVE_SETS[(x&&x.type)||'Machine']||BOKEMONG_MOVE_SETS.Machine;
