@@ -7000,7 +7000,7 @@ function BokémongsPage({store,me,dispatch,sync}){
       h('div',{className:'page-title'},h('h1',null,'Bokémong battle'),h('span',{className:'sub'},incoming?'Challenge received':'Challenge sent')),
       h('div',{className:'panel'},h('div',{className:'display',style:{fontSize:38}},me,' v ',other),
         incoming?h('div',null,h('p',null,other,' has challenged your three Bokémongs.'),h('button',{className:'btn',disabled:busy,onClick:()=>act({t:'bokemongAccept',id:live.id})},busy?'Opening battle…':'Accept battle'),h('button',{className:'btn ghost',style:{marginLeft:8},disabled:busy,onClick:()=>act({t:'bokemongDecline',id:live.id})},'Decline'))
-        :h('p',{className:'muted'},'Waiting for ',other,' to accept.'))
+        :h('div',null,h('p',{className:'muted'},'Waiting for ',other,' to accept.'),h(ConfirmButton,{className:'btn sm ghost',confirmText:'Recall this challenge? Click again',onConfirm:()=>act({t:'bokemongRecall',id:live.id})},'Recall challenge')))
     );
   }
 
@@ -10548,7 +10548,7 @@ function App() {
     if (!store) return;
     const playerActionTypes = ['submit', 'rollcall', 'profile', 'recall', 'casino', 'tourneyVote', 'ping', 'predict', 'equipCard', 'unlock', 'placeBet', 'placeAcca', 'placeScoreBet', 'startMatch', 'claimWeekly', 'prestige', 'fantasyPick', 'bountyPost', 'bountyCancel', 'requestChips', 'cashOutBet', 'c4Create', 'c4Accept', 'c4Decline', 'c4Cancel', 'c4Drop', 'c4Forfeit', 'bsCreate', 'bsDecline', 'bsPlaceShips', 'bsFire', 'bsForfeit', 'sellCard'];
     const feature19Types = ['milestoneClaim','eventCreate','eventRsvp','eventVote','eventConfirm','eventCancel','bokemongStarter'];
-    const bokemongActionTypes = ['bokemongChallenge','bokemongAccept','bokemongDecline','bokemongMove','bokemongForfeit'];
+    const bokemongActionTypes = ['bokemongChallenge','bokemongAccept','bokemongDecline','bokemongRecall','bokemongMove','bokemongForfeit'];
     // A player's own roll-call response belongs on the player RPC. Regime approval/denial
     // must stay on the admin-save path because the player RPC only acts as p_name and
     // deliberately does not accept the final admin-only "out" state.
