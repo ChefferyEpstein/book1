@@ -6938,7 +6938,7 @@ const BOKEMONGS=[
 ];
 function bokById(id){return BOKEMONGS.find(x=>x.id===id);}
 function bokXp(store,p){return rawPlayerXp(store,p);}
-function BokemongsPage({store,me,dispatch}){
+function BokémongsPage({store,me,dispatch}){
   const h=React.createElement,b=(store.bokemongs||{players:{},battles:[]}),mine=(b.players||{})[me],xp=bokXp(store,me),level=Math.min(50,1+Math.floor(Math.sqrt(xp/400)));
   const starters=BOKEMONGS.filter(x=>x.rarity==='starter');
   const ownedIds=mine?(mine.owned||[]).map(x=>typeof x==='string'?x:x.id):[];
@@ -6947,7 +6947,7 @@ function BokemongsPage({store,me,dispatch}){
   useEffect(()=>{if(opponents.length&&!opponents.includes(opp))setOpp(opponents[0]);},[opponents.join('|')]);
   const battles=[...(b.battles||[])].filter(x=>x.a===me||x.b===me).reverse().slice(0,12);
   return h('div',null,
-    h('div',{className:'page-title'},h('h1',null,'Bokemongs'),h('span',{className:'sub'},'Catch workplace abominations. Make them fight.')),
+    h('div',{className:'page-title'},h('h1',null,'Bokémongs'),h('span',{className:'sub'},'Catch workplace abominations. Make them fight.')),
     !mine?h('div',{className:'panel'},h('h2',null,'Choose your starter'),h('p',{className:'small muted'},'You also receive Cue Goblin and Desk Rat so you can field a 3-mong team immediately.'),h('div',{className:'grid g3'},starters.map(x=>h('div',{key:x.id,className:'warnbox'},h('div',{className:'display',style:{fontSize:28}},x.name),h('p',null,x.type,' · Power ',x.power),h('p',{className:'small muted'},x.flavour),h('button',{className:'btn',onClick:()=>dispatch({t:'bokemongStarter',starter:x.id,by:me})},'Choose ',x.name))))):
     h(React.Fragment,null,
       h('div',{className:'grid g2'},
@@ -10287,15 +10287,15 @@ function reduce(store, a) {
       if(s.bokemongs.players[a.by])throw new Error('Starter already chosen.');
       const ids=[a.starter,'cue-goblin','desk-rat'];
       s.bokemongs.players[a.by]={starter:a.starter,owned:ids.map(id=>({id,acquiredAt:Date.now(),source:'starter'})),team:ids,wins:0,losses:0};
-      log(a.by+' chose '+bokById(a.starter).name+' as their Bokemong starter');
+      log(a.by+' chose '+bokById(a.starter).name+' as their Bokémong starter');
       break;
     }
     case 'bokemongBattle': {
-      const bm=s.bokemongs||{players:{},battles:[]},pa=bm.players&&bm.players[a.by],pb=bm.players&&bm.players[a.opponent];if(!pa||!pb)throw new Error('Both players need Bokemongs.');
+      const bm=s.bokemongs||{players:{},battles:[]},pa=bm.players&&bm.players[a.by],pb=bm.players&&bm.players[a.opponent];if(!pa||!pb)throw new Error('Both players need Bokémongs.');
       const score=n=>((bm.players[n].team||[]).slice(0,3).reduce((t,id)=>t+(bokById(id)?.power||0),0))+Math.min(50,Math.floor(Math.sqrt(bokXp(s,n)/400)))*2+Math.floor(Math.random()*21);
       const sa=score(a.by),sb=score(a.opponent),win=sa===sb?(Math.random()<.5?a.by:a.opponent):(sa>sb?a.by:a.opponent);
       pa[win===a.by?'wins':'losses']=(pa[win===a.by?'wins':'losses']||0)+1;pb[win===a.opponent?'wins':'losses']=(pb[win===a.opponent?'wins':'losses']||0)+1;
-      bm.battles=bm.battles||[];bm.battles.push({id:'bb'+s.nextId++,a:a.by,b:a.opponent,scoreA:sa,scoreB:sb,winner:win,at:Date.now()});s.bokemongs=bm;log(a.by+' battled '+a.opponent+' in Bokemongs — '+win+' won');break;
+      bm.battles=bm.battles||[];bm.battles.push({id:'bb'+s.nextId++,a:a.by,b:a.opponent,scoreA:sa,scoreB:sb,winner:win,at:Date.now()});s.bokemongs=bm;log(a.by+' battled '+a.opponent+' in Bokémongs — '+win+' won');break;
     }
     case 'replace':
       return a.store;
@@ -10640,7 +10640,7 @@ function App() {
     onClick: () => persistCred(undefined)
   }, "Log out"));
   const wIdx = weekIdx == null ? store.weeks.length - 1 : Math.min(weekIdx, store.weeks.length - 1);
-  const tabs = [['table', 'Table'], ['me', 'My book'], ['progress', 'Progress'], ['bokemongs', 'Bokemongs'], ['calendar', 'Calendar'], ['brain', 'Brain Gym'], ['fantasy', 'Fantasy'], ['bounties', 'Bounties'], ['casino', 'Casino'], ['hogs', 'Hogs'], ['battleships', 'Battleships'], ['connect4', 'Connect 4'], ['chess', 'Chess'], ['eightman', '8 Man'], ['predict', 'Predictions'], ['chat', 'Chat'], ['master', 'Master'], ['stats', 'Dossier'], ['ko', 'Knockout']];
+  const tabs = [['table', 'Table'], ['me', 'My book'], ['progress', 'Progress'], ['bokemongs', 'Bokémongs'], ['calendar', 'Calendar'], ['brain', 'Brain Gym'], ['fantasy', 'Fantasy'], ['bounties', 'Bounties'], ['casino', 'Casino'], ['hogs', 'Hogs'], ['battleships', 'Battleships'], ['connect4', 'Connect 4'], ['chess', 'Chess'], ['eightman', '8 Man'], ['predict', 'Predictions'], ['chat', 'Chat'], ['master', 'Master'], ['stats', 'Dossier'], ['ko', 'Knockout']];
   if (isAdmin) tabs.push(['regime', 'Regime']);
   const live = store.weeks[store.weeks.length - 1];
   const pending = isAdmin ? live.fixtures.concat(live.playoffs).filter(g => g.status === 'disputed').length + (store.chipRequests || []).filter(r => r.status === 'pending').length : 0;
@@ -10666,11 +10666,11 @@ function App() {
     store: store,
     me: me,
     dispatch: dispatch
-  }) : /*#__PURE__*/React.createElement("div", { className: "panel" }, "Log in to see progression.") : tab === 'bokemongs' ? me ? /*#__PURE__*/React.createElement(BokemongsPage, {
+  }) : /*#__PURE__*/React.createElement("div", { className: "panel" }, "Log in to see progression.") : tab === 'bokemongs' ? me ? /*#__PURE__*/React.createElement(BokémongsPage, {
     store: store,
     me: me,
     dispatch: dispatch
-  }) : /*#__PURE__*/React.createElement("div", { className: "panel" }, "Log in to see Bokemongs.") : tab === 'calendar' ? /*#__PURE__*/React.createElement(EventsPage, {
+  }) : /*#__PURE__*/React.createElement("div", { className: "panel" }, "Log in to see Bokémongs.") : tab === 'calendar' ? /*#__PURE__*/React.createElement(EventsPage, {
     store: store,
     me: me,
     dispatch: dispatch
