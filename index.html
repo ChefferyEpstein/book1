@@ -690,6 +690,11 @@ const api = CLOUD ? {
     if (error) throw error;
     return data.version;
   },
+  async gameDetail(kind, id) {
+    const { data, error } = await sb.rpc('book_game_detail', { p_kind: kind, p_id: id });
+    if (error) throw error;
+    return data;
+  },
   async bsMyShips(cred, gameId) {
     const {
       data,
@@ -894,6 +899,11 @@ const api = CLOUD ? {
   },
   async loadVersion() {
     return 0;
+  },
+  async gameDetail(kind, id) {
+    const st = loadStore();
+    const list = kind === 'connect4' ? st.connect4 : kind === 'chess' ? st.chess : kind === 'battleships' ? st.battleships : [];
+    return (list || []).find(g => g.id === id) || null;
   },
   async bsMyShips(cred, gameId) {
     const st = loadStore();
@@ -4373,6 +4383,7 @@ function c4DropRow(board, col) {
 }
 
 function c4MoveCount(g) {
+  if (g && g.moves != null) return +g.moves || 0;
   return (g && g.board || []).filter(Boolean).length;
 }
 function c4Other(g, p) {
@@ -4476,6 +4487,7 @@ function Connect4Page({ store, me, dispatch }) {
   const [opp, setOpp] = useState('');
   const [stake, setStake] = useState(0);
   const [selected, setSelected] = useState(null);
+  const [selectedDetail, setSelectedDetail] = useState(null);
   const stats = c4Stats(store);
   const [statsPlayer, setStatsPlayer] = useState(me);
   const games = (store.connect4 || []).filter(g => g.challenger === me || g.opponent === me);
@@ -4486,7 +4498,15 @@ function Connect4Page({ store, me, dispatch }) {
   const outgoing = games.filter(g => g.status === 'pending' && g.challenger === me);
   const active = games.filter(g => g.status === 'playing');
   const recent = games.filter(g => g.status === 'done' || g.status === 'draw').slice().reverse().slice(0, 12);
-  const sel = selected ? games.find(g => g.id === selected) : null;
+  const selBase = selected ? games.find(g => g.id === selected) : null;
+  const sel = selectedDetail && selectedDetail.id === selected ? selectedDetail : selBase;
+  useEffect(() => {
+    let stop = false;
+    setSelectedDetail(null);
+    if (!selected || !selBase || selBase.status === 'playing' || selBase.board) return () => { stop = true; };
+    api.gameDetail('connect4', selected).then(g => { if (!stop && g) setSelectedDetail(g); }).catch(() => {});
+    return () => { stop = true; };
+  }, [selected]);
   const qualified = stats.rows.filter(r => r.games >= 10);
   const topDog = qualified.slice().sort((a,b)=>b.winPct-a.winPct || b.games-a.games)[0] || null;
   const thickest = qualified.slice().filter(r=>r.mongIndex!=null).sort((a,b)=>b.mongIndex-a.mongIndex || a.winPct-b.winPct)[0] || null;
@@ -4496,6 +4516,12 @@ function Connect4Page({ store, me, dispatch }) {
   const mv = n => n == null ? '—' : Number(n).toFixed(1);
 
   if (sel && ['playing','done','draw'].includes(sel.status)) {
+    if (sel.status !== 'playing' && !sel.board) {
+      return h('div', null,
+        h('button', { className:'btn sm ghost', style:{marginBottom:10}, onClick:()=>setSelected(null) }, '← Back to Connect 4'),
+        h('div', {className:'panel'}, h('p', {className:'muted'}, 'Loading game…'))
+      );
+    }
     const board = Array.from({ length: 42 }, (_, i) => (sel.board || [])[i] || null);
     const other = sel.challenger === me ? sel.opponent : sel.challenger;
     const canMove = sel.status === 'playing' && sel.turn === me;
@@ -4816,12 +4842,26 @@ function reduceChessLocal(s,a){
 }
 function ChessPage({store,me,act}){
   const h=React.createElement;
-  const [opp,setOpp]=useState(''),[stake,setStake]=useState(0),[tc,setTc]=useState('blitz'),[selected,setSelected]=useState(null),[from,setFrom]=useState(null),[promotion,setPromotion]=useState('Q'),[,tick]=useState(0);
+  const [opp,setOpp]=useState(''),[stake,setStake]=useState(0),[tc,setTc]=useState('blitz'),[selected,setSelected]=useState(null),[selectedDetail,setSelectedDetail]=useState(null),[from,setFrom]=useState(null),[promotion,setPromotion]=useState('Q'),[,tick]=useState(0);
   useEffect(()=>{const iv=setInterval(()=>tick(x=>x+1),250);return()=>clearInterval(iv);},[]);
   const games=(store.chess||[]).filter(g=>g.challenger===me||g.opponent===me),others=store.players.filter(p=>p.active&&p.name!==me).map(p=>p.name),target=others.includes(opp)?opp:others[0]||'',balance=chipsOf(store,me);
   const incoming=games.filter(g=>g.status==='pending'&&g.opponent===me),outgoing=games.filter(g=>g.status==='pending'&&g.challenger===me),active=games.filter(g=>g.status==='playing'),recent=games.filter(g=>g.status==='done'||g.status==='draw').slice().reverse().slice(0,12);
-  const sel=selected?games.find(g=>g.id===selected):null;
+  const selBase=selected?games.find(g=>g.id===selected):null;
+  const sel=selectedDetail&&selectedDetail.id===selected?selectedDetail:selBase;
+  useEffect(()=>{
+    let stop=false;
+    setSelectedDetail(null);
+    if(!selected||!selBase||selBase.status==='playing'||selBase.history)return()=>{stop=true;};
+    api.gameDetail('chess',selected).then(g=>{if(!stop&&g)setSelectedDetail(g);}).catch(()=>{});
+    return()=>{stop=true;};
+  },[selected]);
   if(sel&&['playing','done','draw'].includes(sel.status)){
+    if(sel.status!=='playing'&&!sel.history){
+      return h('div',null,
+        h('button',{className:'btn sm ghost',style:{marginBottom:10},onClick:()=>setSelected(null)},'← Back to Chess'),
+        h('div',{className:'panel'},h('p',{className:'muted'},'Loading game…'))
+      );
+    }
     const mine=sel.white===me?'w':'b',other=sel.challenger===me?sel.opponent:sel.challenger,canMove=sel.status==='playing'&&sel.turn===mine;
     const order=Array.from({length:64},(_,i)=>mine==='b'?63-i:i),now=Date.now(),wtime=chessClockRemaining(sel,'w',now),btime=chessClockRemaining(sel,'b',now);
     const result=sel.status==='draw'?'Draw — '+(sel.resultReason||'game drawn'):sel.status==='done'?(sel.winner===me?'You won — ':'You lost — ')+(sel.resultReason||'game over'):sel.check?(sel.turn===mine?'CHECK — your move':'Check — '+other+' to move'):(sel.turn===mine?'Your move':other+"'s move");
