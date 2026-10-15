@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Book1.8.11</title>
+<title>Book1.9.0</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -504,7 +504,7 @@ const {
 } = React;
 const STORE_KEY = 'book1.2-local';
 const CFG = window.BOOK_CONFIG || {};
-const APP_SQL_VERSION = 34; // bump this whenever a new SQL script adds or changes a server function
+const APP_SQL_VERSION = 35; // bump this whenever a new SQL script adds or changes a server function
 const CLOUD = !!(CFG.url && CFG.key);
 const ADMINS = ['Chef', 'Lorcan'];
 const DECREES = ['Abstention is not permitted.', 'The Book sees all results.', 'Ball difference is destiny.', 'The Dictator collects. The Dictator distributes.', 'Report your score. Report it honestly.', 'Twelfth place is a service to the office.', 'The mong off is not optional.', 'Disputes are settled by the regime.'];
@@ -596,6 +596,9 @@ function buildStore() {
     scoreBets: [],
     progression: {},
     challengeClaims: [],
+    milestoneClaims: [],
+    events: [],
+    bokemongs: { players: {}, battles: [] },
     fantasyWeeks: {},
     bounties: [],
     bettingLocks: {},
@@ -855,6 +858,15 @@ const api = CLOUD ? {
     }, payload => fn(payload.new && payload.new.version)).subscribe();
     return () => sb.removeChannel(ch);
   },
+  async feature19Action(cred, action) {
+    const { data, error } = await sb.rpc('book_19_action', {
+      p_name: cred.name,
+      p_pin: cred.pin,
+      p_action: action
+    });
+    if (error) throw error;
+    return data;
+  },
   async getServerVersion() {
     try {
       const {
@@ -1025,6 +1037,11 @@ const api = CLOUD ? {
   },
   subscribeChess() {
     return () => {};
+  },
+  async feature19Action(cred, action) {
+    const st = reduce(loadStore(), { ...action, by: cred.name });
+    saveStore(st);
+    return 1;
   },
   async getServerVersion() {
     return APP_SQL_VERSION;
@@ -4297,7 +4314,12 @@ function BattleshipsPage({
     className: "page-title"
   }, /*#__PURE__*/React.createElement("h1", null, "Battleships"), /*#__PURE__*/React.createElement("span", {
     className: "sub"
-  }, "Challenge someone, place your fleet, sink theirs.")), /*#__PURE__*/React.createElement("div", {
+  }, "Challenge someone, place your fleet, sink theirs.")), /*#__PURE__*/React.createElement(MinigameIntelligence, {
+    store: store,
+    me: me,
+    kind: "battleships",
+    title: "Battleships"
+  }), /*#__PURE__*/React.createElement("div", {
     className: "panel",
     style: {
       marginBottom: 18
@@ -4548,6 +4570,27 @@ function Connect4Page({ store, me, dispatch }) {
     api.gameDetail('connect4', selected).then(g => { if (!stop && g) setSelectedDetail(g); }).catch(() => {});
     return () => { stop = true; };
   }, [selected]);
+  useEffect(() => {
+    if (!selected || !selBase || selBase.status !== 'playing') return () => {};
+    let stop=false, timer=null, loading=false, queued=false;
+    const pull=async()=>{
+      if(stop)return;
+      if(loading){queued=true;return;}
+      loading=true;
+      try{
+        const g=await api.gameDetail('connect4',selected);
+        if(!stop&&g)setSelectedDetail(g);
+      }catch(e){}
+      loading=false;
+      if(queued&&!stop){queued=false;pull();}
+    };
+    pull();
+    const off=api.subscribeChess(()=>{
+      clearTimeout(timer);
+      timer=setTimeout(pull,80);
+    },'connect4-live-'+selected);
+    return()=>{stop=true;clearTimeout(timer);off();};
+  },[selected,selBase&&selBase.status]);
   const qualified = stats.rows.filter(r => r.games >= 10);
   const topDog = qualified.slice().sort((a,b)=>b.winPct-a.winPct || b.games-a.games)[0] || null;
   const thickest = qualified.slice().filter(r=>r.mongIndex!=null).sort((a,b)=>b.mongIndex-a.mongIndex || a.winPct-b.winPct)[0] || null;
@@ -4970,6 +5013,7 @@ function ChessPage({store,me,act}){
   const ratings=store.players.filter(p=>p.active).map(p=>({name:p.name,rating:(store.chessRatings&&store.chessRatings[p.name])||1200})).sort((a,b)=>b.rating-a.rating||a.name.localeCompare(b.name));
   return h('div',null,
     h('div',{className:'page-title'},h('h1',null,'Chess'),h('span',{className:'sub'},'Separate Elo. Optional chip stakes. Server-authoritative turns and clocks.')),
+    h(MinigameIntelligence,{store,me,kind:'chess',title:'Chess'}),
     h('div',{className:'grid g2'},
       h('div',null,
         h('div',{className:'panel',style:{marginBottom:18}},h('h2',null,'Challenge someone'),
@@ -6782,6 +6826,140 @@ function CorrectScoreBetting({store,me,dispatch,balance}) {
     )))
   );
 }
+
+const LONG_MILESTONES=[
+  {id:'pool250',name:'Clocked In',desc:'Play 250 league games.',target:250,reward:25000,unlock:'rack-beast'},
+  {id:'balls1000',name:'Ball Hoarder',desc:'Pot 1,000 league balls.',target:1000,reward:30000,unlock:'pocket-wyrm'},
+  {id:'wins100',name:'Centurion',desc:'Win 100 league games.',target:100,reward:30000,unlock:'table-tyrant'},
+  {id:'mini100',name:'Terminally Online',desc:'Complete 100 minigames.',target:100,reward:20000,unlock:'arcade-gremlin'},
+  {id:'c4wins50',name:'Grid Merchant',desc:'Win 50 Connect 4 games.',target:50,reward:20000,unlock:'grid-fiend'},
+  {id:'chesswins25',name:'Office Grandmaster',desc:'Win 25 Chess games.',target:25,reward:20000,unlock:'bishop-bastard'},
+  {id:'weekly50',name:'Company Man',desc:'Claim 50 weekly challenges.',target:50,reward:25000,unlock:'grind-goblin'}
+];
+function longMilestoneProgress(store,p,key){
+  const league=(store.weeks||[]).flatMap(w=>w.fixtures||[]).filter(g=>played(g)&&(g.p1===p||g.p2===p));
+  if(key==='pool250')return league.length;
+  if(key==='balls1000')return league.reduce((t,g)=>t+(g.p1===p?(+g.s1||0):(+g.s2||0)),0);
+  if(key==='wins100')return league.filter(g=>winner(g)===p).length;
+  if(key==='mini100')return ['connect4','chess','battleships'].reduce((t,k)=>t+(store[k]||[]).filter(g=>(g.status==='done'||g.status==='draw')&&(g.challenger===p||g.opponent===p)).length,0)+(store.hogDuels||[]).filter(g=>g.status==='done'&&(g.challenger===p||g.opponent===p)).length;
+  if(key==='c4wins50')return (store.connect4||[]).filter(g=>g.status==='done'&&g.winner===p).length;
+  if(key==='chesswins25')return (store.chess||[]).filter(g=>g.status==='done'&&g.winner===p).length;
+  if(key==='weekly50')return (store.challengeClaims||[]).filter(x=>x.player===p).length;
+  return 0;
+}
+function minigameIntelRows(store,kind){
+  const gs=(store[kind]||[]).filter(g=>g.status==='done'||g.status==='draw');
+  const map={};
+  const row=n=>map[n]||(map[n]={name:n,gp:0,w:0,l:0,d:0,h2h:{},streak:0,best:0});
+  gs.forEach(g=>{
+    if(!g.challenger||!g.opponent)return;
+    const a=row(g.challenger),b=row(g.opponent);a.gp++;b.gp++;
+    const ah=a.h2h[g.opponent]||(a.h2h[g.opponent]={w:0,l:0,d:0});
+    const bh=b.h2h[g.challenger]||(b.h2h[g.challenger]={w:0,l:0,d:0});
+    if(g.status==='draw'||!g.winner){a.d++;b.d++;ah.d++;bh.d++;}
+    else if(g.winner===g.challenger){a.w++;b.l++;ah.w++;bh.l++;}
+    else{b.w++;a.l++;bh.w++;ah.l++;}
+  });
+  Object.values(map).forEach(r=>{
+    let cur=0,best=0;
+    gs.filter(g=>g.challenger===r.name||g.opponent===r.name).forEach(g=>{if(g.winner===r.name){cur++;best=Math.max(best,cur);}else if(g.status!=='draw')cur=0;});
+    r.streak=cur;r.best=best;r.winPct=r.gp?100*r.w/r.gp:0;
+    const hs=Object.entries(r.h2h).map(([op,x])=>({op,...x}));
+    r.victim=hs.slice().sort((a,b)=>b.w-a.w||a.l-b.l)[0]||null;
+    r.nemesis=hs.slice().sort((a,b)=>b.l-a.l||a.w-b.w)[0]||null;
+  });
+  return Object.values(map).sort((a,b)=>b.w-a.w||b.winPct-a.winPct||b.gp-a.gp||a.name.localeCompare(b.name));
+}
+function MinigameIntelligence({store,me,kind,title}){
+  const h=React.createElement,rows=minigameIntelRows(store,kind);
+  if(!rows.length)return null;
+  return h('div',{className:'panel',style:{marginBottom:18,overflowX:'auto'}},
+    h('div',{className:'page-title',style:{marginBottom:8}},h('h2',null,title+' Intelligence Report'),h('span',{className:'sub'},rows.reduce((t,r)=>t+r.gp,0)/2+' completed games')),
+    h('table',{className:'plain',style:{minWidth:760}},
+      h('thead',null,h('tr',null,['#','Player','GP','W-L-D','Win %','Best streak','Current','Victim','Nemesis'].map(x=>h('th',{key:x},x)))),
+      h('tbody',null,rows.map((r,i)=>h('tr',{key:r.name,className:r.name===me?'me':''},
+        h('td',{className:'n muted'},i+1),h('td',null,h(Nm,{n:r.name,size:16})),h('td',{className:'n'},r.gp),
+        h('td',{className:'n'},r.w+'-'+r.l+'-'+r.d),h('td',{className:'n'},r.winPct.toFixed(1)+'%'),
+        h('td',{className:'n'},r.best),h('td',{className:'n'},r.streak),
+        h('td',null,r.victim&&r.victim.w?r.victim.op+' '+r.victim.w+'-'+r.victim.l:'—'),
+        h('td',null,r.nemesis&&r.nemesis.l?r.nemesis.op+' '+r.nemesis.w+'-'+r.nemesis.l:'—')
+      )))
+    )
+  );
+}
+function EventsPage({store,me,dispatch}){
+  const h=React.createElement,[title,setTitle]=useState(''),[mode,setMode]=useState('fixed'),[when,setWhen]=useState(''),[slotsText,setSlotsText]=useState('');
+  const events=[...(store.events||[])].sort((a,b)=>String(a.when||(a.slots&&a.slots[0])||'').localeCompare(String(b.when||(b.slots&&b.slots[0])||'')));
+  const create=()=>{const slots=slotsText.split(',').map(x=>x.trim()).filter(Boolean);dispatch({t:'eventCreate',title:title.trim(),mode,when,slots,by:me});setTitle('');setWhen('');setSlotsText('');};
+  return h('div',null,
+    h('div',{className:'page-title'},h('h1',null,'Social calendar'),h('span',{className:'sub'},'Stop organising poker night in six different group chats.')),
+    me&&h('div',{className:'panel',style:{marginBottom:18}},
+      h('h2',null,'Create event'),
+      h('div',{className:'row'},h('input',{value:title,onChange:e=>setTitle(e.target.value),placeholder:'Poker night / Karting / Pub'}),h('select',{value:mode,onChange:e=>setMode(e.target.value)},h('option',{value:'fixed'},'Fixed date'),h('option',{value:'poll'},'Vote on dates'))),
+      mode==='fixed'?h('input',{type:'datetime-local',value:when,onChange:e=>setWhen(e.target.value),style:{marginTop:8}}):h('input',{value:slotsText,onChange:e=>setSlotsText(e.target.value),placeholder:'2026-10-19 19:00, 2026-10-20 19:00',style:{marginTop:8,width:'100%'}}),
+      h('button',{className:'btn',style:{marginTop:8},disabled:!title.trim()||(mode==='fixed'?!when:!slotsText.trim()),onClick:create},'Create event')
+    ),
+    events.length?events.map(ev=>{
+      const mine=(ev.rsvps||{})[me],votes=(ev.availability||{})[me]||{},confirmed=ev.confirmedAt||ev.when;
+      return h('div',{key:ev.id,className:'panel',style:{marginBottom:18}},
+        h('div',{className:'row spread'},h('div',null,h('h2',null,ev.title),h('span',{className:'small muted'},'Organised by ',ev.organiser,' · ',ev.status||'planning')),confirmed&&h('span',{className:'stamp ok'},String(confirmed).replace('T',' '))),
+        ev.mode==='fixed'?h('div',{className:'row',style:{marginTop:10}},['in','maybe','out'].map(x=>h('button',{key:x,className:'btn sm'+(mine===x?'':' ghost'),onClick:()=>dispatch({t:'eventRsvp',id:ev.id,state:x,by:me})},x.toUpperCase())),h('span',{className:'small muted'},Object.entries(ev.rsvps||{}).map(([n,v])=>n+': '+v).join(' · '))):
+        h('div',null,(ev.slots||[]).map(slot=>h('div',{key:slot,className:'row spread',style:{padding:'7px 0',borderBottom:'1px solid var(--smoke)'}},
+          h('span',null,String(slot).replace('T',' ')),
+          h('span',{className:'row'},['free','maybe','unavailable'].map(x=>h('button',{key:x,className:'btn sm'+(votes[slot]===x?'':' ghost'),onClick:()=>dispatch({t:'eventVote',id:ev.id,slot,state:x,by:me})},x)),ev.organiser===me&&h('button',{className:'btn sm gold',onClick:()=>dispatch({t:'eventConfirm',id:ev.id,slot,by:me})},'Confirm'))
+        ))),
+        h('p',{className:'small muted',style:{marginTop:10}},'Responses: ',store.players.filter(p=>p.active).map(p=>{const n=p.name;if(ev.mode==='fixed')return n+' '+((ev.rsvps||{})[n]||'—');const x=(ev.availability||{})[n]||{};return n+' '+Object.values(x).filter(v=>v==='free').length+' free';}).join(' · ')),
+        (ev.organiser===me)&&h(ConfirmButton,{className:'btn sm ghost',confirmText:'Cancel this event? Click again',onConfirm:()=>dispatch({t:'eventCancel',id:ev.id,by:me})},'Cancel event')
+      );
+    }):h('div',{className:'panel'},h('p',{className:'muted'},'Nothing planned yet. Suspicious.'))
+  );
+}
+const BOKEMONGS=[
+  {id:'clanker',name:'Clanker',type:'Machine',rarity:'starter',power:62,flavour:'Keeps cooking long after a sensible machine would stop.'},
+  {id:'finance-wyrm',name:'Finance Wyrm',type:'Finance',rarity:'starter',power:64,flavour:'Sleeps on a hoard of disputed invoices.'},
+  {id:'prestige-pigeon',name:'Prestige Pigeon',type:'Regime',rarity:'starter',power:60,flavour:'Looks decorated. Has achieved very little.'},
+  {id:'cue-goblin',name:'Cue Goblin',type:'Pool',rarity:'common',power:42,flavour:'Lives under table three and steals chalk.'},
+  {id:'desk-rat',name:'Desk Rat',type:'Office',rarity:'common',power:40,flavour:'Survives entirely on Teams pings and crumbs.'},
+  {id:'rack-beast',name:'Rack Beast',type:'Pool',rarity:'rare',power:72,flavour:'Has played enough frames to become furniture.'},
+  {id:'pocket-wyrm',name:'Pocket Wyrm',type:'Pool',rarity:'rare',power:74,flavour:'A thousand balls went in. None came back.'},
+  {id:'table-tyrant',name:'Table Tyrant',type:'Regime',rarity:'epic',power:82,flavour:'Wins first. Revises policy afterwards.'},
+  {id:'arcade-gremlin',name:'Arcade Gremlin',type:'Arcade',rarity:'rare',power:70,flavour:'No productive app usage detected.'},
+  {id:'grid-fiend',name:'Grid Fiend',type:'Arcade',rarity:'rare',power:73,flavour:'Sees four-in-a-row patterns in ceiling tiles.'},
+  {id:'bishop-bastard',name:'Bishop Bastard',type:'Strategy',rarity:'rare',power:76,flavour:'Moves diagonally through corporate hierarchy.'},
+  {id:'grind-goblin',name:'Grind Goblin',type:'Office',rarity:'epic',power:80,flavour:'Completed every weekly task and learned nothing.'},
+  {id:'spreadsheet-necromancer',name:'Spreadsheet Necromancer',type:'Office',rarity:'epic',power:84,flavour:'Raises dead formulas from corrupted workbooks.'},
+  {id:'hr-parasite',name:'HR Parasite',type:'Office',rarity:'rare',power:69,flavour:'Signature move: Mandatory Training.'},
+  {id:'connectivore',name:'Connectivore',type:'Arcade',rarity:'rare',power:71,flavour:'Feeds exclusively on vertical threats.'},
+  {id:'mong',name:'The Mong',type:'Abomination',rarity:'epic',power:79,flavour:'Nobody remembers catching it.'},
+  {id:'pub-lich',name:'Pub Lich',type:'Pub',rarity:'rare',power:68,flavour:'Last orders have no authority here.'},
+  {id:'rave-mite',name:'Rave Mite',type:'Rave',rarity:'common',power:46,flavour:'Tiny. Deafening.'},
+  {id:'kitchen-ogre',name:'Kitchen Ogre',type:'Food',rarity:'rare',power:75,flavour:'Calls every other creature chef.'},
+  {id:'regime-hound',name:'Regime Hound',type:'Regime',rarity:'legendary',power:92,flavour:'The Book sees all. So does this thing.'}
+];
+function bokById(id){return BOKEMONGS.find(x=>x.id===id);}
+function bokXp(store,p){return rawPlayerXp(store,p);}
+function BokemongsPage({store,me,dispatch}){
+  const h=React.createElement,b=(store.bokemongs||{players:{},battles:[]}),mine=(b.players||{})[me],xp=bokXp(store,me),level=Math.min(50,1+Math.floor(Math.sqrt(xp/400)));
+  const starters=BOKEMONGS.filter(x=>x.rarity==='starter');
+  const ownedIds=mine?(mine.owned||[]).map(x=>typeof x==='string'?x:x.id):[];
+  const opponents=store.players.filter(p=>p.active&&p.name!==me&&(b.players||{})[p.name]).map(p=>p.name);
+  const [opp,setOpp]=useState(opponents[0]||'');
+  useEffect(()=>{if(opponents.length&&!opponents.includes(opp))setOpp(opponents[0]);},[opponents.join('|')]);
+  const battles=[...(b.battles||[])].filter(x=>x.a===me||x.b===me).reverse().slice(0,12);
+  return h('div',null,
+    h('div',{className:'page-title'},h('h1',null,'Bokemongs'),h('span',{className:'sub'},'Catch workplace abominations. Make them fight.')),
+    !mine?h('div',{className:'panel'},h('h2',null,'Choose your starter'),h('p',{className:'small muted'},'You also receive Cue Goblin and Desk Rat so you can field a 3-mong team immediately.'),h('div',{className:'grid g3'},starters.map(x=>h('div',{key:x.id,className:'warnbox'},h('div',{className:'display',style:{fontSize:28}},x.name),h('p',null,x.type,' · Power ',x.power),h('p',{className:'small muted'},x.flavour),h('button',{className:'btn',onClick:()=>dispatch({t:'bokemongStarter',starter:x.id,by:me})},'Choose ',x.name))))):
+    h(React.Fragment,null,
+      h('div',{className:'grid g2'},
+        h('div',{className:'panel'},h('h2',null,'Your team'),h('div',{className:'display',style:{fontSize:34}},'Bond Level ',level),h('p',{className:'small muted'},xp.toLocaleString(),' activity XP from pool, minigames and challenges.'),(mine.team||[]).map(id=>{const x=bokById(id);return x&&h('div',{key:id,className:'row spread',style:{padding:'7px 0',borderBottom:'1px solid var(--smoke)'}},h('b',null,x.name),h('span',{className:'small muted'},x.type,' · ',x.power,' base'));})),
+        h('div',{className:'panel'},h('h2',null,'Battle'),opponents.length?h('div',null,h('select',{value:opp,onChange:e=>setOpp(e.target.value)},opponents.map(n=>h('option',{key:n,value:n},n))),h('button',{className:'btn',style:{marginLeft:8},onClick:()=>dispatch({t:'bokemongBattle',opponent:opp,by:me})},'3v3 battle'),h('p',{className:'small muted'},'Server resolves the current 3-mong teams from base power + Book1 activity level.')):h('p',{className:'muted'},'Nobody else has picked a starter yet.'))
+      ),
+      h('div',{className:'panel',style:{marginTop:18}},h('h2',null,'Bokedex · ',ownedIds.length,' / ',BOKEMONGS.length),h('div',{className:'grid g3'},BOKEMONGS.map(x=>h('div',{key:x.id,className:ownedIds.includes(x.id)?'okbox':'panel',style:{opacity:ownedIds.includes(x.id)?1:.45}},h('b',null,ownedIds.includes(x.id)?x.name:'???'),h('div',{className:'small muted'},x.type,' · ',x.rarity),ownedIds.includes(x.id)&&h('p',{className:'small'},x.flavour))))),
+      battles.length>0&&h('div',{className:'panel',style:{marginTop:18}},h('h2',null,'Battle history'),battles.map(x=>h('div',{key:x.id,className:'row spread small',style:{padding:'6px 0',borderBottom:'1px solid var(--smoke)'}},h('span',null,x.a,' v ',x.b),h('span',{className:x.winner===me?'stamp ok':'stamp bad'},x.winner===me?'WIN':'LOSS'))))
+    )
+  );
+}
+
 function ProgressPage({store,me,dispatch}) {
   const h=React.createElement;
   const p=playerProgress(store,me);
@@ -6831,6 +7009,13 @@ function ProgressPage({store,me,dispatch}) {
       h('div',{className:'panel'},h('h2',null,'Progression leaderboard'),
         h('table',{className:'plain'},h('tbody',null,board.map((r,i)=>h('tr',{key:r.name,className:r.name===me?'me':''},h('td',{className:'n muted'},i+1),h('td',null,h(Nm,{n:r.name,size:16})),h('td',{className:'n'},'P',r.prestige),h('td',{className:'n'},'Lv ',r.level),h('td',{className:'n'},r.xp.toLocaleString(),' XP')))))
       )
+    ),
+    h('div',{className:'panel',style:{marginTop:18}},
+      h('div',{className:'page-title',style:{marginBottom:8}},h('h2',null,'Career milestones'),h('span',{className:'sub'},'Long-haul challenges. Historical progress counts.')),
+      LONG_MILESTONES.map(m=>{const v=longMilestoneProgress(store,me,m.id),got=(store.milestoneClaims||[]).some(x=>x.player===me&&x.key===m.id),pct=Math.min(100,Math.round(v/m.target*100));return h('div',{key:m.id,style:{padding:'9px 0',borderBottom:'1px solid var(--smoke)'}},
+        h('div',{className:'row spread'},h('span',null,h('b',null,m.name),' — ',m.desc,h('span',{className:'small muted'},' ',v.toLocaleString(),' / ',m.target.toLocaleString(),' · ',m.reward.toLocaleString(),' chips · unlock ',bokById(m.unlock)?.name||m.unlock)),h('button',{className:'btn sm'+(v>=m.target&&!got?'':' ghost'),disabled:v<m.target||got,onClick:()=>dispatch({t:'milestoneClaim',key:m.id,by:me})},got?'Claimed':v>=m.target?'Claim':'Not yet')),
+        h('div',{style:{height:6,background:'rgba(255,255,255,.08)',marginTop:6}},h('div',{style:{height:'100%',width:pct+'%',background:'var(--brass)'}}))
+      );})
     ),
     h('div',{className:'panel',style:{marginTop:18}},
       h('div',{className:'page-title',style:{marginBottom:8}},h('h2',null,'All-minigame leaderboard'),h('span',{className:'sub'},'Connect 4 + Chess + Battleships + Hog Trumps.')),
@@ -8452,11 +8637,11 @@ function RegimePage({
       onClick: () => enterT(g)
     }, played(g) ? 'Fix' : 'Set')), /*#__PURE__*/React.createElement("div", {
       className: "r"
-    }, g.p2 || '?'))))), tt.winner && /*#__PURE__*/React.createElement("p", null, /*#__PURE__*/React.createElement("span", {
-      className: "stamp ok"
-    }, "winner"), " ", /*#__PURE__*/React.createElement("b", null, tt.winner), " ", tourneyPot(tt) ? '£' + tourneyPot(tt) : '', " ", /*#__PURE__*/React.createElement("span", {
+    }, g.p2 || '?'))))), /*#__PURE__*/React.createElement("p", {
       className: "small muted"
-    }, "(pot updates live as entries are paid)")), /*#__PURE__*/React.createElement("h3", null, "Entry"), /*#__PURE__*/React.createElement("table", {
+    }, "Prize split: 75% winner / 25% runner-up. Paid pot £", tourneyPot(tt).toFixed(2), " → £", (tourneyPot(tt)*0.75).toFixed(2), " / £", (tourneyPot(tt)*0.25).toFixed(2)), tt.winner && /*#__PURE__*/React.createElement("p", null, /*#__PURE__*/React.createElement("span", {
+      className: "stamp ok"
+    }, "winner"), " ", /*#__PURE__*/React.createElement("b", null, tt.winner), " £", ((tt.prize&&tt.prize.winner)!=null?tt.prize.winner:tourneyPot(tt)*0.75).toFixed(2), " · runner-up ", /*#__PURE__*/React.createElement("b", null, tt.runnerUp || "—"), " £", ((tt.prize&&tt.prize.runnerUp)!=null?tt.prize.runnerUp:tourneyPot(tt)*0.25).toFixed(2)), /*#__PURE__*/React.createElement("h3", null, "Entry"), /*#__PURE__*/React.createElement("table", {
       className: "plain"
     }, /*#__PURE__*/React.createElement("tbody", null, tt.players.map(p => {
       const paid = tt.paid && tt.paid[p] || 0;
@@ -9064,6 +9249,13 @@ function afterSet(store, ctx) {
     }
     if (br.final[0] === g) {
       tourney.winner = winner(g);
+      tourney.runnerUp = loser(g);
+      const pot = tourneyPot(tourney);
+      tourney.prize = {
+        pot,
+        winner: Math.round(pot * 75) / 100,
+        runnerUp: Math.round(pot * 25) / 100
+      };
       tourney.status = 'closed';
     }
   }
@@ -10067,6 +10259,44 @@ function reduce(store, a) {
         log('Season ' + k.season + ' redrawn from form by ' + a.by);
         break;
       }
+    case 'milestoneClaim': {
+      const m=LONG_MILESTONES.find(x=>x.id===a.key); if(!m)throw new Error('Unknown milestone.');
+      s.milestoneClaims=s.milestoneClaims||[]; if(s.milestoneClaims.some(x=>x.player===a.by&&x.key===a.key))throw new Error('Already claimed.');
+      if(longMilestoneProgress(s,a.by,a.key)<m.target)throw new Error('Milestone not complete.');
+      s.chips=s.chips||{};s.chips[a.by]=(s.chips[a.by]??1000)+m.reward;
+      s.milestoneClaims.push({player:a.by,key:a.key,reward:m.reward,unlock:m.unlock,at:Date.now()});
+      if(s.bokemongs&&s.bokemongs.players&&s.bokemongs.players[a.by]){
+        const bp=s.bokemongs.players[a.by],ids=(bp.owned||[]).map(x=>typeof x==='string'?x:x.id);
+        if(!ids.includes(m.unlock))bp.owned.push({id:m.unlock,acquiredAt:Date.now(),source:a.key});
+      }
+      log(a.by+' claimed career milestone '+m.name);
+      break;
+    }
+    case 'eventCreate': {
+      s.events=s.events||[]; if(!a.title)throw new Error('Event needs a title.');
+      s.events.push({id:'ev'+s.nextId++,title:a.title.slice(0,80),mode:a.mode==='poll'?'poll':'fixed',when:a.when||null,slots:(a.slots||[]).slice(0,8),organiser:a.by,status:a.mode==='poll'?'planning':'confirmed',rsvps:{},availability:{},createdAt:Date.now()});
+      break;
+    }
+    case 'eventRsvp': {const ev=(s.events||[]).find(x=>x.id===a.id);if(!ev)throw new Error('Event not found.');ev.rsvps=ev.rsvps||{};ev.rsvps[a.by]=a.state;break;}
+    case 'eventVote': {const ev=(s.events||[]).find(x=>x.id===a.id);if(!ev||!(ev.slots||[]).includes(a.slot))throw new Error('Event slot not found.');ev.availability=ev.availability||{};ev.availability[a.by]=ev.availability[a.by]||{};ev.availability[a.by][a.slot]=a.state;break;}
+    case 'eventConfirm': {const ev=(s.events||[]).find(x=>x.id===a.id);if(!ev||ev.organiser!==a.by)throw new Error('Only the organiser can confirm.');if(!(ev.slots||[]).includes(a.slot))throw new Error('Slot not found.');ev.confirmedAt=a.slot;ev.status='confirmed';break;}
+    case 'eventCancel': {const ev=(s.events||[]).find(x=>x.id===a.id);if(!ev||ev.organiser!==a.by)throw new Error('Only the organiser can cancel.');ev.status='cancelled';break;}
+    case 'bokemongStarter': {
+      const starters=['clanker','finance-wyrm','prestige-pigeon'];if(!starters.includes(a.starter))throw new Error('Bad starter.');
+      s.bokemongs=s.bokemongs||{players:{},battles:[]};s.bokemongs.players=s.bokemongs.players||{};
+      if(s.bokemongs.players[a.by])throw new Error('Starter already chosen.');
+      const ids=[a.starter,'cue-goblin','desk-rat'];
+      s.bokemongs.players[a.by]={starter:a.starter,owned:ids.map(id=>({id,acquiredAt:Date.now(),source:'starter'})),team:ids,wins:0,losses:0};
+      log(a.by+' chose '+bokById(a.starter).name+' as their Bokemong starter');
+      break;
+    }
+    case 'bokemongBattle': {
+      const bm=s.bokemongs||{players:{},battles:[]},pa=bm.players&&bm.players[a.by],pb=bm.players&&bm.players[a.opponent];if(!pa||!pb)throw new Error('Both players need Bokemongs.');
+      const score=n=>((bm.players[n].team||[]).slice(0,3).reduce((t,id)=>t+(bokById(id)?.power||0),0))+Math.min(50,Math.floor(Math.sqrt(bokXp(s,n)/400)))*2+Math.floor(Math.random()*21);
+      const sa=score(a.by),sb=score(a.opponent),win=sa===sb?(Math.random()<.5?a.by:a.opponent):(sa>sb?a.by:a.opponent);
+      pa[win===a.by?'wins':'losses']=(pa[win===a.by?'wins':'losses']||0)+1;pb[win===a.opponent?'wins':'losses']=(pb[win===a.opponent?'wins':'losses']||0)+1;
+      bm.battles=bm.battles||[];bm.battles.push({id:'bb'+s.nextId++,a:a.by,b:a.opponent,scoreA:sa,scoreB:sb,winner:win,at:Date.now()});s.bokemongs=bm;log(a.by+' battled '+a.opponent+' in Bokemongs — '+win+' won');break;
+    }
     case 'replace':
       return a.store;
   }
@@ -10104,7 +10334,7 @@ function Login({
     style: {
       fontSize: 96
     }
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.8.11")), /*#__PURE__*/React.createElement("p", {
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.9.0")), /*#__PURE__*/React.createElement("p", {
     className: "muted"
   }, "Twelve players. Six games. One office. Report to the table."), /*#__PURE__*/React.createElement("div", {
     className: "pinbox"
@@ -10225,7 +10455,7 @@ function App() {
     const off = api.subscribeChat(check, 'chat-badge');
     return () => { alive = false; clearInterval(iv); off(); };
   }, [me, tab]);
-  useEffect(() => { document.title = (chatUnread + hogPending + bsPending + c4Pending + chessPending > 0 ? '(' + (chatUnread + hogPending + bsPending + c4Pending + chessPending) + ') ' : '') + 'Book1.8.11'; }, [chatUnread, hogPending, bsPending, c4Pending, chessPending]);
+  useEffect(() => { document.title = (chatUnread + hogPending + bsPending + c4Pending + chessPending > 0 ? '(' + (chatUnread + hogPending + bsPending + c4Pending + chessPending) + ') ' : '') + 'Book1.9.0'; }, [chatUnread, hogPending, bsPending, c4Pending, chessPending]);
   const cloudEmpty = !!(store && !store.weeks);
   const persistCred = c => {
     setCred(c);
@@ -10237,11 +10467,19 @@ function App() {
   const dispatch = async a => {
     if (!store) return;
     const playerActionTypes = ['submit', 'rollcall', 'profile', 'recall', 'casino', 'tourneyVote', 'ping', 'predict', 'equipCard', 'unlock', 'placeBet', 'placeAcca', 'placeScoreBet', 'startMatch', 'claimWeekly', 'prestige', 'fantasyPick', 'bountyPost', 'bountyCancel', 'requestChips', 'cashOutBet', 'c4Create', 'c4Accept', 'c4Decline', 'c4Cancel', 'c4Drop', 'c4Forfeit', 'bsCreate', 'bsDecline', 'bsPlaceShips', 'bsFire', 'bsForfeit', 'sellCard'];
+    const feature19Types = ['milestoneClaim','eventCreate','eventRsvp','eventVote','eventConfirm','eventCancel','bokemongStarter','bokemongBattle'];
     // A player's own roll-call response belongs on the player RPC. Regime approval/denial
     // must stay on the admin-save path because the player RPC only acts as p_name and
     // deliberately does not accept the final admin-only "out" state.
     const adminRollcallAction = isAdmin && a.t === 'rollcall' && (a.v === 'out' || a.p && a.p !== me);
-    if (cred && playerActionTypes.includes(a.t) && !adminRollcallAction) {
+    if (cred && feature19Types.includes(a.t)) {
+      try {
+        await api.feature19Action(cred, a);
+        await refresh();
+      } catch (e) {
+        toast((e.message || '').replace(/^.*?: /, ''));
+      }
+    } else if (cred && playerActionTypes.includes(a.t) && !adminRollcallAction) {
       try {
         await api.playerAction(cred, a);
         await refresh();
@@ -10357,7 +10595,7 @@ function App() {
     style: {
       fontSize: 96
     }
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.8.11"));
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.9.0"));
   if (!store) return /*#__PURE__*/React.createElement("div", {
     className: "login"
   }, mark, /*#__PURE__*/React.createElement("p", {
@@ -10402,7 +10640,7 @@ function App() {
     onClick: () => persistCred(undefined)
   }, "Log out"));
   const wIdx = weekIdx == null ? store.weeks.length - 1 : Math.min(weekIdx, store.weeks.length - 1);
-  const tabs = [['table', 'Table'], ['me', 'My book'], ['progress', 'Progress'], ['brain', 'Brain Gym'], ['fantasy', 'Fantasy'], ['bounties', 'Bounties'], ['casino', 'Casino'], ['hogs', 'Hogs'], ['battleships', 'Battleships'], ['connect4', 'Connect 4'], ['chess', 'Chess'], ['eightman', '8 Man'], ['predict', 'Predictions'], ['chat', 'Chat'], ['master', 'Master'], ['stats', 'Dossier'], ['ko', 'Knockout']];
+  const tabs = [['table', 'Table'], ['me', 'My book'], ['progress', 'Progress'], ['bokemongs', 'Bokemongs'], ['calendar', 'Calendar'], ['brain', 'Brain Gym'], ['fantasy', 'Fantasy'], ['bounties', 'Bounties'], ['casino', 'Casino'], ['hogs', 'Hogs'], ['battleships', 'Battleships'], ['connect4', 'Connect 4'], ['chess', 'Chess'], ['eightman', '8 Man'], ['predict', 'Predictions'], ['chat', 'Chat'], ['master', 'Master'], ['stats', 'Dossier'], ['ko', 'Knockout']];
   if (isAdmin) tabs.push(['regime', 'Regime']);
   const live = store.weeks[store.weeks.length - 1];
   const pending = isAdmin ? live.fixtures.concat(live.playoffs).filter(g => g.status === 'disputed').length + (store.chipRequests || []).filter(r => r.status === 'pending').length : 0;
@@ -10428,7 +10666,15 @@ function App() {
     store: store,
     me: me,
     dispatch: dispatch
-  }) : /*#__PURE__*/React.createElement("div", { className: "panel" }, "Log in to see progression.") : tab === 'brain' ? me ? /*#__PURE__*/React.createElement(BrainGymPage, {
+  }) : /*#__PURE__*/React.createElement("div", { className: "panel" }, "Log in to see progression.") : tab === 'bokemongs' ? me ? /*#__PURE__*/React.createElement(BokemongsPage, {
+    store: store,
+    me: me,
+    dispatch: dispatch
+  }) : /*#__PURE__*/React.createElement("div", { className: "panel" }, "Log in to see Bokemongs.") : tab === 'calendar' ? /*#__PURE__*/React.createElement(EventsPage, {
+    store: store,
+    me: me,
+    dispatch: dispatch
+  }) : tab === 'brain' ? me ? /*#__PURE__*/React.createElement(BrainGymPage, {
     store: store,
     me: me,
     claimBrain: brainAct
@@ -10539,7 +10785,7 @@ function App() {
     className: "rail"
   }, /*#__PURE__*/React.createElement("div", {
     className: "wordmark"
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.8.11")), /*#__PURE__*/React.createElement("div", {
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.9.0")), /*#__PURE__*/React.createElement("div", {
     className: "decree"
   }, decree), /*#__PURE__*/React.createElement("div", {
     className: "nav"
