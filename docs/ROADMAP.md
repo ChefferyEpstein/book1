@@ -93,3 +93,168 @@ This should feel like **Doodle + an events calendar built directly into Book1**,
 The scheduler should use the existing Book1 player identities and make it obvious, at a glance, **what is happening, when it is happening, and who is actually available**.
 
 **Status:** Roadmap — not yet implemented.
+
+
+---
+
+## Planned — Bookmongs
+
+A Book1-native collectible creature system: **Bookmongs**. The goal is to make progression, minigames and weekly activity feed into a persistent collection without turning Book1 into a full monster-battler project.
+
+### Core concept
+
+Players collect original Book1 creatures inspired by the office, pool league, casino, minigames, prestige system and existing Book1 lore.
+
+Bookmongs should be earned primarily through actually using Book1:
+
+- weekly challenges
+- pool and minigame milestones
+- prestige milestones
+- event rewards
+- eggs / mystery rewards
+- limited seasonal drops
+
+### Bookmong identity
+
+Each Bookmong can have:
+
+- name
+- original artwork / sprite
+- type or types
+- rarity
+- level
+- XP
+- base stats
+- traits / passive ability
+- 3–4 battle moves
+- evolution path
+- alternate / rare variant
+- owner and acquisition history
+
+Possible Book1-specific types include:
+
+- Pool
+- Office
+- Pub
+- Regime
+- Finance
+- Arcade
+- Rave
+- Food
+- Goblin
+- Abomination
+
+### Activity-driven progression
+
+Existing Book1 activity should contribute to Bookmong progression rather than creating a separate grind.
+
+Examples:
+
+- pool wins → combat / physical XP
+- Chess → intelligence / strategy XP
+- Connect 4 → strategy XP
+- Battleships → tactics XP
+- weekly challenges → general Bookmong XP
+- prestige milestones → rare unlocks / evolutions
+- special achievements → unusual evolution conditions
+
+### Collection
+
+Add a **Bookmongs collection / dex** showing:
+
+- owned creatures
+- undiscovered silhouettes
+- rarity
+- evolution chains
+- variant status
+- collection completion %
+- individual creature stats and history
+
+### Battles — first version
+
+Keep V1 deliberately simple:
+
+- 3 Bookmongs per team
+- turn-based PvP
+- clear type strengths / weaknesses
+- 3–4 moves per creature
+- health, attack, defence, speed and one specialist stat
+- optional casual chip stakes with anti-farming protection
+- battle record / leaderboard
+
+Do **not** attempt a huge competitive battle simulator in the first release.
+
+### Evolution
+
+Bookmongs can evolve through Book1-specific conditions rather than only raw level.
+
+Examples:
+
+- reach a certain level
+- win a number of pool games
+- win Connect 4 in a low number of moves
+- complete a prestige tier
+- complete a particular weekly challenge
+- own / use a specific item
+- meet a deliberately stupid hidden condition
+
+### Starter flow
+
+When Bookmongs launches, each player chooses **one of three starters**.
+
+The starters should be original Book1 creatures with distinct roles and deliberately inappropriate personalities. Starter choice is permanent unless an admin recovery is needed.
+
+### Example creature direction
+
+Working examples only, not final roster:
+
+- Cue Goblin
+- Spreadsheet Necromancer
+- Finance Wyrm
+- Prestige Pigeon
+- Connectivore
+- The Mong
+- Clanker
+
+Creature names, artwork, moves and flavour text should lean heavily into Book1's existing tone and player lore.
+
+### V1 scope
+
+Target an initial release with roughly:
+
+- 20 original Bookmongs
+- 3 starters
+- collection / dex
+- XP and levelling
+- a small number of evolution chains
+- activity-based unlocks
+- simple 3v3 battles
+- battle history / basic leaderboard
+- rare variants
+
+### Later expansions
+
+Potential follow-ons:
+
+- trading
+- ranked weekly league
+- seasonal Bookmongs
+- eggs / incubation
+- items
+- breeding or fusion-style systems
+- team synergies
+- boss / raid encounters
+- special event creatures
+- player-created nicknames
+- cosmetics
+- deeper battle formats
+
+Trading and any chip economy around Bookmongs must include duplication, farming and transfer-abuse protections before release.
+
+### Design principle
+
+Bookmongs should feel like **a ridiculous collectible ecosystem growing out of Book1**, not a separate game bolted onto it.
+
+Every major Book1 activity should eventually have at least one creature, unlock, evolution, move or reward associated with it.
+
+**Status:** Roadmap — future expansion, not yet implemented.
