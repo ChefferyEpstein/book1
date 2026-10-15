@@ -139,8 +139,8 @@ Possible Book1-specific types include:
 - Regime
 - Finance
 - Arcade
-- Rave
-- Food
+- Degenerate
+- Work
 - Goblin
 - Abomination
 
