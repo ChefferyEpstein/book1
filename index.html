@@ -833,6 +833,14 @@ const api = CLOUD ? {
     }, payload => fn(payload.new)).subscribe();
     return () => sb.removeChannel(ch);
   },
+  subscribeChess(fn, name) {
+    const ch = sb.channel(name || 'chess-live').on('postgres_changes', {
+      event: 'UPDATE',
+      schema: 'public',
+      table: 'book_pulse'
+    }, payload => fn(payload.new && payload.new.version)).subscribe();
+    return () => sb.removeChannel(ch);
+  },
   async getServerVersion() {
     try {
       const {
@@ -996,6 +1004,9 @@ const api = CLOUD ? {
     });
   },
   subscribeChat() {
+    return () => {};
+  },
+  subscribeChess() {
     return () => {};
   },
   async getServerVersion() {
@@ -4862,6 +4873,27 @@ function ChessPage({store,me,act}){
     if(!selected||!selBase||selBase.status==='playing'||selBase.history)return()=>{};
     api.gameDetail('chess',selected).then(g=>{if(!stop&&g)setDetail(g);}).catch(()=>{});
     return()=>{stop=true;};
+  },[selected,selBase&&selBase.status]);
+  useEffect(()=>{
+    if(!selected||!selBase||selBase.status!=='playing')return()=>{};
+    let stop=false, timer=null, loading=false, queued=false;
+    const pull=async()=>{
+      if(stop)return;
+      if(loading){queued=true;return;}
+      loading=true;
+      try{
+        const g=await api.gameDetail('chess',selected);
+        if(!stop&&g)setDetail(g);
+      }catch(e){}
+      loading=false;
+      if(queued&&!stop){queued=false;pull();}
+    };
+    pull();
+    const off=api.subscribeChess(()=>{
+      clearTimeout(timer);
+      timer=setTimeout(pull,80);
+    },'chess-live-'+selected);
+    return()=>{stop=true;clearTimeout(timer);off();};
   },[selected,selBase&&selBase.status]);
   const sel=detail&&detail.id===selected?detail:selBase;
   if(sel&&['playing','done','draw'].includes(sel.status)){
