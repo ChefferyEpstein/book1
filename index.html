@@ -504,7 +504,7 @@ const {
 } = React;
 const STORE_KEY = 'book1.2-local';
 const CFG = window.BOOK_CONFIG || {};
-const APP_SQL_VERSION = 37; // bump this whenever a new SQL script adds or changes a server function
+const APP_SQL_VERSION = 38; // bump this whenever a new SQL script adds or changes a server function
 const CLOUD = !!(CFG.url && CFG.key);
 const ADMINS = ['Chef', 'Lorcan'];
 const DECREES = ['Abstention is not permitted.', 'The Book sees all results.', 'Ball difference is destiny.', 'The Dictator collects. The Dictator distributes.', 'Report your score. Report it honestly.', 'Twelfth place is a service to the office.', 'The mong off is not optional.', 'Disputes are settled by the regime.'];
@@ -3362,18 +3362,30 @@ function brainDayKey(ms=Date.now()) {
   return parts.year+'-'+parts.month+'-'+parts.day;
 }
 function brainDayNumber(day=brainDayKey()) { return Math.floor(Date.parse(day+'T00:00:00Z')/86400000); }
-const BRAIN_SUDOKU_BASE='530070000600195000098000060800060003400803001700020006060000280000419005000080079';
-const BRAIN_SUDOKU_SOLUTION='534678912672195348198342567859761423426853791713924856961537284287419635345286179';
-function brainShiftDigits(str,off) { return str.replace(/[1-9]/g,d=>String(((+d-1+off)%9)+1)); }
+const BRAIN_SUDOKU_BASE='103050050103200501061030305002010305';
+const BRAIN_SUDOKU_SOLUTION='123456456123234561561234345612612345';
+function brainShiftDigits(str,off) { return str.replace(/[1-6]/g,d=>String(((+d-1+off)%6)+1)); }
 function brainSudoku(day=brainDayKey()) {
-  const off=((brainDayNumber(day)%9)+9)%9;
+  const off=((brainDayNumber(day)%6)+6)%6;
   return {puzzle:brainShiftDigits(BRAIN_SUDOKU_BASE,off),solution:brainShiftDigits(BRAIN_SUDOKU_SOLUTION,off)};
 }
 const BRAIN_CROSSWORDS=[
-  {words:['BALL','AREA','LEAD','LADY'],clues:['Round object used in games','A region or space','To guide; also a metal','An adult woman']},
-  {words:['LIMB','IDEA','MEAL','BALL'],clues:['Arm or leg','A thought or concept','Food eaten at one sitting','A round object used in games']},
-  {words:['SALT','AREA','LEAN','TANK'],clues:['Seasoning from the sea','A region or space','To incline; also not fatty','A large container or armoured vehicle']},
-  {words:['CARE','AREA','REAR','EARL'],clues:['Attention or concern','A region or space','The back part','A British noble rank']}
+  {words:['BALL','AREA','LEAD','LADY'],clues:['Pool object','A region or space','To guide; also a metal','An adult woman']},
+  {words:['LIMB','IDEA','MEAL','BALL'],clues:['Arm or leg','A thought','Food at one sitting','Pool object']},
+  {words:['SALT','AREA','LEAN','TANK'],clues:['Seasoning','A region or space','To incline','Large container']},
+  {words:['CARE','AREA','REAR','EARL'],clues:['Attention or concern','A region or space','The back part','British noble rank']},
+  {words:['LATE','AREA','TEAR','EARN'],clues:['Not on time','A region or space','Rip','Receive pay for work']},
+  {words:['SAND','AREA','NEAR','DART'],clues:['Beach material','A region or space','Close by','Small pointed missile']},
+  {words:['BITE','IDEA','TEAR','EARN'],clues:['Use your teeth','A thought','Rip','Receive pay for work']},
+  {words:['TAPE','AREA','PEAR','EARN'],clues:['Sticky strip','A region or space','Green fruit','Receive pay for work']},
+  {words:['CARD','AREA','REAR','DART'],clues:['Plastic in your wallet','A region or space','The back part','Small pointed missile']},
+  {words:['MATE','AREA','TEAR','EARN'],clues:['Friend','A region or space','Rip','Receive pay for work']},
+  {words:['BIND','IDEA','NEAR','DART'],clues:['Tie together','A thought','Close by','Small pointed missile']},
+  {words:['BILL','IDEA','LEAD','LADY'],clues:['Invoice','A thought','To guide; also a metal','An adult woman']},
+  {words:['BIRD','IDEA','REAR','DART'],clues:['Feathered animal','A thought','The back part','Small pointed missile']},
+  {words:['PARK','AREA','REAR','KART'],clues:['Green public space','A region or space','The back part','Small racing vehicle']},
+  {words:['CART','AREA','REAR','TART'],clues:['Wheeled carrier','A region or space','The back part','Sharp tasting; also a pastry']},
+  {words:['HARD','AREA','REAR','DART'],clues:['Not easy','A region or space','The back part','Small pointed missile']}
 ];
 function brainCrossword(day=brainDayKey()) { return BRAIN_CROSSWORDS[((brainDayNumber(day)%BRAIN_CROSSWORDS.length)+BRAIN_CROSSWORDS.length)%BRAIN_CROSSWORDS.length]; }
 const BRAIN_TEASERS=[
@@ -7132,16 +7144,16 @@ function BrainGymPage({store,me,claimBrain}) {
     ),
     h('div',{className:'grid g2'},
       h('div',{className:'panel'},
-        h('h2',null,'Sudoku · 300 XP'),
-        h('p',{className:'small muted'},'Every row, column and 3×3 box must contain 1–9 once.'),
-        h('div',{style:{display:'grid',gridTemplateColumns:'repeat(9,34px)',width:'fit-content',border:'2px solid var(--brass)',margin:'10px 0'}},
+        h('h2',null,'Mini Sudoku · 300 XP'),
+        h('p',{className:'small muted'},'6×6 only. Every row, column and 2×3 box must contain 1–6 once.'),
+        h('div',{style:{display:'grid',gridTemplateColumns:'repeat(6,38px)',width:'fit-content',border:'2px solid var(--brass)',margin:'10px 0'}},
           cells.map((v,i)=>{
-            const fixed=sdk.puzzle[i]!=='0',r=Math.floor(i/9),c=i%9;
+            const fixed=sdk.puzzle[i]!=='0',r=Math.floor(i/6),c=i%6;
             return h('input',{key:i,value:v,maxLength:1,inputMode:'numeric',disabled:fixed||claimed('sudoku'),
-              onChange:e=>{const x=e.target.value.replace(/[^1-9]/g,'').slice(-1),n=cells.slice();n[i]=x;setCells(n);},
-              style:{width:34,height:34,textAlign:'center',padding:0,border:'none',
-                borderRight:(c===2||c===5)?'2px solid var(--brass)':'1px solid rgba(255,255,255,.12)',
-                borderBottom:(r===2||r===5)?'2px solid var(--brass)':'1px solid rgba(255,255,255,.12)',
+              onChange:e=>{const x=e.target.value.replace(/[^1-6]/g,'').slice(-1),n=cells.slice();n[i]=x;setCells(n);},
+              style:{width:38,height:38,textAlign:'center',padding:0,border:'none',
+                borderRight:c===2?'2px solid var(--brass)':'1px solid rgba(255,255,255,.12)',
+                borderBottom:(r===1||r===3)?'2px solid var(--brass)':'1px solid rgba(255,255,255,.12)',
                 background:fixed?'rgba(255,255,255,.12)':'rgba(0,0,0,.18)',fontWeight:fixed?800:500}
             });
           })
