@@ -8009,7 +8009,7 @@ function RegimePage({
     className: "r"
   }, g.p2)))), /*#__PURE__*/React.createElement("div", {
     className: "panel"
-  }, /*#__PURE__*/React.createElement("h2", null, "Play-offs"), w.playoffs.length === 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("p", {
+  }, /*#__PURE__*/React.createElement("h2", null, "Play-offs"), w.playoffs.length > 0 && /*#__PURE__*/React.createElement("button", { className: "btn sm", onClick: () => dispatch({ t: "setupPlayoffs" }) }, "Redraw play-offs — scores will be cleared"), w.playoffs.length === 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("p", {
     className: "muted"
   }, allPlayed ? 'All league games are in.' : 'League games still outstanding: ' + w.fixtures.filter(g => !played(g)).length), /*#__PURE__*/React.createElement("button", {
     className: "btn",
