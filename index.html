@@ -9303,6 +9303,20 @@ function findGame(store, id) {
   }
   return {};
 }
+function rebuildPlayoffs(w, store) {
+  const st = standings(w).map(r => r.name);
+  const mk = (p1, p2, slot) => ({
+    id: 'g' + store.nextId++,
+    p1,
+    p2,
+    s1: null,
+    s2: null,
+    slot,
+    status: 'open',
+    sub: {}
+  });
+  w.playoffs = [mk(st[9], st[10], 'mongoff'), mk(st[7], st[8], 'bronze'), mk(st[6], null, 'bronze'), mk(st[4], st[5], 'silver'), mk(st[3], null, 'silver'), mk(st[1], st[2], 'gold'), mk(st[0], null, 'gold')];
+}
 function afterSet(store, ctx) {
   const {
     w,
@@ -9312,6 +9326,11 @@ function afterSet(store, ctx) {
     tourney
   } = ctx;
   const po = store.payouts;
+  // Deciders can change the final table order after playoffs have been drawn.
+  // If no playoff game has been played, redraw the bracket from the updated standings.
+  if (w && w.tiebreaks.includes(g) && played(g) && w.playoffs.length && w.playoffs.every(x => !played(x) && x.status === 'open' && !Object.keys(x.sub || {}).length)) {
+    rebuildPlayoffs(w, store);
+  }
   if (w && w.playoffs.includes(g)) {
     // fill finals from semis
     const semi = w.playoffs.filter(x => x.slot === g.slot);
@@ -9454,18 +9473,7 @@ function reduce(store, a) {
     case 'setupPlayoffs':
       {
         const w = s.weeks[s.weeks.length - 1];
-        const st = standings(w).map(r => r.name);
-        const mk = (p1, p2, slot) => ({
-          id: 'g' + s.nextId++,
-          p1,
-          p2,
-          s1: null,
-          s2: null,
-          slot,
-          status: 'open',
-          sub: {}
-        });
-        w.playoffs = [mk(st[9], st[10], 'mongoff'), mk(st[7], st[8], 'bronze'), mk(st[6], null, 'bronze'), mk(st[4], st[5], 'silver'), mk(st[3], null, 'silver'), mk(st[1], st[2], 'gold'), mk(st[0], null, 'gold')];
+        rebuildPlayoffs(w, s);
         log('Play-offs drawn for GW' + w.n);
         break;
       }
