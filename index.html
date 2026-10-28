@@ -6939,7 +6939,10 @@ function RegimePage({
     })
   }, "Draw the play-offs from the table"), w.players.length !== 12 && /*#__PURE__*/React.createElement("p", {
     className: "small muted"
-  }, "Automatic draw needs a 12-man table.")), w.playoffs.map(g => /*#__PURE__*/React.createElement("div", {
+  }, "Automatic draw needs a 12-man table.")), w.playoffs.length > 0 && /*#__PURE__*/React.createElement("button", {
+    className: "btn sm",
+    onClick: () => dispatch({ t: "setupPlayoffs" })
+  }, "Redraw play-offs — scores will be cleared"), w.playoffs.map(g => /*#__PURE__*/React.createElement("div", {
     key: g.id,
     className: "fx"
   }, /*#__PURE__*/React.createElement("div", {
