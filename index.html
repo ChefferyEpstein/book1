@@ -3461,7 +3461,7 @@ function fantasyFourWeekBoard(store) {
   return Object.values(rows).sort((a,b)=>b.score-a.score||b.weeks-a.weeks||a.player.localeCompare(b.player));
 }
 function fantasyIndividualBoard(store) {
-  const weeks=(store.weeks||[]).filter(w=>w.closed).slice(-4),rows={};
+  const weeks=(store.weeks||[]).filter(w=>w.closed),rows={};
   weeks.forEach(w=>{
     const fw=(store.fantasyWeeks||{})[String(w.n)];
     if(!fw||!fw.tiers)return;
@@ -7289,7 +7289,7 @@ function FantasyPage({store,me,dispatch}) {
   useEffect(()=>{if(!picks.includes(captain))setCaptain(picks.find(Boolean)||'');},[elite,challenger,mong1,mong2,captain]);
   const valid=picks.every(Boolean)&&new Set(picks).size===4&&tiers.elite.includes(elite)&&tiers.challenger.includes(challenger)&&tiers.mongs.includes(mong1)&&tiers.mongs.includes(mong2)&&picks.includes(captain);
   const board=Object.entries(fw.picks||{}).map(([player,p])=>({player,picks:p,captain:fw.captains&&fw.captains[player],score:fantasyScore(store,w,p,tiers,fw.captains&&fw.captains[player])})).sort((a,b)=>b.score-a.score||a.player.localeCompare(b.player));
-  const fourWeekBoard=fantasyFourWeekBoard(store),individualBoard=fantasyIndividualBoard(store),optimal=fantasyOptimalTeam(w,tiers);
+  const individualBoard=fantasyIndividualBoard(store),optimal=fantasyOptimalTeam(w,tiers);
   const sel=(value,setter,list)=>h('select',{value,onChange:e=>setter(e.target.value),disabled:locked},list.map(n=>h('option',{key:n,value:n},n)));
   return h('div',null,
     h('div',{className:'page-title'},h('h1',null,'Fantasy'),h('span',{className:'sub'},'GW',w.n,' — 1 Elite, 1 Challenger, 2 Mongs.')),
@@ -7323,12 +7323,8 @@ function FantasyPage({store,me,dispatch}) {
       board.length===0?h('p',{className:'muted'},'Nobody has submitted a team yet.'):
       h('table',{className:'plain'},h('thead',null,h('tr',null,['#','Player','Team','Captain','Points'].map(x=>h('th',{key:x},x)))),h('tbody',null,board.map((r,i)=>h('tr',{key:r.player,className:r.player===me?'me':''},h('td',{className:'n muted'},i+1),h('td',null,h(Nm,{n:r.player,size:16})),h('td',{className:'small muted'},r.picks.join(', ')),h('td',{className:'small'},r.captain||'—'),h('td',{className:'n'},r.score)))))
     ),
-    h('div',{className:'panel',style:{marginTop:18}},h('h2',null,'Four-week knockout leaderboard'),h('p',{className:'small muted'},'Cumulative fantasy points across the last four completed game weeks. The regular pot settles at the end of each four-week cycle.'),
-      fourWeekBoard.length===0?h('p',{className:'muted'},'No completed fantasy scores in the four-week window yet.'):
-      h('table',{className:'plain'},h('thead',null,h('tr',null,['#','Player','Weeks scored','Four-week points'].map(x=>h('th',{key:x},x)))),h('tbody',null,fourWeekBoard.map((r,i)=>h('tr',{key:r.player,className:r.player===me?'me':''},h('td',{className:'n muted'},i+1),h('td',null,h(Nm,{n:r.player,size:16})),h('td',{className:'n'},r.weeks),h('td',{className:'n'},r.score)))))
-    ),
-    h('div',{className:'panel',style:{marginTop:18}},h('h2',null,'Individual player points · last four completed weeks'),h('p',{className:'small muted'},'Points earned by each player in the league, independent of who picked them in Fantasy.'),
-      individualBoard.length===0?h('p',{className:'muted'},'No completed fantasy weeks to score yet.'):
+    h('div',{className:'panel',style:{marginTop:18}},h('h2',null,'All-time individual player points'),h('p',{className:'small muted'},'Points earned by each player in the league, independent of who picked them in Fantasy.'),
+      individualBoard.length===0?h('p',{className:'muted'},'No completed Fantasy weeks to score yet.'):
       h('table',{className:'plain'},h('thead',null,h('tr',null,['#','Player','Weeks counted','Individual points'].map(x=>h('th',{key:x},x)))),h('tbody',null,individualBoard.map((r,i)=>h('tr',{key:r.name,className:r.name===me?'me':''},h('td',{className:'n muted'},i+1),h('td',null,h(Nm,{n:r.name,size:16})),h('td',{className:'n'},r.weeks),h('td',{className:'n'},r.points)))))
     )
   );
@@ -10538,7 +10534,7 @@ function Login({
     style: {
       fontSize: 96
     }
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.9.2")), /*#__PURE__*/React.createElement("p", {
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.9.3")), /*#__PURE__*/React.createElement("p", {
     className: "muted"
   }, "Twelve players. Six games. One office. Report to the table."), /*#__PURE__*/React.createElement("div", {
     className: "pinbox"
@@ -10807,7 +10803,7 @@ function App() {
     style: {
       fontSize: 96
     }
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.9.2"));
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.9.3"));
   if (!store) return /*#__PURE__*/React.createElement("div", {
     className: "login"
   }, mark, /*#__PURE__*/React.createElement("p", {
@@ -10998,7 +10994,7 @@ function App() {
     className: "rail"
   }, /*#__PURE__*/React.createElement("div", {
     className: "wordmark"
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.9.2")), /*#__PURE__*/React.createElement("div", {
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.9.3")), /*#__PURE__*/React.createElement("div", {
     className: "decree"
   }, decree), /*#__PURE__*/React.createElement("div", {
     className: "nav"
