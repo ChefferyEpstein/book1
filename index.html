@@ -3460,16 +3460,37 @@ function fantasyFourWeekBoard(store) {
   });
   return Object.values(rows).sort((a,b)=>b.score-a.score||b.weeks-a.weeks||a.player.localeCompare(b.player));
 }
+function fantasySnapshotBeforeWeek(store,targetWeek) {
+  const prior=(store.weeks||[]).filter(w=>w.closed&&w.n<targetWeek.n).slice(-4);
+  const stats={};
+  const get=name=>stats[name]||(stats[name]={name,w:0,l:0,d:0,weeks:0});
+  prior.forEach(w=>{
+    (w.players||[]).forEach(name=>get(name).weeks++);
+    (w.fixtures||[]).filter(played).forEach(g=>{
+      if(winner(g))get(winner(g)).w++;
+      if(loser(g))get(loser(g)).l++;
+      if(g.p1&&g.p2){get(g.p1).d+=g.s1-g.s2;get(g.p2).d+=g.s2-g.s1;}
+    });
+  });
+  (targetWeek.players||[]).forEach(name=>get(name));
+  (store.players||[]).filter(p=>p.active).forEach(p=>get(p.name));
+  const ranked=Object.values(stats).sort((a,b)=>b.w-a.w||b.d-a.d||b.weeks-a.weeks||a.name.localeCompare(b.name));
+  return {elite:ranked.slice(0,4).map(r=>r.name),challenger:ranked.slice(4,8).map(r=>r.name),mongs:ranked.slice(8).map(r=>r.name)};
+}
 function fantasyIndividualBoard(store) {
   const weeks=(store.weeks||[]).filter(w=>w.closed),rows={};
   weeks.forEach(w=>{
     const fw=(store.fantasyWeeks||{})[String(w.n)];
-    if(!fw||!fw.tiers)return;
-    [['elite',fw.tiers.elite||[]],['challenger',fw.tiers.challenger||[]],['mongs',fw.tiers.mongs||[]]].forEach(([tier,names])=>{
-      names.forEach(name=>{
-        rows[name]=rows[name]||{name,points:0,weeks:0};
-        rows[name].points+=fantasyPointsForPlayer(w,name,tier);rows[name].weeks++;
-      });
+    // Preserve a saved historical tier snapshot; reconstruct it for older weeks
+    // created before Fantasy snapshots were stored.
+    const tiers=fw&&fw.tiers?fw.tiers:fantasySnapshotBeforeWeek(store,w);
+    const groups=[['elite',tiers.elite||[]],['challenger',tiers.challenger||[]],['mongs',tiers.mongs||[]]];
+    const tierByName={};
+    groups.forEach(([tier,names])=>names.forEach(name=>tierByName[name]=tier));
+    (w.players||[]).forEach(name=>{
+      const tier=tierByName[name]||'mongs';
+      rows[name]=rows[name]||{name,points:0,weeks:0};
+      rows[name].points+=fantasyPointsForPlayer(w,name,tier);rows[name].weeks++;
     });
   });
   return Object.values(rows).sort((a,b)=>b.points-a.points||b.weeks-a.weeks||a.name.localeCompare(b.name));
@@ -7300,7 +7321,7 @@ function FantasyPage({store,me,dispatch}) {
         h('p',null,h('b',null,'Elite:'),' 10 per win'),
         h('p',null,h('b',null,'Challenger:'),' 12 per win'),
         h('p',null,h('b',null,'Mong:'),' 15 per win'),
-        h('p',null,h('b',null,'Everyone:'),' +2 per draw.'),
+        h('p',null,h('b',null,'Everyone:'),' +2 per point of ball difference (positive or negative).'),
         h('p',{className:'display',style:{fontSize:26}},100000 .toLocaleString(),' chips'),
         h('p',{className:'small muted'},'The 100,000-chip regular pot is paid to the top Fantasy score every game week. Ties split the weekly pot.'),
         h('p',{className:'display',style:{fontSize:22,marginTop:12}},'1,000,000-chip optimal-team jackpot'),
