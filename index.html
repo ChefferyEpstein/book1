@@ -4338,12 +4338,7 @@ function BattleshipsPage({
     className: "page-title"
   }, /*#__PURE__*/React.createElement("h1", null, "Battleships"), /*#__PURE__*/React.createElement("span", {
     className: "sub"
-  }, "Challenge someone, place your fleet, sink theirs.")), /*#__PURE__*/React.createElement(MinigameIntelligence, {
-    store: store,
-    me: me,
-    kind: "battleships",
-    title: "Battleships"
-  }), /*#__PURE__*/React.createElement("div", {
+  }, "Challenge someone, place your fleet, sink theirs.")), /*#__PURE__*//*#__PURE__*/React.createElement("div", {
     className: "panel",
     style: {
       marginBottom: 18
@@ -4374,7 +4369,12 @@ function BattleshipsPage({
       stake,
       by: me
     })
-  }, "Challenge ", target, stake > 0 ? ' for ' + stake : '')), pending.length > 0 && /*#__PURE__*/React.createElement("div", {
+  }, "Challenge ", target, stake > 0 ? ' for ' + stake : '')), /*#__PURE__*/React.createElement(MinigameIntelligence, {
+    store: store,
+    me: me,
+    kind: "battleships",
+    title: "Battleships"
+  }), pending.length > 0 && /*#__PURE__*/React.createElement("div", {
     className: "panel",
     style: {
       marginBottom: 18
@@ -5037,7 +5037,6 @@ function ChessPage({store,me,act}){
   const ratings=store.players.filter(p=>p.active).map(p=>({name:p.name,rating:(store.chessRatings&&store.chessRatings[p.name])||1200})).sort((a,b)=>b.rating-a.rating||a.name.localeCompare(b.name));
   return h('div',null,
     h('div',{className:'page-title'},h('h1',null,'Chess'),h('span',{className:'sub'},'Separate Elo. Optional chip stakes. Server-authoritative turns and clocks.')),
-    h(MinigameIntelligence,{store,me,kind:'chess',title:'Chess'}),
     h('div',{className:'grid g2'},
       h('div',null,
         h('div',{className:'panel',style:{marginBottom:18}},h('h2',null,'Challenge someone'),
@@ -5046,6 +5045,7 @@ function ChessPage({store,me,act}){
           h(BetBar,{bet:stake,setBet:setStake,max:balance}),
           h('button',{className:'btn',style:{marginTop:10},disabled:!target||stake<0||stake>balance,onClick:()=>act({t:'chessCreate',opponent:target,stake,timeControl:tc})},'Challenge ',target,stake>0?' for '+stake.toLocaleString()+' chips':'')
         ),
+        h(MinigameIntelligence,{store,me,kind:'chess',title:'Chess'}),
         incoming.length>0&&h('div',{className:'panel',style:{marginBottom:18}},h('h2',null,'Challenges for you'),incoming.map(g=>h('div',{key:g.id,className:'row spread',style:{padding:'7px 0',borderBottom:'1px solid var(--smoke)'}},h('span',null,h('b',null,g.challenger),' · ',CHESS_TIME[g.timeControl]?.label||g.timeControl,g.stake>0?' · '+g.stake.toLocaleString()+' chips':''),h('span',{className:'row'},h('button',{className:'btn sm',onClick:()=>act({t:'chessAccept',id:g.id})},'Accept'),h('button',{className:'btn sm ghost',onClick:()=>act({t:'chessDecline',id:g.id})},'Decline'))))),
         outgoing.length>0&&h('div',{className:'panel',style:{marginBottom:18}},h('h2',null,'Waiting for acceptance'),outgoing.map(g=>h('div',{key:g.id,className:'row spread',style:{padding:'7px 0',borderBottom:'1px solid var(--smoke)'}},h('span',null,'v ',h('b',null,g.opponent),' · ',CHESS_TIME[g.timeControl]?.label||g.timeControl),h('button',{className:'btn sm ghost',onClick:()=>act({t:'chessCancel',id:g.id})},'Cancel')))),
         active.length>0&&h('div',{className:'panel',style:{marginBottom:18}},h('h2',null,'In progress'),active.map(g=>{const other=g.challenger===me?g.opponent:g.challenger,myc=g.white===me?'w':'b';return h('div',{key:g.id,className:'row spread',style:{padding:'7px 0',borderBottom:'1px solid var(--smoke)'}},h('span',null,'v ',h('b',null,other),' · ',CHESS_TIME[g.timeControl]?.label||g.timeControl),h('button',{className:'btn sm'+(g.turn===myc?'':' ghost'),onClick:()=>setSelected(g.id)},g.turn===myc?'Your move':'View'));})),
