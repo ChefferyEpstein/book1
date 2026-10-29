@@ -586,7 +586,7 @@ function buildStore() {
       chipPerDiff: 10,
       caseCost: 300,
       chipPrice: 0.2,
-      fantasyPrize: 50000
+      fantasyPrize: 100000
     },
     cardCatalog: defaultCardCatalog(),
     cards: {},
@@ -3487,26 +3487,15 @@ function settleFantasyWeek(s,w,log) {
   fw.optimalTeam=optimal&&optimal.picks;fw.optimalCaptain=optimal&&optimal.captain;fw.optimalScore=optimal&&optimal.score;fw.jackpotWinners=jackpotWinners;
   if(jackpotWinners.length)log('GW'+w.n+' fantasy optimal team: '+jackpotWinners.join(', ')+' hit the 1,000,000-chip jackpot');
 
-  // The regular fantasy pot settles once every four game weeks using the cumulative
-  // scores from that four-week knockout window, rather than the current week alone.
-  if(w.n%4===0){
-    const closedWeeks=(s.weeks||[]).filter(x=>x.closed).slice(-4),totals={};
-    closedWeeks.forEach(cw=>{
-      const cfw=(s.fantasyWeeks||{})[String(cw.n)];
-      if(!cfw||!cfw.picks)return;
-      Object.entries(cfw.picks).forEach(([player,picks])=>{
-        const score=fantasyScore(s,cw,picks,cfw.tiers,cfw.captains&&cfw.captains[player]);
-        totals[player]=(totals[player]||0)+score;
-      });
-    });
-    const ranked=Object.entries(totals).sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0]));
-    if(ranked.length){
-      const top=ranked[0][1],winners=ranked.filter(x=>x[1]===top).map(x=>x[0]);
-      const prize=(s.payouts&&s.payouts.fantasyPrize)||50000,each=Math.floor(prize/winners.length);
-      winners.forEach(p=>s.chips[p]=(s.chips[p]!=null?s.chips[p]:1000)+each);
-      fw.potWinners=winners;fw.potWinningScore=top;fw.potPrizeEach=each;fw.potWeeks=closedWeeks.map(x=>x.n);
-      log('Four-week fantasy pot GW'+closedWeeks[0].n+'–GW'+closedWeeks[closedWeeks.length-1].n+': '+winners.join(', ')+' won '+each+' chips each on '+top+' points');
-    }
+  // Award the regular fantasy pot after every completed game week, using
+  // that week's scores only. Ties split the weekly 100,000-chip prize.
+  const ranked=entries.map(x=>[x.player,x.score]).sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0]));
+  if(ranked.length){
+    const top=ranked[0][1],winners=ranked.filter(x=>x[1]===top).map(x=>x[0]);
+    const prize=100000,each=Math.floor(prize/winners.length);
+    winners.forEach(p=>s.chips[p]=(s.chips[p]!=null?s.chips[p]:1000)+each);
+    fw.potWinners=winners;fw.potWinningScore=top;fw.potPrizeEach=each;fw.potWeeks=[w.n];
+    log('Weekly fantasy pot GW'+w.n+': '+winners.join(', ')+' won '+each+' chips each on '+top+' points');
   }
   fw.paid=true;
 }
@@ -7312,8 +7301,8 @@ function FantasyPage({store,me,dispatch}) {
         h('p',null,h('b',null,'Challenger:'),' 12 per win'),
         h('p',null,h('b',null,'Mong:'),' 15 per win'),
         h('p',null,h('b',null,'Everyone:'),' +2 per draw.'),
-        h('p',{className:'display',style:{fontSize:26}},((store.payouts&&store.payouts.fantasyPrize)||50000).toLocaleString(),' chips'),
-        h('p',{className:'small muted'},'The regular pot is paid to the top cumulative score after each four-week knockout cycle (GW4, GW8, and so on). Ties split the pot.'),
+        h('p',{className:'display',style:{fontSize:26}},100000 .toLocaleString(),' chips'),
+        h('p',{className:'small muted'},'The 100,000-chip regular pot is paid to the top Fantasy score every game week. Ties split that week's pot.'),
         h('p',{className:'display',style:{fontSize:22,marginTop:12}},'1,000,000-chip optimal-team jackpot'),
         h('p',{className:'small muted'},'Match the best four players for this week and captain the highest-scoring pick. Jackpot is awarded when the week settles.'),
         optimal&&h('p',{className:'small muted'},'Optimal: ',optimal.picks.join(' · '),' | Captain: ',optimal.captain,' | ',optimal.score,' points')
