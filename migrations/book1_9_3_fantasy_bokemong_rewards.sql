@@ -191,6 +191,15 @@ begin
       'when ''pub-lich'' then 68 when ''rave-mite'' then 46 when ''bookie-rat'' then 46 when ''kitchen-ogre'' then 75');
     execute fn_def;
   end if;
+
+  -- Complete the reciprocal resistances for the Rave / Pub / Food cycle.
+  fn_def := pg_get_functiondef('public.book_bokemong_effectiveness_191(text,text)'::regprocedure);
+  if position('when p_defender=''Rave'' and p_attacker=''Pub'' then 0.80' in fn_def)=0 then
+    fn_def := replace(fn_def,
+      'when p_defender=''Regime'' and p_attacker=''Pool'' then 0.80'||E'\n    else 1.00',
+      'when p_defender=''Regime'' and p_attacker=''Pool'' then 0.80'||E'\n    when p_defender=''Rave'' and p_attacker=''Pub'' then 0.80'||E'\n    when p_defender=''Pub'' and p_attacker=''Food'' then 0.80'||E'\n    when p_defender=''Food'' and p_attacker=''Rave'' then 0.80'||E'\n    else 1.00');
+    execute fn_def;
+  end if;
 end
 $migration$;
 
