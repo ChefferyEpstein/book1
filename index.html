@@ -7126,9 +7126,9 @@ function BokémongsPage({store,me,dispatch,sync}){
         ['Finance','Regime','Finance beats Regime; Regime resists Finance'],
         ['Regime','Pool','Regime beats Pool; Pool resists Regime'],
         ['Arcade','Strategy','Arcade and Strategy are both marked super-effective against each other'],
-        ['Rave','Pub / Degenerate','Rave deals 25% more damage to Pub / Degenerate'],
-        ['Pub / Degenerate','Food / Work','Pub / Degenerate deals 25% more damage to Food / Work'],
-        ['Food / Work','Rave','Food / Work deals 25% more damage to Rave']
+        ['Degenerate','Work','Degenerate deals 25% more damage to Work; Work resists Degenerate'],
+        ['Work','Office','Work deals 25% more damage to Office; Office resists Work'],
+        ['Arcade','Strategy','Arcade and Strategy are both super-effective against each other']
       ].map((x,i)=>h('div',{key:i,className:'warnbox'},h('b',null,x[0]+' → '+x[1]),h('p',{className:'small',style:{marginBottom:0}},x[2]))))
     ),
     history.length>0&&h('div',{className:'panel',style:{marginTop:18}},h('h2',null,'Battle history'),history.map(x=>h('div',{key:x.id,className:'row spread small',style:{padding:'6px 0',borderBottom:'1px solid var(--smoke)'}},h('span',null,x.a,' v ',x.b),h('span',{className:x.winner===me?'stamp ok':'stamp bad'},x.winner?((x.winner===me?'WIN':'LOSS')+' · '+x.winner):x.status||'complete'))))
