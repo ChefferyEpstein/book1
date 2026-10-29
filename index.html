@@ -7282,6 +7282,7 @@ function FantasyPage({store,me,dispatch}) {
   useEffect(()=>{const p=fw.picks&&fw.picks[me];if(p){setElite(p[0]);setChallenger(p[1]);setMong1(p[2]);setMong2(p[3]);setCaptain((fw.captains&&fw.captains[me])||p[0]);}},[w.n,me]);
   const locked=w.closed||(w.fixtures||[]).some(played);
   const picks=[elite,challenger,mong1,mong2];
+  useEffect(()=>{if(!picks.includes(captain))setCaptain(picks.find(Boolean)||'');},[elite,challenger,mong1,mong2,captain]);
   const valid=picks.every(Boolean)&&new Set(picks).size===4&&tiers.elite.includes(elite)&&tiers.challenger.includes(challenger)&&tiers.mongs.includes(mong1)&&tiers.mongs.includes(mong2)&&picks.includes(captain);
   const board=Object.entries(fw.picks||{}).map(([player,p])=>({player,picks:p,captain:fw.captains&&fw.captains[player],score:fantasyScore(store,w,p,tiers,fw.captains&&fw.captains[player])})).sort((a,b)=>b.score-a.score||a.player.localeCompare(b.player));
   const fourWeekBoard=fantasyFourWeekBoard(store),individualBoard=fantasyIndividualBoard(store),optimal=fantasyOptimalTeam(w,tiers);
