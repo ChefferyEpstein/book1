@@ -3443,7 +3443,7 @@ function fantasySameTeam(a,b) {
   return !!a&&!!b&&a[0]===b[0]&&a[1]===b[1]&&[a[2],a[3]].sort().join('|')===[b[2],b[3]].sort().join('|');
 }
 function fantasyFourWeekBoard(store) {
-  const weeks=(store.weeks||[]).filter(w=>w.closed||(w.fixtures||[]).some(played)).slice(-4);
+  const weeks=(store.weeks||[]).filter(w=>w.closed).slice(-4);
   const rows={};
   weeks.forEach(w=>{
     const fw=(store.fantasyWeeks||{})[String(w.n)];
@@ -3457,25 +3457,55 @@ function fantasyFourWeekBoard(store) {
   });
   return Object.values(rows).sort((a,b)=>b.score-a.score||b.weeks-a.weeks||a.player.localeCompare(b.player));
 }
+function fantasyIndividualBoard(store) {
+  const weeks=(store.weeks||[]).filter(w=>w.closed).slice(-4),rows={};
+  weeks.forEach(w=>{
+    const fw=(store.fantasyWeeks||{})[String(w.n)];
+    if(!fw||!fw.tiers)return;
+    [['elite',fw.tiers.elite||[]],['challenger',fw.tiers.challenger||[]],['mongs',fw.tiers.mongs||[]]].forEach(([tier,names])=>{
+      names.forEach(name=>{
+        rows[name]=rows[name]||{name,points:0,weeks:0};
+        rows[name].points+=fantasyPointsForPlayer(w,name,tier);rows[name].weeks++;
+      });
+    });
+  });
+  return Object.values(rows).sort((a,b)=>b.points-a.points||b.weeks-a.weeks||a.name.localeCompare(b.name));
+}
 function settleFantasyWeek(s,w,log) {
   s.fantasyWeeks=s.fantasyWeeks||{};
-  const fw=s.fantasyWeeks[String(w.n)];
-  if(!fw||fw.paid||!fw.picks) return;
-  const entries=Object.entries(fw.picks).map(([player,picks])=>({player,picks,captain:fw.captains&&fw.captains[player],score:fantasyScore(s,w,picks,fw.tiers,fw.captains&&fw.captains[player])}));
-  if(!entries.length){fw.paid=true;fw.winners=[];fw.jackpotWinners=[];return;}
-  const top=Math.max(...entries.map(x=>x.score));
-  const winners=entries.filter(x=>x.score===top).map(x=>x.player);
-  const prize=(s.payouts&&s.payouts.fantasyPrize)||50000;
-  const each=Math.floor(prize/winners.length);
-  s.chips=s.chips||{};
-  winners.forEach(p=>s.chips[p]=(s.chips[p]!=null?s.chips[p]:1000)+each);
-  const optimal=fantasyOptimalTeam(w,fw.tiers);
+  const k=String(w.n);
+  const fw=s.fantasyWeeks[k]||(s.fantasyWeeks[k]={tiers:fantasySnapshot(s),picks:{},captains:{},paid:false});
+  if(fw.paid)return;
+  const entries=Object.entries(fw.picks||{}).map(([player,picks])=>({player,picks,captain:fw.captains&&fw.captains[player],score:fantasyScore(s,w,picks,fw.tiers,fw.captains&&fw.captains[player])}));
+  const optimal=entries.length?fantasyOptimalTeam(w,fw.tiers):null;
   const jackpotWinners=optimal?entries.filter(x=>fantasySameTeam(x.picks,optimal.picks)&&x.captain===optimal.captain).map(x=>x.player):[];
+  s.chips=s.chips||{};
   jackpotWinners.forEach(p=>s.chips[p]=(s.chips[p]!=null?s.chips[p]:1000)+1000000);
-  fw.paid=true;fw.winners=winners;fw.winningScore=top;fw.prizeEach=each;
   fw.optimalTeam=optimal&&optimal.picks;fw.optimalCaptain=optimal&&optimal.captain;fw.optimalScore=optimal&&optimal.score;fw.jackpotWinners=jackpotWinners;
-  log('GW'+w.n+' fantasy: '+winners.join(', ')+' won '+each+' chips each on '+top+' points');
   if(jackpotWinners.length)log('GW'+w.n+' fantasy optimal team: '+jackpotWinners.join(', ')+' hit the 1,000,000-chip jackpot');
+
+  // The regular fantasy pot settles once every four game weeks using the cumulative
+  // scores from that four-week knockout window, rather than the current week alone.
+  if(w.n%4===0){
+    const closedWeeks=(s.weeks||[]).filter(x=>x.closed).slice(-4),totals={};
+    closedWeeks.forEach(cw=>{
+      const cfw=(s.fantasyWeeks||{})[String(cw.n)];
+      if(!cfw||!cfw.picks)return;
+      Object.entries(cfw.picks).forEach(([player,picks])=>{
+        const score=fantasyScore(s,cw,picks,cfw.tiers,cfw.captains&&cfw.captains[player]);
+        totals[player]=(totals[player]||0)+score;
+      });
+    });
+    const ranked=Object.entries(totals).sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0]));
+    if(ranked.length){
+      const top=ranked[0][1],winners=ranked.filter(x=>x[1]===top).map(x=>x[0]);
+      const prize=(s.payouts&&s.payouts.fantasyPrize)||50000,each=Math.floor(prize/winners.length);
+      winners.forEach(p=>s.chips[p]=(s.chips[p]!=null?s.chips[p]:1000)+each);
+      fw.potWinners=winners;fw.potWinningScore=top;fw.potPrizeEach=each;fw.potWeeks=closedWeeks.map(x=>x.n);
+      log('Four-week fantasy pot GW'+closedWeeks[0].n+'–GW'+closedWeeks[closedWeeks.length-1].n+': '+winners.join(', ')+' won '+each+' chips each on '+top+' points');
+    }
+  }
+  fw.paid=true;
 }
 function settleBounties(s,log) {
   if(!s.bounties||!s.bounties.length) return;
@@ -7082,7 +7112,7 @@ function BokémongsPage({store,me,dispatch,sync}){
       h('div',{className:'panel'},h('h2',null,'Your team'),h('div',{className:'display',style:{fontSize:34}},'Bond Level ',level),h('p',{className:'small muted'},xp.toLocaleString(),' activity XP.'),(mine.team||[]).map(id=>{const x=bokById(id);return x&&h('div',{key:id,className:'row spread',style:{padding:'7px 0',borderBottom:'1px solid var(--smoke)'}},h('b',null,x.name),h('span',{className:'small muted'},x.type,' · ',x.power,' base'));}),
         h('h3',{style:{marginTop:14}},'Change your 3-mong team'),
         h('p',{className:'small muted'},'Only Bokémongs you own can be selected. Team changes are blocked while a challenge or battle is open.'),
-        h('div',{className:'grid g3'},[[team1,setTeam1],[team2,setTeam2],[team3,setTeam3]].map(([value,setter,i])=>h('label',{key:i,className:'f'},'Slot '+(i+1),h('select',{value,onChange:e=>setter(e.target.value),disabled:busy},ownedIds.map(id=>h('option',{key:id,value:id},bokById(id)?.name||id))))),
+        h('div',{className:'grid g3'},[[team1,setTeam1],[team2,setTeam2],[team3,setTeam3]].map(([value,setter],i)=>h('label',{key:i,className:'f'},'Slot '+(i+1),h('select',{value,onChange:e=>setter(e.target.value),disabled:busy},ownedIds.map(id=>h('option',{key:id,value:id},bokById(id)?.name||id))))),
         h('button',{className:'btn',style:{marginTop:8},disabled:busy||new Set([team1,team2,team3]).size!==3||![team1,team2,team3].every(id=>ownedIds.includes(id)),onClick:()=>act({t:'bokemongTeam',team:[team1,team2,team3]})},'Save team'),
         mine.lastReward&&h('p',{className:'small muted',style:{marginTop:10}},'Last battle reward: ',mine.lastReward.chips||0,' chips',mine.lastReward.mong?' · Unlocked '+(bokById(mine.lastReward.mong)?.name||mine.lastReward.mong):'',mine.lastReward.at?' · '+new Date(mine.lastReward.at).toLocaleDateString('en-GB'):'')
       ),
@@ -7096,9 +7126,9 @@ function BokémongsPage({store,me,dispatch,sync}){
         ['Finance','Regime','Finance beats Regime; Regime resists Finance'],
         ['Regime','Pool','Regime beats Pool; Pool resists Regime'],
         ['Arcade','Strategy','Arcade and Strategy are both marked super-effective against each other'],
-        ['Rave','Pub / Degenerate','Rave beats Pub; Pub resists Rave'],
-        ['Pub / Degenerate','Food / Work','Pub beats Food / Work; Food / Work resists Pub'],
-        ['Food / Work','Rave','Food / Work beats Rave; Rave resists Food / Work']
+        ['Rave','Pub / Degenerate','Rave deals 25% more damage to Pub / Degenerate'],
+        ['Pub / Degenerate','Food / Work','Pub / Degenerate deals 25% more damage to Food / Work'],
+        ['Food / Work','Rave','Food / Work deals 25% more damage to Rave']
       ].map((x,i)=>h('div',{key:i,className:'warnbox'},h('b',null,x[0]+' → '+x[1]),h('p',{className:'small',style:{marginBottom:0}},x[2]))))
     ),
     history.length>0&&h('div',{className:'panel',style:{marginTop:18}},h('h2',null,'Battle history'),history.map(x=>h('div',{key:x.id,className:'row spread small',style:{padding:'6px 0',borderBottom:'1px solid var(--smoke)'}},h('span',null,x.a,' v ',x.b),h('span',{className:x.winner===me?'stamp ok':'stamp bad'},x.winner?((x.winner===me?'WIN':'LOSS')+' · '+x.winner):x.status||'complete'))))
@@ -7254,7 +7284,7 @@ function FantasyPage({store,me,dispatch}) {
   const picks=[elite,challenger,mong1,mong2];
   const valid=picks.every(Boolean)&&new Set(picks).size===4&&tiers.elite.includes(elite)&&tiers.challenger.includes(challenger)&&tiers.mongs.includes(mong1)&&tiers.mongs.includes(mong2)&&picks.includes(captain);
   const board=Object.entries(fw.picks||{}).map(([player,p])=>({player,picks:p,captain:fw.captains&&fw.captains[player],score:fantasyScore(store,w,p,tiers,fw.captains&&fw.captains[player])})).sort((a,b)=>b.score-a.score||a.player.localeCompare(b.player));
-  const fourWeekBoard=fantasyFourWeekBoard(store),optimal=fantasyOptimalTeam(w,tiers);
+  const fourWeekBoard=fantasyFourWeekBoard(store),individualBoard=fantasyIndividualBoard(store),optimal=fantasyOptimalTeam(w,tiers);
   const sel=(value,setter,list)=>h('select',{value,onChange:e=>setter(e.target.value),disabled:locked},list.map(n=>h('option',{key:n,value:n},n)));
   return h('div',null,
     h('div',{className:'page-title'},h('h1',null,'Fantasy'),h('span',{className:'sub'},'GW',w.n,' — 1 Elite, 1 Challenger, 2 Mongs.')),
@@ -7278,7 +7308,7 @@ function FantasyPage({store,me,dispatch}) {
         h('p',null,h('b',null,'Mong:'),' 15 per win'),
         h('p',null,h('b',null,'Everyone:'),' +2 per draw.'),
         h('p',{className:'display',style:{fontSize:26}},((store.payouts&&store.payouts.fantasyPrize)||50000).toLocaleString(),' chips'),
-        h('p',{className:'small muted'},'Weekly winner takes the prize. A tied top score splits it equally.'),
+        h('p',{className:'small muted'},'The regular pot is paid to the top cumulative score after each four-week knockout cycle (GW4, GW8, and so on). Ties split the pot.'),
         h('p',{className:'display',style:{fontSize:22,marginTop:12}},'1,000,000-chip optimal-team jackpot'),
         h('p',{className:'small muted'},'Match the best four players for this week and captain the highest-scoring pick. Jackpot is awarded when the week settles.'),
         optimal&&h('p',{className:'small muted'},'Optimal: ',optimal.picks.join(' · '),' | Captain: ',optimal.captain,' | ',optimal.score,' points')
@@ -7288,9 +7318,13 @@ function FantasyPage({store,me,dispatch}) {
       board.length===0?h('p',{className:'muted'},'Nobody has submitted a team yet.'):
       h('table',{className:'plain'},h('thead',null,h('tr',null,['#','Player','Team','Captain','Points'].map(x=>h('th',{key:x},x)))),h('tbody',null,board.map((r,i)=>h('tr',{key:r.player,className:r.player===me?'me':''},h('td',{className:'n muted'},i+1),h('td',null,h(Nm,{n:r.player,size:16})),h('td',{className:'small muted'},r.picks.join(', ')),h('td',{className:'small'},r.captain||'—'),h('td',{className:'n'},r.score)))))
     ),
-    h('div',{className:'panel',style:{marginTop:18}},h('h2',null,'Four-week knockout leaderboard'),h('p',{className:'small muted'},'Cumulative fantasy points across the last four game weeks with submitted teams.'),
-      fourWeekBoard.length===0?h('p',{className:'muted'},'No fantasy scores in the four-week window yet.'):
+    h('div',{className:'panel',style:{marginTop:18}},h('h2',null,'Four-week knockout leaderboard'),h('p',{className:'small muted'},'Cumulative fantasy points across the last four completed game weeks. The regular pot settles at the end of each four-week cycle.'),
+      fourWeekBoard.length===0?h('p',{className:'muted'},'No completed fantasy scores in the four-week window yet.'):
       h('table',{className:'plain'},h('thead',null,h('tr',null,['#','Player','Weeks scored','Four-week points'].map(x=>h('th',{key:x},x)))),h('tbody',null,fourWeekBoard.map((r,i)=>h('tr',{key:r.player,className:r.player===me?'me':''},h('td',{className:'n muted'},i+1),h('td',null,h(Nm,{n:r.player,size:16})),h('td',{className:'n'},r.weeks),h('td',{className:'n'},r.score)))))
+    ),
+    h('div',{className:'panel',style:{marginTop:18}},h('h2',null,'Individual player points · last four completed weeks'),h('p',{className:'small muted'},'Points earned by each player in the league, independent of who picked them in Fantasy.'),
+      individualBoard.length===0?h('p',{className:'muted'},'No completed fantasy weeks to score yet.'):
+      h('table',{className:'plain'},h('thead',null,h('tr',null,['#','Player','Weeks counted','Individual points'].map(x=>h('th',{key:x},x)))),h('tbody',null,individualBoard.map((r,i)=>h('tr',{key:r.name,className:r.name===me?'me':''},h('td',{className:'n muted'},i+1),h('td',null,h(Nm,{n:r.name,size:16})),h('td',{className:'n'},r.weeks),h('td',{className:'n'},r.points)))))
     )
   );
 }
