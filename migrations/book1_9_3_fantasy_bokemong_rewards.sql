@@ -22,6 +22,7 @@ begin
     g := jsonb_set(g,''{captains}'',coalesce(g->''captains'',''{}''::jsonb),true);
     g := jsonb_set(g,array[''captains'',p_name],to_jsonb(coalesce(p_action->>''captain'',p_action->''picks''->>0)),true);';
     fn_def := replace(fn_def,needle,replacement);
+    if position('captains' in fn_def)=0 then raise exception 'Book1.9.3: fantasy captain validation patch failed.'; end if;
     execute fn_def;
   end if;
 end
@@ -156,6 +157,7 @@ begin
       fn_def := replace(fn_def,needle,replacement);
     end if;
   end if;
+  if position('bokemongRecall' in fn_def)=0 then raise exception 'Book1.9.3: server recall action could not be installed.'; end if;
 
   if position('book_bokemong_reward_193' in fn_def)=0 then
     needle := 'd:=jsonb_set(d,array[''bokemongs'',''battles'',idx::text],g,true);';
@@ -182,6 +184,7 @@ begin
   if position('when ''bookie-rat'' then ''Pub''' in fn_def)=0 then
     fn_def := replace(fn_def,'when ''pub-lich'' then ''Pub''',
       'when ''pub-lich'' then ''Pub'''||E'\n    when ''bookie-rat'' then ''Pub''');
+    if position('when ''bookie-rat'' then ''Pub''' in fn_def)=0 then raise exception 'Book1.9.3: could not extend Bokédex type map.'; end if;
     execute fn_def;
   end if;
 
@@ -189,6 +192,7 @@ begin
   if position('when ''bookie-rat'' then 46' in fn_def)=0 then
     fn_def := replace(fn_def,'when ''pub-lich'' then 68 when ''rave-mite'' then 46 when ''kitchen-ogre'' then 75',
       'when ''pub-lich'' then 68 when ''rave-mite'' then 46 when ''bookie-rat'' then 46 when ''kitchen-ogre'' then 75');
+    if position('when ''bookie-rat'' then 46' in fn_def)=0 then raise exception 'Book1.9.3: could not extend Bokédex power map.'; end if;
     execute fn_def;
   end if;
 
@@ -198,6 +202,11 @@ begin
     fn_def := replace(fn_def,
       'when p_defender=''Regime'' and p_attacker=''Pool'' then 0.80'||E'\n    else 1.00',
       'when p_defender=''Regime'' and p_attacker=''Pool'' then 0.80'||E'\n    when p_defender=''Rave'' and p_attacker=''Pub'' then 0.80'||E'\n    when p_defender=''Pub'' and p_attacker=''Food'' then 0.80'||E'\n    when p_defender=''Food'' and p_attacker=''Rave'' then 0.80'||E'\n    else 1.00');
+    if position('when p_defender=''Rave'' and p_attacker=''Pub'' then 0.80' in fn_def)=0
+       or position('when p_defender=''Pub'' and p_attacker=''Food'' then 0.80' in fn_def)=0
+       or position('when p_defender=''Food'' and p_attacker=''Rave'' then 0.80' in fn_def)=0 then
+      raise exception 'Book1.9.3: reciprocal Rave / Pub / Food resistances could not be installed.';
+    end if;
     execute fn_def;
   end if;
 end
