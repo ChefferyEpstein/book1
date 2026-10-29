@@ -7302,7 +7302,7 @@ function FantasyPage({store,me,dispatch}) {
         h('p',null,h('b',null,'Mong:'),' 15 per win'),
         h('p',null,h('b',null,'Everyone:'),' +2 per draw.'),
         h('p',{className:'display',style:{fontSize:26}},100000 .toLocaleString(),' chips'),
-        h('p',{className:'small muted'},'The 100,000-chip regular pot is paid to the top Fantasy score every game week. Ties split that week's pot.'),
+        h('p',{className:'small muted'},'The 100,000-chip regular pot is paid to the top Fantasy score every game week. Ties split the weekly pot.'),
         h('p',{className:'display',style:{fontSize:22,marginTop:12}},'1,000,000-chip optimal-team jackpot'),
         h('p',{className:'small muted'},'Match the best four players for this week and captain the highest-scoring pick. Jackpot is awarded when the week settles.'),
         optimal&&h('p',{className:'small muted'},'Optimal: ',optimal.picks.join(' · '),' | Captain: ',optimal.captain,' | ',optimal.score,' points')
