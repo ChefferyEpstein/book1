@@ -176,16 +176,14 @@ begin
 end
 $migration$;
 
--- Keep the SQL type/power maps aligned with the client Bokedex.
+-- Align the power map with the live Bokedex and complete reciprocal resistances.
 do $migration$
 declare fn_def text;
 begin
   fn_def := pg_get_functiondef('public.book_bokemong_type_191(text)'::regprocedure);
-  if position('when ''bookie-rat'' then ''Pub''' in fn_def)=0 then
-    fn_def := replace(fn_def,'when ''pub-lich'' then ''Pub''',
-      'when ''pub-lich'' then ''Pub'''||E'\n    when ''bookie-rat'' then ''Pub''');
-    if position('when ''bookie-rat'' then ''Pub''' in fn_def)=0 then raise exception 'Book1.9.3: could not extend Bokédex type map.'; end if;
-    execute fn_def;
+  if position('when ''bookie-rat'' then ''Degenerate''' in fn_def)=0
+     or position('when ''kitchen-ogre'' then ''Work''' in fn_def)=0 then
+    raise exception 'Book1.9.3: live Bokédex type map differs from the expected v38 map; review before applying.';
   end if;
 
   fn_def := pg_get_functiondef('public.book_bokemong_power_190(text)'::regprocedure);
@@ -196,16 +194,15 @@ begin
     execute fn_def;
   end if;
 
-  -- Complete the reciprocal resistances for the Rave / Pub / Food cycle.
+  -- Complete the reciprocal resistances for the Degenerate / Work / Office matchups.
   fn_def := pg_get_functiondef('public.book_bokemong_effectiveness_191(text,text)'::regprocedure);
-  if position('when p_defender=''Rave'' and p_attacker=''Pub'' then 0.80' in fn_def)=0 then
+  if position('when p_defender=''Degenerate'' and p_attacker=''Work'' then 0.80' in fn_def)=0 then
     fn_def := replace(fn_def,
       'when p_defender=''Regime'' and p_attacker=''Pool'' then 0.80'||E'\n    else 1.00',
-      'when p_defender=''Regime'' and p_attacker=''Pool'' then 0.80'||E'\n    when p_defender=''Rave'' and p_attacker=''Pub'' then 0.80'||E'\n    when p_defender=''Pub'' and p_attacker=''Food'' then 0.80'||E'\n    when p_defender=''Food'' and p_attacker=''Rave'' then 0.80'||E'\n    else 1.00');
-    if position('when p_defender=''Rave'' and p_attacker=''Pub'' then 0.80' in fn_def)=0
-       or position('when p_defender=''Pub'' and p_attacker=''Food'' then 0.80' in fn_def)=0
-       or position('when p_defender=''Food'' and p_attacker=''Rave'' then 0.80' in fn_def)=0 then
-      raise exception 'Book1.9.3: reciprocal Rave / Pub / Food resistances could not be installed.';
+      'when p_defender=''Regime'' and p_attacker=''Pool'' then 0.80'||E'\n    when p_defender=''Degenerate'' and p_attacker=''Work'' then 0.80'||E'\n    when p_defender=''Work'' and p_attacker=''Office'' then 0.80'||E'\n    else 1.00');
+    if position('when p_defender=''Degenerate'' and p_attacker=''Work'' then 0.80' in fn_def)=0
+       or position('when p_defender=''Work'' and p_attacker=''Office'' then 0.80' in fn_def)=0 then
+      raise exception 'Book1.9.3: reciprocal Degenerate / Work resistances could not be installed.';
     end if;
     execute fn_def;
   end if;
