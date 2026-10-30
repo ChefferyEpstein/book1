@@ -512,7 +512,7 @@ const {
 } = React;
 const STORE_KEY = 'book1.2-local';
 const CFG = window.BOOK_CONFIG || {};
-const APP_SQL_VERSION = 40; // bump this whenever a new SQL script adds or changes a server function
+const APP_SQL_VERSION = 41; // bump this whenever a new SQL script adds or changes a server function
 const CLOUD = !!(CFG.url && CFG.key);
 const ADMINS = ['Chef', 'Lorcan'];
 const DECREES = ['Abstention is not permitted.', 'The Book sees all results.', 'Ball difference is destiny.', 'The Dictator collects. The Dictator distributes.', 'Report your score. Report it honestly.', 'Twelfth place is a service to the office.', 'The mong off is not optional.', 'Disputes are settled by the regime.'];
@@ -3344,27 +3344,29 @@ const PRESTIGE_REWARDS = [
   {p:10,label:'Free Spin 5 minutes + 30% cheaper cases + 25% weekly bonus + 25pp duplicate refunds'}
 ];
 const CHALLENGE_POOL = {
-  wins3:{id:'wins3',name:'Hat-trick',desc:'Win 3 pool games this game week.',reward:10000,xp:1500},
-  wins5:{id:'wins5',name:'Five Alive',desc:'Win 5 pool games this game week.',reward:15000,xp:2250},
-  wins8:{id:'wins8',name:'Pool Dominator',desc:'Win 8 pool games this game week.',reward:25000,xp:3500},
-  play4:{id:'play4',name:'Clock in',desc:'Complete 4 pool games this game week.',reward:7500,xp:1200},
-  play8:{id:'play8',name:'Regular at the Table',desc:'Complete 8 pool games this game week.',reward:12500,xp:2000},
-  play12:{id:'play12',name:'Never Off the Table',desc:'Complete 12 pool games this game week.',reward:20000,xp:3000},
-  diff10:{id:'diff10',name:'Run it up',desc:'Reach +10 ball difference this game week.',reward:10000,xp:1500},
-  diff20:{id:'diff20',name:'Clear the Table',desc:'Reach +20 ball difference this game week.',reward:17500,xp:2500},
-  diff30:{id:'diff30',name:'Untouchable',desc:'Reach +30 ball difference this game week.',reward:25000,xp:3500},
-  c4wins2:{id:'c4wins2',name:'Four in a Row',desc:'Win 2 Connect 4 games this game week.',reward:7500,xp:1000},
-  c4wins4:{id:'c4wins4',name:'Connect Four Champion',desc:'Win 4 Connect 4 games this game week.',reward:15000,xp:2000},
-  bswin1:{id:'bswin1',name:'Naval Warfare',desc:'Win a Battleships game this game week.',reward:7500,xp:1000},
-  bswin2:{id:'bswin2',name:'Fleet Admiral',desc:'Win 2 Battleships games this game week.',reward:15000,xp:2000},
-  hogwin1:{id:'hogwin1',name:'Hog Supremacy',desc:'Win a Hog duel this game week.',reward:5000,xp:800},
-  hogwin2:{id:'hogwin2',name:'Hog Champion',desc:'Win 2 Hog duels this game week.',reward:10000,xp:1600},
-  chesswin1:{id:'chesswin1',name:'Checkmate',desc:'Win a Chess game this game week.',reward:7500,xp:1000},
-  chesswin2:{id:'chesswin2',name:'Grandmaster in the Making',desc:'Win 2 Chess games this game week.',reward:15000,xp:2000},
-  pinplays1:{id:'pinplays1',name:'First Tilt',desc:'Play one Pinball game this week.',reward:5000,xp:800},
-  pinplays3:{id:'pinplays3',name:'Arcade Regular',desc:'Play three Pinball games this week.',reward:10000,xp:1600},
-  pinscore1000:{id:'pinscore1000',name:'Score Chaser',desc:'Score at least 1,000 in Pinball this week.',reward:7500,xp:1200},
-  pinscore3000:{id:'pinscore3000',name:'Wizard Mode',desc:'Score at least 3,000 in Pinball this week.',reward:15000,xp:2500}
+  wins3:{id:'wins3',name:'Hat-trick',desc:'Win 3 pool games this game week.',reward:10000,xp:1800},
+  wins5:{id:'wins5',name:'Five Alive',desc:'Win 5 pool games this game week.',reward:15000,xp:2700},
+  wins6:{id:'wins6',name:'Pool Dominator',desc:'Win 6 pool games this game week.',reward:25000,xp:3600},
+  play2:{id:'play2',name:'First Session',desc:'Complete 2 pool games this game week.',reward:5000,xp:900},
+  play4:{id:'play4',name:'Clock in',desc:'Complete 4 pool games this game week.',reward:7500,xp:1500},
+  play6:{id:'play6',name:'Regular at the Table',desc:'Complete 6 pool games this game week.',reward:15000,xp:2400},
+  
+  diff5:{id:'diff5',name:'Good Start',desc:'Reach +5 ball difference this game week.',reward:7500,xp:1800},
+  diff10:{id:'diff10',name:'Run it up',desc:'Reach +10 ball difference this game week.',reward:10000,xp:2700},
+  diff15:{id:'diff15',name:'Clear the Table',desc:'Reach +15 ball difference this game week.',reward:17500,xp:3600},
+  
+  c4wins2:{id:'c4wins2',name:'Four in a Row',desc:'Win 2 Connect 4 games this game week.',reward:7500,xp:900},
+  c4wins4:{id:'c4wins4',name:'Connect Four Champion',desc:'Win 4 Connect 4 games this game week.',reward:15000,xp:1800},
+  bswin1:{id:'bswin1',name:'Naval Warfare',desc:'Win a Battleships game this game week.',reward:7500,xp:900},
+  bswin2:{id:'bswin2',name:'Fleet Admiral',desc:'Win 2 Battleships games this game week.',reward:15000,xp:1800},
+  hogwin1:{id:'hogwin1',name:'Hog Supremacy',desc:'Win a Hog duel this game week.',reward:5000,xp:700},
+  hogwin2:{id:'hogwin2',name:'Hog Champion',desc:'Win 2 Hog duels this game week.',reward:10000,xp:1400},
+  chesswin1:{id:'chesswin1',name:'Checkmate',desc:'Win a Chess game this game week.',reward:7500,xp:900},
+  chesswin2:{id:'chesswin2',name:'Grandmaster in the Making',desc:'Win 2 Chess games this game week.',reward:15000,xp:1800},
+  pinplays1:{id:'pinplays1',name:'First Tilt',desc:'Play one Pinball game this week.',reward:5000,xp:700},
+  pinplays3:{id:'pinplays3',name:'Arcade Regular',desc:'Play three Pinball games this week.',reward:10000,xp:1400},
+  pinscore1000:{id:'pinscore1000',name:'Score Chaser',desc:'Score at least 1,000 in Pinball this week.',reward:7500,xp:1000},
+  pinscore3000:{id:'pinscore3000',name:'Wizard Mode',desc:'Score at least 3,000 in Pinball this week.',reward:15000,xp:2200}
 };
 function weeklyChallengesForWeek(n) { return Object.values(CHALLENGE_POOL); }
 function weeklyChallengeProgress(store,p) {
@@ -3384,9 +3386,9 @@ function weeklyChallengeProgress(store,p) {
 }
 function weeklyChallengeMetric(stats,id) {
   const m={
-    wins3:['wins',3,'wins'],wins5:['wins',5,'wins'],wins8:['wins',8,'wins'],
-    play4:['played',4,'games'],play8:['played',8,'games'],play12:['played',12,'games'],
-    diff10:['diff',10,'ball diff'],diff20:['diff',20,'ball diff'],diff30:['diff',30,'ball diff'],
+    wins3:['wins',3,'wins'],wins5:['wins',5,'wins'],wins6:['wins',6,'wins'],
+    play2:['played',2,'games'],play4:['played',4,'games'],play6:['played',6,'games'],
+    diff5:['diff',5,'ball diff'],diff10:['diff',10,'ball diff'],diff15:['diff',15,'ball diff'],
     c4wins2:['c4wins',2,'Connect 4 wins'],c4wins4:['c4wins',4,'Connect 4 wins'],
     bswin1:['bswins',1,'Battleships wins'],bswin2:['bswins',2,'Battleships wins'],
     hogwin1:['hogwins',1,'Hog wins'],hogwin2:['hogwins',2,'Hog wins'],
@@ -7526,15 +7528,17 @@ function ProgressPage({store,me,dispatch}) {
       ),
       h('div',{className:'panel'},
         h('h2',null,'GW'+stats.week+' weekly challenges · '+weeklyChallengesForWeek(stats.week).length+' available'),
-        weeklyChallengesForWeek(stats.week).map(c=>{
-          const done=weeklyChallengeDone(stats,c.id), got=claimed(c.id);
-          const prog=weeklyChallengeProgressText(stats,c.id);
-          const reward=effectiveChallengeReward(c.reward,p.prestige);
-          return h('div',{key:c.id,className:'row spread',style:{padding:'8px 0',borderBottom:'1px solid var(--smoke)'}},
-            h('span',null,h('b',null,c.name),' — ',c.desc,h('span',{className:'small muted'},' ',prog,' · ',reward.toLocaleString(),' chips · ',c.xp.toLocaleString(),' XP',prestigeWeeklyBonusPct(p.prestige)?' (prestige bonus)':'')),
-            h('button',{className:'btn sm'+(done&&!got?'':' ghost'),disabled:!done||got,onClick:()=>dispatch({t:'claimWeekly',key:c.id,by:me})},got?'Claimed':done?'Claim':'Not yet')
-          );
-        })
+        h('div',{style:{maxHeight:560,overflowY:'auto',paddingRight:8,overscrollBehavior:'contain'}},
+          weeklyChallengesForWeek(stats.week).map(c=>{
+            const done=weeklyChallengeDone(stats,c.id), got=claimed(c.id);
+            const prog=weeklyChallengeProgressText(stats,c.id);
+            const reward=effectiveChallengeReward(c.reward,p.prestige);
+            return h('div',{key:c.id,className:'row spread',style:{padding:'8px 0',borderBottom:'1px solid var(--smoke)'}},
+              h('span',null,h('b',null,c.name),' — ',c.desc,h('span',{className:'small muted'},' ',prog,' · ',reward.toLocaleString(),' chips · ',c.xp.toLocaleString(),' XP',prestigeWeeklyBonusPct(p.prestige)?' (prestige bonus)':'')),
+              h('button',{className:'btn sm'+(done&&!got?'':' ghost'),disabled:!done||got,onClick:()=>dispatch({t:'claimWeekly',key:c.id,by:me})},got?'Claimed':done?'Claim':'Not yet')
+            );
+          })
+        )
       )
     ),
     h('div',{className:'grid g2',style:{marginTop:18}},
