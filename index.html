@@ -7144,6 +7144,7 @@ function BokémongsPage({store,me,dispatch,sync}){
           h('div',{className:'stamp',style:{display:'inline-block',margin:'0 auto 10px'}},myMon?(bokById(myMon.id)?.type||'Unknown type'):'No active type'),
           h('div',{className:'row',style:{justifyContent:'center'}},myTeam.map((m,i)=>h('span',{key:i,className:'chip'+(i===myIdx?' on':'')},m.hp>0?'●':'×'))))
       ),
+      h(BokTypeChart),
       h('div',{className:'panel',style:{marginTop:18}},
         h('div',{className:'row spread'},h('h2',null,myTurn?'Your move':'Waiting for '+live.turn),h('span',{className:myTurn?'stamp ok':'stamp warn'},myTurn?'YOUR TURN':'THEIR TURN')),
         h('div',{className:'grid g2'},moves.map(m=>h('button',{key:m.slot,className:'btn'+(m.guard?' ghost':''),disabled:!myTurn||busy||!myMon,onClick:()=>act({t:'bokemongMove',id:live.id,move:m.slot})},
