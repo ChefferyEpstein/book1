@@ -7298,7 +7298,7 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
       setScore(0);scoreRef.current=0;setSeconds(45);setBalls(3);
       keys.current={left:false,right:false};
       simRef.current={ball:{x:360,y:620,vx:0,vy:0,launched:false},score:0,balls:3,
-        bumpTimes:Array(8).fill(0),targetTimes:[0,0],lastFrame:0,drainAt:0,startedAt:Date.now(),pendingFinish:false,flipperScoreAt:0,slingScoreAt:0};
+        bumpTimes:Array(9).fill(0),targetTimes:[0,0],lastFrame:0,drainAt:0,startedAt:Date.now(),pendingFinish:false,flipperScoreAt:0,slingScoreAt:0};
       setActive(true);await refresh();
     }catch(e){toast(e.message||'Could not start Pinball.');}
     finally{setBusy(false);}
@@ -7320,7 +7320,7 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
     if(!ctx)return;
     let raf=0,alive=true;
     const W=420,H=700,R=8;
-    const bumpers=[{x:125,y:175,r:22,points:100},{x:210,y:215,r:25,points:150},{x:295,y:175,r:22,points:100},{x:105,y:300,r:21,points:100},{x:210,y:340,r:25,points:150},{x:315,y:300,r:21,points:100},{x:155,y:420,r:22,points:125},{x:265,y:420,r:22,points:125}];
+    const bumpers=[{x:105,y:170,r:22,points:100},{x:190,y:145,r:24,points:150},{x:275,y:175,r:22,points:100},{x:85,y:275,r:21,points:100},{x:180,y:270,r:25,points:150},{x:285,y:285,r:21,points:100},{x:125,y:385,r:22,points:125},{x:245,y:405,r:22,points:125},{x:315,y:390,r:20,points:100}];
     const targets=[{x:95,y:430,r:13},{x:325,y:430,r:13}];
     const resize=()=>{
       const dpr=Math.min(window.devicePixelRatio||1,2);
@@ -7353,6 +7353,8 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
         if(b.x<37+R){b.x=37+R;b.vx=Math.abs(b.vx)*.82;}
         if(b.x>383-R){b.x=383-R;b.vx=-Math.abs(b.vx)*.82;}
         if(b.y<48+R){b.y=48+R;b.vy=Math.abs(b.vy)*.78;}
+        // The plunger lane now has a wide, unobstructed exit into the playfield.
+        if(b.x>338&&b.y<225&&b.y>135){b.x=337;b.vx=-Math.max(4.5,Math.abs(b.vx));b.vy=Math.min(b.vy,-10);}
         bumpers.forEach((p,i)=>{
           const dx=b.x-p.x,dy=b.y-p.y,d=Math.hypot(dx,dy),limit=p.r+R;
           if(d<limit&&now-s.bumpTimes[i]>180){
@@ -7374,11 +7376,11 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
         });
         // Slingshot faces kick the ball back into the playfield.
         if((hitSegment(b,48,490,105,535,3.2)||hitSegment(b,315,535,372,490,3.2))&&now-s.slingScoreAt>220){s.slingScoreAt=now;addPoints(25);}
-        const leftAngle=keys.current.left?-0.95:-0.30;
-        const rightAngle=keys.current.right?Math.PI+0.95:Math.PI+0.30;
-        const lx=130+Math.cos(leftAngle)*78,ly=600+Math.sin(leftAngle)*78;
-        const rx=290+Math.cos(rightAngle)*78,ry=600+Math.sin(rightAngle)*78;
-        if((hitSegment(b,130,600,lx,ly,keys.current.left?5.8:1.0)||hitSegment(b,290,600,rx,ry,keys.current.right?5.8:1.0))&&now-s.flipperScoreAt>120){s.flipperScoreAt=now;addPoints(10);}
+        const leftAngle=keys.current.left?0.72:0.30;
+        const rightAngle=keys.current.right?Math.PI-0.72:Math.PI-0.30;
+        const lx=150+Math.cos(leftAngle)*52,ly=600+Math.sin(leftAngle)*52;
+        const rx=270+Math.cos(rightAngle)*52,ry=600+Math.sin(rightAngle)*52;
+        if((hitSegment(b,150,600,lx,ly,keys.current.left?5.8:1.0)||hitSegment(b,270,600,rx,ry,keys.current.right?5.8:1.0))&&now-s.flipperScoreAt>120){s.flipperScoreAt=now;addPoints(10);}
         // A narrow centre drain gives the player a chance to save the ball with either flipper.
         if(b.y>715){
           s.balls=Math.max(0,s.balls-1);setBalls(s.balls);
@@ -7397,13 +7399,15 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
       ctx.strokeStyle='#c9a65a';ctx.lineWidth=5;ctx.strokeRect(25,30,370,650);
       ctx.strokeStyle='rgba(255,255,255,.18)';ctx.lineWidth=2;
       ctx.beginPath();ctx.moveTo(38,55);ctx.lineTo(38,570);ctx.moveTo(382,55);ctx.lineTo(382,570);ctx.stroke();
-      // Plunger lane.
-      ctx.strokeStyle='#c9a65a';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(345,55);ctx.lineTo(345,605);ctx.stroke();
-      ctx.fillStyle='rgba(255,255,255,.06)';ctx.fillRect(350,560,28,95);
+      // Redesigned open-top plunger chute: the divider stops short to leave a broad exit.
+      ctx.strokeStyle='#c9a65a';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(345,55);ctx.lineTo(345,138);ctx.moveTo(345,270);ctx.lineTo(345,605);ctx.stroke();
+      ctx.strokeStyle='rgba(201,166,90,.7)';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(345,270);ctx.lineTo(315,300);ctx.stroke();
+      ctx.fillStyle='rgba(255,255,255,.045)';ctx.fillRect(350,560,28,95);
+      ctx.fillStyle='#f4d58a';ctx.font='bold 10px sans-serif';ctx.textAlign='center';ctx.fillText('OPEN EXIT',365,205);
       // Bumpers.
       bumpers.forEach((p,i)=>{
         const glow=ctx.createRadialGradient(p.x-6,p.y-7,3,p.x,p.y,p.r+13);
-        glow.addColorStop(0,'#fff4c5');glow.addColorStop(.35,i===2?'#e2a94e':'#63e0d4');glow.addColorStop(1,'#14606a');
+        glow.addColorStop(0,'#fff4c5');glow.addColorStop(.35,'#e2a94e');glow.addColorStop(1,'#8a4d12');
         ctx.fillStyle=glow;ctx.beginPath();ctx.arc(p.x,p.y,p.r+8,0,Math.PI*2);ctx.fill();
         ctx.strokeStyle='#f4d58a';ctx.lineWidth=3;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.stroke();
         ctx.fillStyle='#102a30';ctx.font='bold 12px sans-serif';ctx.textAlign='center';ctx.fillText('+'+p.points,p.x,p.y+4);
@@ -7419,14 +7423,14 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
       [[48,490,105,535],[315,535,372,490]].forEach(v=>{ctx.beginPath();ctx.moveTo(v[0],v[1]);ctx.lineTo(v[2],v[3]);ctx.lineTo((v[0]+v[2])/2, v[1]+(v[3]-v[1])*.25);ctx.closePath();ctx.fill();ctx.stroke();});
       // Flippers.
       const drawFlipper=(x,y,angle,pressed)=>{
-        const tx=x+Math.cos(angle)*78,ty=y+Math.sin(angle)*78;
-        ctx.lineCap='round';ctx.strokeStyle=pressed?'#fff0b3':'#d5a64d';ctx.lineWidth=18;
+        const tx=x+Math.cos(angle)*52,ty=y+Math.sin(angle)*52;
+        ctx.lineCap='round';ctx.strokeStyle=pressed?'#fff0b3':'#d5a64d';ctx.lineWidth=12;
         ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(tx,ty);ctx.stroke();
         ctx.strokeStyle='#fff1c7';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(tx,ty);ctx.stroke();
-        ctx.fillStyle='#f4d58a';ctx.beginPath();ctx.arc(x,y,10,0,Math.PI*2);ctx.fill();
+        ctx.fillStyle='#f4d58a';ctx.beginPath();ctx.arc(x,y,7,0,Math.PI*2);ctx.fill();
       };
-      drawFlipper(130,600,keys.current.left?-0.95:-0.30,keys.current.left);
-      drawFlipper(290,600,keys.current.right?Math.PI+0.95:Math.PI+0.30,keys.current.right);
+      drawFlipper(150,600,keys.current.left?0.72:0.30,keys.current.left);
+      drawFlipper(270,600,keys.current.right?Math.PI-0.72:Math.PI-0.30,keys.current.right);
       ctx.fillStyle='#f4d58a';ctx.font='bold 12px sans-serif';ctx.textAlign='center';
       ctx.fillText('BOOK1 PINBALL',210,80);ctx.fillText('BUMPERS  ·  TARGETS  ·  SLINGSHOTS',210,105);
       // Ball and launch lane.
@@ -7496,7 +7500,7 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
       ),
       h('div',{className:'panel'},
         h('h2',null,'How to play'),
-        h('p',null,'Launch straight up the right-hand plunger lane. Hold the left and right flippers to keep it in play, hit eight pop bumpers and the stand-up targets. The slingshots kick the ball back into the table. Let it drain and you lose one of your three balls.'),
+        h('p',null,'Launch up the redesigned right-hand chute and through its wide open exit. Use the shorter, downward-angled flippers to keep the ball in play, hit nine matching gold pop bumpers and the stand-up targets. The slingshots kick the ball back into the table. Let it drain and you lose one of your three balls.'),
         h('p',{className:'small muted'},'Keyboard: A / ← left flipper, D / → right flipper, Space / ↑ launch. On phones and tablets, use the on-screen controls.'),
         h('h3',null,'Highest scores'),...(high.length?high:[h('p',{className:'small muted',key:'no-high'},'No scores recorded yet.')]),
         h('h3',{style:{marginTop:18}},'Lowest scores'),...(low.length?low:[h('p',{className:'small muted',key:'no-low'},'No scores recorded yet.')])
