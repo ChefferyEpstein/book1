@@ -7463,14 +7463,14 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
   },{})).sort((a,b)=>b.high-a.high);
   const max=Math.max(1,...rows.map(x=>x.high));
   const high=rows.map((x,i)=>h('div',{key:x.name,style:{margin:'8px 0'}},
-    h('div',{className:'row spread'},h('span',null,(i+1)+'. '+x.name),h('b',null,x.high.toLocaleString())),
+    h('div',{className:'row spread'},h('span',null,(i+1)+'. '+x.name+' · '+x.plays+' games'),h('b',null,x.high.toLocaleString())),
     h('div',{style:{height:8,background:'rgba(255,255,255,.1)',borderRadius:8,overflow:'hidden'}},
       h('div',{style:{height:'100%',width:(x.high/max*100)+'%',background:'var(--brass)'}}))
   ));
   const lowRows=[...rows].sort((a,b)=>a.low-b.low);
   const lowMax=Math.max(1,...lowRows.map(x=>x.low));
   const low=lowRows.map((x,i)=>h('div',{key:x.name,style:{margin:'8px 0'}},
-    h('div',{className:'row spread'},h('span',null,(i+1)+'. '+x.name),h('b',null,x.low.toLocaleString())),
+    h('div',{className:'row spread'},h('span',null,(i+1)+'. '+x.name+' · '+x.plays+' games'),h('b',null,x.low.toLocaleString())),
     h('div',{style:{height:8,background:'rgba(255,255,255,.1)',borderRadius:8,overflow:'hidden'}},
       h('div',{style:{height:'100%',width:(x.low/lowMax*100)+'%',background:'var(--rust)'}}))
   ));
@@ -7484,7 +7484,7 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
           h('canvas',{ref:canvasRef,style:{display:'block',width:'100%',height:'auto',touchAction:'none'}})
         ),
         !active?h('button',{className:'btn',disabled:busy,onClick:start,style:{marginTop:12,width:'100%'}},busy?'Working…':'Insert 100 chips'):h('div',{className:'row spread',style:{marginTop:12}},
-          h('button',{className:'btn',disabled:busy||!simRef.current||simRef.current.ball.launched,onClick:launch},'⬆ Launch ball'),
+          h('button',{className:'btn',disabled:busy||!simRef.current||simRef.current.ball.launched||simRef.current.balls<=0,onClick:launch},'⬆ Launch ball'),
           h('span',{className:'small muted'},'Space / ↑ to launch')
         ),
         active&&h('div',{className:'row spread',style:{marginTop:8}},
@@ -7498,8 +7498,8 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
         h('h2',null,'How to play'),
         h('p',null,'Launch straight up the right-hand plunger lane. Hold the left and right flippers to keep it in play, hit eight pop bumpers and the stand-up targets. The slingshots kick the ball back into the table. Let it drain and you lose one of your three balls.'),
         h('p',{className:'small muted'},'Keyboard: A / ← left flipper, D / → right flipper, Space / ↑ launch. On phones and tablets, use the on-screen controls.'),
-        h('h3',null,'Highest scores'),...high,
-        h('h3',{style:{marginTop:18}},'Lowest scores'),...low
+        h('h3',null,'Highest scores'),...(high.length?high:[h('p',{className:'small muted',key:'no-high'},'No scores recorded yet.')]),
+        h('h3',{style:{marginTop:18}},'Lowest scores'),...(low.length?low:[h('p',{className:'small muted',key:'no-low'},'No scores recorded yet.')])
       )
     )
   );
