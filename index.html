@@ -7260,6 +7260,9 @@ function BokémongsPage({store,me,dispatch,sync}){
 
 function PinballPage({store,me,cred,api,refresh,toast}) {
   const h=React.createElement;
+  const canvasRef=useRef(null);
+  const simRef=useRef(null);
+  const keys=useRef({left:false,right:false});
   const [active,setActive]=useState(false);
   const [busy,setBusy]=useState(false);
   const [token,setToken]=useState(null);
@@ -7267,7 +7270,6 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
   const [seconds,setSeconds]=useState(45);
   const [balls,setBalls]=useState(3);
   const [result,setResult]=useState(null);
-  const [lastHit,setLastHit]=useState(0);
   const done=useRef(false),scoreRef=useRef(0),tokenRef=useRef(null),finishRef=useRef(null);
   scoreRef.current=score;tokenRef.current=token;
   const finish=async(sc,tok)=>{
@@ -7288,16 +7290,164 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
   },[active]);
   const start=async()=>{
     setBusy(true);setResult(null);
-    try{const out=await api.pinballStart(cred);done.current=false;setToken(out.token);tokenRef.current=out.token;setScore(0);scoreRef.current=0;setSeconds(45);setBalls(3);setActive(true);await refresh();}
-    catch(e){toast(e.message||'Could not start Pinball.');}
+    try{
+      const out=await api.pinballStart(cred);
+      done.current=false;setToken(out.token);tokenRef.current=out.token;
+      setScore(0);scoreRef.current=0;setSeconds(45);setBalls(3);
+      keys.current={left:false,right:false};
+      simRef.current={ball:{x:360,y:620,vx:0,vy:0,launched:false},score:0,balls:3,
+        bumpTimes:[0,0,0],targetTimes:[0,0],lastFrame:0,drainAt:0};
+      setActive(true);await refresh();
+    }catch(e){toast(e.message||'Could not start Pinball.');}
     finally{setBusy(false);}
   };
-  const hit=()=>{
-    if(!active||busy||Date.now()-lastHit<180)return;
-    setLastHit(Date.now());
-    const next=Math.min(8000,score+25+Math.floor(Math.random()*176));setScore(next);scoreRef.current=next;
-    if(seconds<=30&&Math.random()<0.13){if(balls>1)setBalls(balls-1);else finish(next,token);}
+  const launch=()=>{
+    const s=simRef.current;
+    if(!active||!s||s.ball.launched||done.current)return;
+    s.ball.launched=true;s.ball.vx=-4.4;s.ball.vy=-12.8;
   };
+  const addPoints=(n)=>{
+    const s=simRef.current;if(!s)return;
+    s.score=Math.min(8000,s.score+n);
+    scoreRef.current=s.score;setScore(s.score);
+  };
+  useEffect(()=>{
+    if(!active||!canvasRef.current)return;
+    const canvas=canvasRef.current,ctx=canvas.getContext('2d');
+    if(!ctx)return;
+    let raf=0,alive=true;
+    const W=420,H=700,R=8;
+    const bumpers=[{x:145,y:245,r:25,points:100},{x:275,y:245,r:25,points:100},{x:210,y:350,r:27,points:150}];
+    const targets=[{x:95,y:430,r:13},{x:325,y:430,r:13}];
+    const resize=()=>{
+      const dpr=Math.min(window.devicePixelRatio||1,2);
+      canvas.width=W*dpr;canvas.height=H*dpr;
+      ctx.setTransform(dpr,0,0,dpr,0,0);
+    };
+    resize();
+    const hitSegment=(ball,x1,y1,x2,y2,boost)=>{
+      const dx=x2-x1,dy=y2-y1,len2=dx*dx+dy*dy;
+      const t=Math.max(0,Math.min(1,((ball.x-x1)*dx+(ball.y-y1)*dy)/len2));
+      const px=x1+t*dx,py=y1+t*dy,nx=ball.x-px,ny=ball.y-py,dist=Math.hypot(nx,ny);
+      if(dist<R+7){
+        const ux=dist?nx/dist:0,uy=dist?ny/dist:-1;
+        ball.x=px+ux*(R+8);ball.y=py+uy*(R+8);
+        const dot=ball.vx*ux+ball.vy*uy;
+        if(dot<0){ball.vx-=1.85*dot*ux;ball.vy-=1.85*dot*uy;}
+        ball.vx+=ux*boost;ball.vy-=boost*.72;
+        return true;
+      }
+      return false;
+    };
+    const draw=()=>{
+      const s=simRef.current;if(!s)return;
+      const now=performance.now(),dt=Math.min(2.2,(now-(s.lastFrame||now))/16.667||1);
+      s.lastFrame=now;
+      const b=s.ball;
+      if(b.launched){
+        b.vy+=.19*dt;b.x+=b.vx*dt;b.y+=b.vy*dt;
+        if(b.x<37+R){b.x=37+R;b.vx=Math.abs(b.vx)*.82;}
+        if(b.x>383-R){b.x=383-R;b.vx=-Math.abs(b.vx)*.82;}
+        if(b.y<48+R){b.y=48+R;b.vy=Math.abs(b.vy)*.78;}
+        bumpers.forEach((p,i)=>{
+          const dx=b.x-p.x,dy=b.y-p.y,d=Math.hypot(dx,dy),limit=p.r+R;
+          if(d<limit&&now-s.bumpTimes[i]>180){
+            const nx=dx/(d||1),ny=dy/(d||1);
+            b.x=p.x+nx*(limit+1);b.y=p.y+ny*(limit+1);
+            const speed=Math.max(7,Math.hypot(b.vx,b.vy));
+            b.vx=nx*speed*.9+(Math.random()-.5)*2.2;
+            b.vy=ny*speed*.9-2.8;
+            s.bumpTimes[i]=now;addPoints(p.points);
+          }
+        });
+        targets.forEach((p,i)=>{
+          const d=Math.hypot(b.x-p.x,b.y-p.y);
+          if(d<p.r+R&&now-s.targetTimes[i]>250){
+            const nx=(b.x-p.x)/(d||1),ny=(b.y-p.y)/(d||1);
+            b.x=p.x+nx*(p.r+R+1);b.y=p.y+ny*(p.r+R+1);
+            b.vx+=nx*3;b.vy-=4;s.targetTimes[i]=now;addPoints(250);
+          }
+        });
+        // Slingshot faces kick the ball back into the playfield.
+        if(hitSegment(b,48,490,105,535,3.2)||hitSegment(b,315,535,372,490,3.2))addPoints(25);
+        const leftAngle=keys.current.left?-0.88:-0.22;
+        const rightAngle=keys.current.right?Math.PI+0.88:Math.PI+0.22;
+        const lx=150+Math.cos(leftAngle)*88,ly=590+Math.sin(leftAngle)*88;
+        const rx=270+Math.cos(rightAngle)*88,ry=590+Math.sin(rightAngle)*88;
+        if(hitSegment(b,150,590,lx,ly,keys.current.left?5.8:1.0))addPoints(10);
+        if(hitSegment(b,270,590,rx,ry,keys.current.right?5.8:1.0))addPoints(10);
+        // A narrow centre drain gives the player a chance to save the ball with either flipper.
+        if(b.y>715){
+          s.balls--;setBalls(s.balls);
+          if(s.balls<=0){finishRef.current();b.launched=false;}
+          else{s.drainAt=now;b.x=360;b.y=620;b.vx=0;b.vy=0;b.launched=false;}
+        }
+        b.vx*=Math.pow(.999,dt);b.vy*=Math.pow(.999,dt);
+        b.vx=Math.max(-13,Math.min(13,b.vx));b.vy=Math.max(-18,Math.min(18,b.vy));
+      }
+      // Cabinet and playfield.
+      const bg=ctx.createLinearGradient(0,0,0,H);bg.addColorStop(0,'#123b3d');bg.addColorStop(1,'#07191f');
+      ctx.fillStyle=bg;ctx.fillRect(0,0,W,H);
+      ctx.strokeStyle='#c9a65a';ctx.lineWidth=5;ctx.strokeRect(25,30,370,650);
+      ctx.strokeStyle='rgba(255,255,255,.18)';ctx.lineWidth=2;
+      ctx.beginPath();ctx.moveTo(38,55);ctx.lineTo(38,570);ctx.moveTo(382,55);ctx.lineTo(382,570);ctx.stroke();
+      // Plunger lane.
+      ctx.strokeStyle='#c9a65a';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(345,55);ctx.lineTo(345,605);ctx.stroke();
+      ctx.fillStyle='rgba(255,255,255,.06)';ctx.fillRect(350,560,28,95);
+      // Bumpers.
+      bumpers.forEach((p,i)=>{
+        const glow=ctx.createRadialGradient(p.x-6,p.y-7,3,p.x,p.y,p.r+13);
+        glow.addColorStop(0,'#fff4c5');glow.addColorStop(.35,i===2?'#e2a94e':'#63e0d4');glow.addColorStop(1,'#14606a');
+        ctx.fillStyle=glow;ctx.beginPath();ctx.arc(p.x,p.y,p.r+8,0,Math.PI*2);ctx.fill();
+        ctx.strokeStyle='#f4d58a';ctx.lineWidth=3;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.stroke();
+        ctx.fillStyle='#102a30';ctx.font='bold 12px sans-serif';ctx.textAlign='center';ctx.fillText('+'+p.points,p.x,p.y+4);
+      });
+      // Stand-up targets.
+      targets.forEach((p,i)=>{
+        ctx.fillStyle=now-s.targetTimes[i]<250?'#fff1a8':'#d96b51';
+        ctx.beginPath();ctx.roundRect(p.x-9,p.y-19,18,38,5);ctx.fill();
+        ctx.strokeStyle='#ffe2a0';ctx.lineWidth=2;ctx.stroke();
+      });
+      // Slingshots.
+      ctx.fillStyle='rgba(224,169,75,.22)';ctx.strokeStyle='#d9a94f';ctx.lineWidth=3;
+      [[48,490,105,535],[315,535,372,490]].forEach(v=>{ctx.beginPath();ctx.moveTo(v[0],v[1]);ctx.lineTo(v[2],v[3]);ctx.lineTo((v[0]+v[2])/2, v[1]+(v[3]-v[1])*.25);ctx.closePath();ctx.fill();ctx.stroke();});
+      // Flippers.
+      const drawFlipper=(x,y,angle,pressed)=>{
+        const tx=x+Math.cos(angle)*88,ty=y+Math.sin(angle)*88;
+        ctx.lineCap='round';ctx.strokeStyle=pressed?'#fff0b3':'#d5a64d';ctx.lineWidth=18;
+        ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(tx,ty);ctx.stroke();
+        ctx.strokeStyle='#fff1c7';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(tx,ty);ctx.stroke();
+        ctx.fillStyle='#f4d58a';ctx.beginPath();ctx.arc(x,y,10,0,Math.PI*2);ctx.fill();
+      };
+      drawFlipper(150,590,keys.current.left?-0.88:-0.22,keys.current.left);
+      drawFlipper(270,590,keys.current.right?Math.PI+0.88:Math.PI+0.22,keys.current.right);
+      ctx.fillStyle='#f4d58a';ctx.font='bold 12px sans-serif';ctx.textAlign='center';
+      ctx.fillText('BOOK1 PINBALL',210,80);ctx.fillText('BUMPERS  ·  TARGETS  ·  SLINGSHOTS',210,105);
+      // Ball and launch lane.
+      if(!b.launched||b.y<730){
+        const shine=ctx.createRadialGradient(b.x-3,b.y-4,1,b.x,b.y,R+4);
+        shine.addColorStop(0,'#ffffff');shine.addColorStop(.45,'#d8e2e0');shine.addColorStop(1,'#71838a');
+        ctx.fillStyle=shine;ctx.beginPath();ctx.arc(b.x,b.y,R,0,Math.PI*2);ctx.fill();
+      }
+      if(!b.launched){
+        ctx.fillStyle='#f7d88c';ctx.font='bold 13px sans-serif';
+        ctx.fillText(s.balls>0?'TAP LAUNCH':'GAME OVER',360,670);
+      }
+      raf=requestAnimationFrame(draw);
+    };
+    const onKeyDown=e=>{
+      if(e.code==='ArrowLeft'||e.code==='KeyA'){keys.current.left=true;e.preventDefault();}
+      if(e.code==='ArrowRight'||e.code==='KeyD'){keys.current.right=true;e.preventDefault();}
+      if(e.code==='Space'||e.code==='ArrowUp'){launch();e.preventDefault();}
+    };
+    const onKeyUp=e=>{
+      if(e.code==='ArrowLeft'||e.code==='KeyA')keys.current.left=false;
+      if(e.code==='ArrowRight'||e.code==='KeyD')keys.current.right=false;
+    };
+    window.addEventListener('keydown',onKeyDown);window.addEventListener('keyup',onKeyUp);
+    raf=requestAnimationFrame(draw);
+    return ()=>{alive=false;cancelAnimationFrame(raf);window.removeEventListener('keydown',onKeyDown);window.removeEventListener('keyup',onKeyUp);};
+  },[active]);
   const rows=Object.values((store.pinballScores||[]).reduce((a,x)=>{
     if(!x.player)return a;
     if(!a[x.player])a[x.player]={name:x.player,high:0,low:Infinity,plays:0};
@@ -7318,26 +7468,29 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
       h('div',{style:{height:'100%',width:(x.low/max*100)+'%',background:'var(--rust)'}}))
   ));
   return h('div',null,
-    h('div',{className:'page-title'},h('h1',null,'Pinball'),h('span',{className:'sub'},'Insert 100 chips. Keep the ball alive.')),
+    h('div',{className:'page-title'},h('h1',null,'Pinball'),h('span',{className:'sub'},'A proper table. Three balls. 100 chips to play.')),
     h('div',{className:'grid g2'},
       h('div',{className:'panel'},
         h('div',{className:'row spread'},h('h2',null,'Arcade table'),h('span',{className:'chip'},'100 chips per game')),
-        h('div',{style:{background:'#10272c',border:'2px solid var(--brass)',borderRadius:16,padding:20,textAlign:'center'}},
-          h('b',null,'BOOK1 PINBALL'),
-          h('div',{style:{fontSize:44,fontWeight:900,margin:18}},score.toLocaleString()),
-          h('div',{className:'row spread'},h('span',null,'Time: '+seconds+'s'),h('span',null,'Balls: '+balls))
+        h('div',{className:'row spread',style:{marginBottom:8}},h('b',null,'Score: '+score.toLocaleString()),h('span',null,'Time: '+seconds+'s'),h('span',null,'Balls: '+balls)),
+        h('div',{style:{maxWidth:420,margin:'0 auto',background:'#07191f',border:'2px solid var(--brass)',borderRadius:14,overflow:'hidden'}},
+          h('canvas',{ref:canvasRef,style:{display:'block',width:'100%',height:'auto',touchAction:'none'}})
         ),
-        h('div',{className:'row spread',style:{marginTop:12}},
-          h('button',{className:'btn',disabled:!active||busy,onClick:hit},'◀ Left flipper'),
-          h('button',{className:'btn',disabled:!active||busy,onClick:hit},'Right flipper ▶')
+        !active?h('button',{className:'btn',disabled:busy,onClick:start,style:{marginTop:12,width:'100%'}},busy?'Working…':'Insert 100 chips'):h('div',{className:'row spread',style:{marginTop:12}},
+          h('button',{className:'btn',disabled:busy||!simRef.current||simRef.current.ball.launched,onClick:launch},'⬆ Launch ball'),
+          h('span',{className:'small muted'},'Space / ↑ to launch')
         ),
-        !active?h('button',{className:'btn',disabled:busy,onClick:start,style:{marginTop:10}},busy?'Working…':'Insert 100 chips'):h('p',{className:'small muted'},'Tap the flippers to hit targets.'),
+        active&&h('div',{className:'row spread',style:{marginTop:8}},
+          h('button',{className:'btn',onPointerDown:()=>keys.current.left=true,onPointerUp:()=>keys.current.left=false,onPointerLeave:()=>keys.current.left=false,onPointerCancel:()=>keys.current.left=false,style:{flex:1,touchAction:'none'},onContextMenu:e=>e.preventDefault()},'◀ Hold left flipper'),
+          h('button',{className:'btn',onPointerDown:()=>keys.current.right=true,onPointerUp:()=>keys.current.right=false,onPointerLeave:()=>keys.current.right=false,onPointerCancel:()=>keys.current.right=false,style:{flex:1,touchAction:'none'},onContextMenu:e=>e.preventDefault()},'Hold right flipper ▶')
+        ),
         result&&h('div',{className:'okbox',style:{marginTop:10}},'Score ',result.score,' · Prize +',result.prize,' chips · Balance ',result.balance),
         h('p',{className:'small muted'},'Rewards: 500+ = 50 chips; 1,000+ = 125; 2,000+ = 250; 3,500+ = 500; 5,000+ = 1,000.')
       ),
       h('div',{className:'panel'},
         h('h2',null,'How to play'),
-        h('p',null,'You have 45 seconds and three balls. Hit either flipper to score; a missed shot can drain a ball. Entry is deducted when the game starts. Rewards are paid by the server and saved to the shared leaderboard.'),
+        h('p',null,'Launch the ball up the right-hand plunger lane. Hold the left and right flippers to keep it in play, hit the three pop bumpers and light the stand-up targets. The slingshots kick the ball back into the table. Let it drain and you lose one of your three balls.'),
+        h('p',{className:'small muted'},'Keyboard: A / ← left flipper, D / → right flipper, Space / ↑ launch. On phones and tablets, use the on-screen controls.'),
         h('h3',null,'Highest scores'),...high,
         h('h3',{style:{marginTop:18}},'Lowest scores'),...low
       )
