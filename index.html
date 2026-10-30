@@ -934,6 +934,16 @@ const api = CLOUD ? {
     if (error) throw error;
     return data;
   },
+  async pinballStart(cred) {
+    const { data, error } = await sb.rpc('book_pinball_start', { p_name: cred.name, p_pin: cred.pin });
+    if (error) throw error;
+    return data;
+  },
+  async pinballFinish(cred, token, score) {
+    const { data, error } = await sb.rpc('book_pinball_finish', { p_name: cred.name, p_pin: cred.pin, p_token: token, p_score: score });
+    if (error) throw error;
+    return data;
+  },
 
 } : {
   mode: 'local',
@@ -1005,6 +1015,24 @@ const api = CLOUD ? {
     const st = reduce(loadStore(), { t:'brainClaim', ...action, by:cred.name, p:cred.name });
     saveStore(st);
     return 1;
+  },
+  async pinballStart(cred) {
+    const st=loadStore(), balance=st.chips?.[cred.name]??1000;
+    if(balance<100) throw new Error('You need 100 chips to play Pinball.');
+    const token='local-'+Date.now()+'-'+Math.random().toString(36).slice(2);
+    st.chips=st.chips||{};st.chips[cred.name]=balance-100;
+    st.pinballSessions=st.pinballSessions||[];
+    st.pinballSessions.push({token,player:cred.name,status:'playing',week:st.weeks?.[st.weeks.length-1]?.n||1,startedAt:Date.now()});
+    saveStore(st);return {token};
+  },
+  async pinballFinish(cred, token, score) {
+    const st=loadStore(),sess=(st.pinballSessions||[]).find(x=>x.token===token&&x.player===cred.name&&x.status==='playing');
+    if(!sess) throw new Error('That Pinball game has already finished.');
+    const prize=score<500?0:score<1000?50:score<2000?125:score<3500?250:score<5000?500:1000;
+    sess.status='finished';sess.score=score;sess.prize=prize;
+    st.chips=st.chips||{};st.chips[cred.name]=(st.chips[cred.name]??1000)+prize;
+    st.pinballScores=st.pinballScores||[];st.pinballScores.push({player:cred.name,score,prize,week:sess.week,at:Date.now()});
+    saveStore(st);return {score,prize,balance:st.chips[cred.name]};
   },
   async setPin(cred, newPin) {
     const pins = localPins();
@@ -3316,23 +3344,27 @@ const PRESTIGE_REWARDS = [
   {p:10,label:'Free Spin 5 minutes + 30% cheaper cases + 25% weekly bonus + 25pp duplicate refunds'}
 ];
 const CHALLENGE_POOL = {
-  wins3:{id:'wins3',name:'Hat-trick',desc:'Win 3 pool games this game week.',reward:10000,xp:1000},
-  wins5:{id:'wins5',name:'Five Alive',desc:'Win 5 pool games this game week.',reward:15000,xp:1500},
-  wins8:{id:'wins8',name:'Pool Dominator',desc:'Win 8 pool games this game week.',reward:25000,xp:2500},
-  play4:{id:'play4',name:'Clock in',desc:'Complete 4 pool games this game week.',reward:7500,xp:750},
-  play8:{id:'play8',name:'Regular at the Table',desc:'Complete 8 pool games this game week.',reward:12500,xp:1250},
-  play12:{id:'play12',name:'Never Off the Table',desc:'Complete 12 pool games this game week.',reward:20000,xp:2000},
-  diff10:{id:'diff10',name:'Run it up',desc:'Reach +10 ball difference this game week.',reward:10000,xp:1000},
-  diff20:{id:'diff20',name:'Clear the Table',desc:'Reach +20 ball difference this game week.',reward:17500,xp:1750},
-  diff30:{id:'diff30',name:'Untouchable',desc:'Reach +30 ball difference this game week.',reward:25000,xp:2500},
-  c4wins2:{id:'c4wins2',name:'Four in a Row',desc:'Win 2 Connect 4 games this game week.',reward:7500,xp:750},
-  c4wins4:{id:'c4wins4',name:'Connect Four Champion',desc:'Win 4 Connect 4 games this game week.',reward:15000,xp:1500},
-  bswin1:{id:'bswin1',name:'Naval Warfare',desc:'Win a Battleships game this game week.',reward:7500,xp:750},
-  bswin2:{id:'bswin2',name:'Fleet Admiral',desc:'Win 2 Battleships games this game week.',reward:15000,xp:1500},
-  hogwin1:{id:'hogwin1',name:'Hog Supremacy',desc:'Win a Hog duel this game week.',reward:5000,xp:600},
+  wins3:{id:'wins3',name:'Hat-trick',desc:'Win 3 pool games this game week.',reward:10000,xp:2250},
+  wins5:{id:'wins5',name:'Five Alive',desc:'Win 5 pool games this game week.',reward:15000,xp:2250},
+  wins8:{id:'wins8',name:'Pool Dominator',desc:'Win 8 pool games this game week.',reward:25000,xp:3500},
+  play4:{id:'play4',name:'Clock in',desc:'Complete 4 pool games this game week.',reward:7500,xp:1200},
+  play8:{id:'play8',name:'Regular at the Table',desc:'Complete 8 pool games this game week.',reward:12500,xp:3000},
+  play12:{id:'play12',name:'Never Off the Table',desc:'Complete 12 pool games this game week.',reward:20000,xp:3000},
+  diff10:{id:'diff10',name:'Run it up',desc:'Reach +10 ball difference this game week.',reward:10000,xp:2250},
+  diff20:{id:'diff20',name:'Clear the Table',desc:'Reach +20 ball difference this game week.',reward:17500,xp:3500},
+  diff30:{id:'diff30',name:'Untouchable',desc:'Reach +30 ball difference this game week.',reward:25000,xp:3500},
+  c4wins2:{id:'c4wins2',name:'Four in a Row',desc:'Win 2 Connect 4 games this game week.',reward:7500,xp:1200},
+  c4wins4:{id:'c4wins4',name:'Connect Four Champion',desc:'Win 4 Connect 4 games this game week.',reward:15000,xp:2250},
+  bswin1:{id:'bswin1',name:'Naval Warfare',desc:'Win a Battleships game this game week.',reward:7500,xp:1200},
+  bswin2:{id:'bswin2',name:'Fleet Admiral',desc:'Win 2 Battleships games this game week.',reward:15000,xp:2250},
+  hogwin1:{id:'hogwin1',name:'Hog Supremacy',desc:'Win a Hog duel this game week.',reward:5000,xp:800},
   hogwin2:{id:'hogwin2',name:'Hog Champion',desc:'Win 2 Hog duels this game week.',reward:10000,xp:1200},
-  chesswin1:{id:'chesswin1',name:'Checkmate',desc:'Win a Chess game this game week.',reward:7500,xp:750},
-  chesswin2:{id:'chesswin2',name:'Grandmaster in the Making',desc:'Win 2 Chess games this game week.',reward:15000,xp:1500}
+  chesswin1:{id:'chesswin1',name:'Checkmate',desc:'Win a Chess game this game week.',reward:7500,xp:1200},
+  chesswin2:{id:'chesswin2',name:'Grandmaster in the Making',desc:'Win 2 Chess games this game week.',reward:15000,xp:3000},
+  pinplays1:{id:'pinplays1',name:'First Tilt',desc:'Play one Pinball game this week.',reward:5000,xp:800},
+  pinplays3:{id:'pinplays3',name:'Arcade Regular',desc:'Play three Pinball games this week.',reward:10000,xp:1600},
+  pinscore1000:{id:'pinscore1000',name:'Score Chaser',desc:'Score at least 1,000 in Pinball this week.',reward:7500,xp:1200},
+  pinscore3000:{id:'pinscore3000',name:'Wizard Mode',desc:'Score at least 3,000 in Pinball this week.',reward:15000,xp:3500}
 };
 function weeklyChallengesForWeek(n) { return Object.values(CHALLENGE_POOL); }
 function weeklyChallengeProgress(store,p) {
@@ -3346,7 +3378,9 @@ function weeklyChallengeProgress(store,p) {
   const bswins=(store.battleships||[]).filter(g=>inWeek(g)&&g.status==='done'&&g.winner===p).length;
   const hogwins=(store.hogDuels||[]).filter(g=>+g.week===+w.n&&g.status==='done'&&g.winner===p).length;
   const chesswins=(store.chess||[]).filter(g=>+g.createdAt>=challengeStart&&g.status==='done'&&g.winner===p).length;
-  return {week:w.n,wins,played:gs.length,diff:d,c4wins,bswins,hogwins,chesswins};
+  const pinball=(store.pinballScores||[]).filter(g=>g.player===p&&+g.week===+w.n);
+  const pinplays=pinball.length, pinbest=pinball.reduce((m,g)=>Math.max(m,+g.score||0),0);
+  return {week:w.n,wins,played:gs.length,diff:d,c4wins,bswins,hogwins,chesswins,pinplays,pinbest};
 }
 function weeklyChallengeMetric(stats,id) {
   const m={
@@ -3356,7 +3390,9 @@ function weeklyChallengeMetric(stats,id) {
     c4wins2:['c4wins',2,'Connect 4 wins'],c4wins4:['c4wins',4,'Connect 4 wins'],
     bswin1:['bswins',1,'Battleships wins'],bswin2:['bswins',2,'Battleships wins'],
     hogwin1:['hogwins',1,'Hog wins'],hogwin2:['hogwins',2,'Hog wins'],
-    chesswin1:['chesswins',1,'Chess wins'],chesswin2:['chesswins',2,'Chess wins']
+    chesswin1:['chesswins',1,'Chess wins'],chesswin2:['chesswins',2,'Chess wins'],
+    pinplays1:['pinplays',1,'Pinball games'],pinplays3:['pinplays',3,'Pinball games'],
+    pinscore1000:['pinbest',1000,'best Pinball score'],pinscore3000:['pinbest',3000,'best Pinball score']
   };
   return m[id]||null;
 }
@@ -7249,7 +7285,7 @@ function ProgressPage({store,me,dispatch}) {
         )
       ),
       h('div',{className:'panel'},
-        h('h2',null,'GW'+stats.week+' weekly challenges'),
+        h('h2',null,'GW'+stats.week+' weekly challenges · '+weeklyChallengesForWeek(stats.week).length+' available'),
         weeklyChallengesForWeek(stats.week).map(c=>{
           const done=weeklyChallengeDone(stats,c.id), got=claimed(c.id);
           const prog=weeklyChallengeProgressText(stats,c.id);
