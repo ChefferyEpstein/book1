@@ -7258,6 +7258,92 @@ function BokémongsPage({store,me,dispatch,sync}){
   );
 }
 
+function PinballPage({store,me,cred,api,refresh,toast}) {
+  const h=React.createElement;
+  const [active,setActive]=useState(false);
+  const [busy,setBusy]=useState(false);
+  const [token,setToken]=useState(null);
+  const [score,setScore]=useState(0);
+  const [seconds,setSeconds]=useState(45);
+  const [balls,setBalls]=useState(3);
+  const [result,setResult]=useState(null);
+  const [lastHit,setLastHit]=useState(0);
+  const done=useRef(false),scoreRef=useRef(0),tokenRef=useRef(null),finishRef=useRef(null);
+  scoreRef.current=score;tokenRef.current=token;
+  const finish=async(sc,tok)=>{
+    if(done.current||!tok)return;
+    done.current=true;setActive(false);setBusy(true);
+    try{const out=await api.pinballFinish(cred,tok,sc);setResult(out);await refresh();}
+    catch(e){toast(e.message||'Could not submit Pinball score.');}
+    finally{setBusy(false);}
+  };
+  finishRef.current=()=>finish(scoreRef.current,tokenRef.current);
+  useEffect(()=>{
+    if(!active)return;
+    const id=setInterval(()=>setSeconds(v=>{
+      if(v<=1){clearInterval(id);finishRef.current();return 0;}
+      return v-1;
+    }),1000);
+    return ()=>clearInterval(id);
+  },[active]);
+  const start=async()=>{
+    setBusy(true);setResult(null);
+    try{const out=await api.pinballStart(cred);done.current=false;setToken(out.token);tokenRef.current=out.token;setScore(0);scoreRef.current=0;setSeconds(45);setBalls(3);setActive(true);await refresh();}
+    catch(e){toast(e.message||'Could not start Pinball.');}
+    finally{setBusy(false);}
+  };
+  const hit=()=>{
+    if(!active||busy||Date.now()-lastHit<180)return;
+    setLastHit(Date.now());
+    const next=Math.min(8000,score+25+Math.floor(Math.random()*176));setScore(next);scoreRef.current=next;
+    if(seconds<=30&&Math.random()<0.13){if(balls>1)setBalls(balls-1);else finish(next,token);}
+  };
+  const rows=Object.values((store.pinballScores||[]).reduce((a,x)=>{
+    if(!x.player)return a;
+    if(!a[x.player])a[x.player]={name:x.player,high:0,low:Infinity,plays:0};
+    a[x.player].high=Math.max(a[x.player].high,+x.score||0);
+    a[x.player].low=Math.min(a[x.player].low,+x.score||0);
+    a[x.player].plays++;return a;
+  },{})).sort((a,b)=>b.high-a.high);
+  const max=Math.max(1,...rows.map(x=>x.high));
+  const high=rows.map((x,i)=>h('div',{key:x.name,style:{margin:'8px 0'}},
+    h('div',{className:'row spread'},h('span',null,(i+1)+'. '+x.name),h('b',null,x.high.toLocaleString())),
+    h('div',{style:{height:8,background:'rgba(255,255,255,.1)',borderRadius:8,overflow:'hidden'}},
+      h('div',{style:{height:'100%',width:(x.high/max*100)+'%',background:'var(--brass)'}}))
+  ));
+  const lowRows=[...rows].sort((a,b)=>a.low-b.low);
+  const low=lowRows.map((x,i)=>h('div',{key:x.name,style:{margin:'8px 0'}},
+    h('div',{className:'row spread'},h('span',null,(i+1)+'. '+x.name),h('b',null,x.low.toLocaleString())),
+    h('div',{style:{height:8,background:'rgba(255,255,255,.1)',borderRadius:8,overflow:'hidden'}},
+      h('div',{style:{height:'100%',width:(x.low/max*100)+'%',background:'var(--rust)'}}))
+  ));
+  return h('div',null,
+    h('div',{className:'page-title'},h('h1',null,'Pinball'),h('span',{className:'sub'},'Insert 100 chips. Keep the ball alive.')),
+    h('div',{className:'grid g2'},
+      h('div',{className:'panel'},
+        h('div',{className:'row spread'},h('h2',null,'Arcade table'),h('span',{className:'chip'},'100 chips per game')),
+        h('div',{style:{background:'#10272c',border:'2px solid var(--brass)',borderRadius:16,padding:20,textAlign:'center'}},
+          h('b',null,'BOOK1 PINBALL'),
+          h('div',{style:{fontSize:44,fontWeight:900,margin:18}},score.toLocaleString()),
+          h('div',{className:'row spread'},h('span',null,'Time: '+seconds+'s'),h('span',null,'Balls: '+balls))
+        ),
+        h('div',{className:'row spread',style:{marginTop:12}},
+          h('button',{className:'btn',disabled:!active||busy,onClick:hit},'◀ Left flipper'),
+          h('button',{className:'btn',disabled:!active||busy,onClick:hit},'Right flipper ▶')
+        ),
+        !active?h('button',{className:'btn',disabled:busy,onClick:start,style:{marginTop:10}},busy?'Working…':'Insert 100 chips'):h('p',{className:'small muted'},'Tap the flippers to hit targets.'),
+        result&&h('div',{className:'okbox',style:{marginTop:10}},'Score ',result.score,' · Prize +',result.prize,' chips · Balance ',result.balance),
+        h('p',{className:'small muted'},'Rewards: 500+ = 50 chips; 1,000+ = 125; 2,000+ = 250; 3,500+ = 500; 5,000+ = 1,000.')
+      ),
+      h('div',{className:'panel'},
+        h('h2',null,'How to play'),
+        h('p',null,'You have 45 seconds and three balls. Hit either flipper to score; a missed shot can drain a ball. Entry is deducted when the game starts. Rewards are paid by the server and saved to the shared leaderboard.'),
+        h('h3',null,'Highest scores'),...high,
+        h('h3',{style:{marginTop:18}},'Lowest scores'),...low
+      )
+    )
+  );
+}
 function ProgressPage({store,me,dispatch}) {
   const h=React.createElement;
   const p=playerProgress(store,me);
@@ -10967,7 +11053,7 @@ function App() {
     onClick: () => persistCred(undefined)
   }, "Log out"));
   const wIdx = weekIdx == null ? store.weeks.length - 1 : Math.min(weekIdx, store.weeks.length - 1);
-  const tabs = [['table', 'Table'], ['me', 'My book'], ['progress', 'Progress'], ['bokemongs', 'Bokémongs'], ['calendar', 'Calendar'], ['brain', 'Brain Gym'], ['fantasy', 'Fantasy'], ['bounties', 'Bounties'], ['casino', 'Casino'], ['hogs', 'Hogs'], ['battleships', 'Battleships'], ['connect4', 'Connect 4'], ['chess', 'Chess'], ['eightman', '8 Man'], ['predict', 'Predictions'], ['chat', 'Chat'], ['master', 'Master'], ['stats', 'Dossier'], ['ko', 'Knockout']];
+  const tabs = [['table', 'Table'], ['me', 'My book'], ['progress', 'Progress'], ['bokemongs', 'Bokémongs'], ['calendar', 'Calendar'], ['brain', 'Brain Gym'], ['pinball', 'Pinball'], ['fantasy', 'Fantasy'], ['bounties', 'Bounties'], ['casino', 'Casino'], ['hogs', 'Hogs'], ['battleships', 'Battleships'], ['connect4', 'Connect 4'], ['chess', 'Chess'], ['eightman', '8 Man'], ['predict', 'Predictions'], ['chat', 'Chat'], ['master', 'Master'], ['stats', 'Dossier'], ['ko', 'Knockout']];
   if (isAdmin) tabs.push(['regime', 'Regime']);
   const live = store.weeks[store.weeks.length - 1];
   const pending = isAdmin ? live.fixtures.concat(live.playoffs).filter(g => g.status === 'disputed').length + (store.chipRequests || []).filter(r => r.status === 'pending').length : 0;
@@ -11006,7 +11092,14 @@ function App() {
     store: store,
     me: me,
     claimBrain: brainAct
-  }) : /*#__PURE__*/React.createElement("div", { className: "panel" }, "Log in to use Brain Gym.") : tab === 'fantasy' ? me ? /*#__PURE__*/React.createElement(FantasyPage, {
+  }) : /*#__PURE__*/React.createElement("div", { className: "panel" }, "Log in to use Brain Gym.") : tab === 'pinball' ? me ? /*#__PURE__*/React.createElement(PinballPage, {
+    store: store,
+    me: me,
+    cred: cred,
+    api: api,
+    refresh: refresh,
+    toast: toast
+  }) : /*#__PURE__*/React.createElement("div", { className: "panel" }, "Log in to play Pinball.") : tab === 'fantasy' ? me ? /*#__PURE__*/React.createElement(FantasyPage, {
     store: store,
     me: me,
     dispatch: dispatch
