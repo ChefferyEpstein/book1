@@ -7338,13 +7338,21 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
     resize();
     const hitSegment=(ball,x1,y1,x2,y2,boost)=>{
       const dx=x2-x1,dy=y2-y1,len2=dx*dx+dy*dy;
-      const t=Math.max(0,Math.min(1,((ball.x-x1)*dx+(ball.y-y1)*dy)/len2));
-      const px=x1+t*dx,py=y1+t*dy,nx=ball.x-px,ny=ball.y-py,dist=Math.hypot(nx,ny);
-      if(dist<R+7){
+      // Sweep the ball's movement between frames so a fast-moving ball cannot tunnel through a flipper.
+      const sx=ball.x-(ball.prevX??ball.x),sy=ball.y-(ball.prevY??ball.y);
+      let best=null;
+      for(let i=0;i<=10;i++){
+        const q=i/10,bx=(ball.prevX??ball.x)+sx*q,by=(ball.prevY??ball.y)+sy*q;
+        const t=Math.max(0,Math.min(1,((bx-x1)*dx+(by-y1)*dy)/len2));
+        const px=x1+t*dx,py=y1+t*dy,nx=bx-px,ny=by-py,dist=Math.hypot(nx,ny);
+        if(dist<R+11){best={px,py,nx,ny,dist};break;}
+      }
+      if(best){
+        const {px,py,nx,ny,dist}=best;
         const ux=dist?nx/dist:0,uy=dist?ny/dist:-1;
-        ball.x=px+ux*(R+8);ball.y=py+uy*(R+8);
+        ball.x=px+ux*(R+12);ball.y=py+uy*(R+12);
         const dot=ball.vx*ux+ball.vy*uy;
-        if(dot<0){ball.vx-=1.85*dot*ux;ball.vy-=1.85*dot*uy;}
+        if(dot<0){ball.vx-=2.05*dot*ux;ball.vy-=2.05*dot*uy;}
         ball.vx+=ux*boost;ball.vy-=boost*.72;
         return true;
       }
@@ -7357,6 +7365,7 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
       if(s.pendingFinish&&Date.now()-s.startedAt>=15000){s.pendingFinish=false;finishRef.current();}
       const b=s.ball;
       if(b.launched){
+        b.prevX=b.x;b.prevY=b.y;
         b.vy+=.17*dt;b.x+=b.vx*dt;b.y+=b.vy*dt;
         if(b.x<37+R){b.x=37+R;b.vx=Math.abs(b.vx)*.82;}
         if(b.x>383-R){b.x=383-R;b.vx=-Math.abs(b.vx)*.82;}
