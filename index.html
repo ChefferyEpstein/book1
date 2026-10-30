@@ -7306,7 +7306,7 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
       setScore(0);scoreRef.current=0;setSeconds(90);setBalls(3);
       keys.current={left:false,right:false};
       simRef.current={ball:{x:360,y:620,vx:0,vy:0,launched:false},score:0,balls:3,
-        bumpTimes:Array(5).fill(0),targetTimes:[0,0],lastFrame:0,drainAt:0,startedAt:Date.now(),pendingFinish:false,flipperScoreAt:0,slingScoreAt:0};
+        bumpTimes:Array(5).fill(0),targetTimes:[0,0],bounceCount:0,lastFrame:0,drainAt:0,startedAt:Date.now(),pendingFinish:false,flipperScoreAt:0,slingScoreAt:0};
       setActive(true);await refresh();
     }catch(e){toast(e.message||'Could not start Pinball.');}
     finally{setBusy(false);}
@@ -7316,10 +7316,12 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
     if(!active||!s||s.ball.launched||s.balls<=0||done.current)return;
     s.ball.launched=true;s.ball.vx=0;s.ball.vy=-14;
   };
+  const registerBounce=()=>{const s=simRef.current;if(s)s.bounceCount=(s.bounceCount||0)+1;};
   const addPoints=(n)=>{
     const s=simRef.current;if(!s)return;
     const fairPlayCap=Math.max(250,Math.floor((Date.now()-s.startedAt)*.17));
-    s.score=Math.min(fairPlayCap,s.score+n);
+    const multiplier=1+(s.bounceCount||0)*.01;
+    s.score=Math.min(fairPlayCap,s.score+Math.round(n*multiplier));
     scoreRef.current=s.score;setScore(s.score);
   };
   useEffect(()=>{
@@ -7367,9 +7369,9 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
       if(b.launched){
         b.prevX=b.x;b.prevY=b.y;
         b.vy+=.17*dt;b.x+=b.vx*dt;b.y+=b.vy*dt;
-        if(b.x<37+R){b.x=37+R;b.vx=Math.abs(b.vx)*.82;}
-        if(b.x>383-R){b.x=383-R;b.vx=-Math.abs(b.vx)*.82;}
-        if(b.y<48+R){b.y=48+R;b.vy=Math.abs(b.vy)*.78;}
+        if(b.x<37+R){b.x=37+R;b.vx=Math.abs(b.vx)*.82;registerBounce();}
+        if(b.x>383-R){b.x=383-R;b.vx=-Math.abs(b.vx)*.82;registerBounce();}
+        if(b.y<48+R){b.y=48+R;b.vy=Math.abs(b.vy)*.78;registerBounce();}
         // The plunger lane now has a wide, unobstructed exit into the playfield.
         if(b.x>330-R&&b.x<330+R&&b.y>145){b.x=330-R;b.vx=-Math.abs(b.vx)*.82;}
         // The dedicated right-hand launch lane feeds the ball into the playfield above the divider.
@@ -7382,7 +7384,7 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
             const speed=Math.max(6,Math.hypot(b.vx,b.vy));
             b.vx=nx*speed*.84+(Math.random()-.5)*1.8;
             b.vy=ny*speed*.84-2.4;
-            s.bumpTimes[i]=now;addPoints(p.points);
+            s.bumpTimes[i]=now;registerBounce();addPoints(p.points);
           }
         });
         targets.forEach((p,i)=>{
@@ -7390,14 +7392,14 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
           if(d<p.r+R&&now-s.targetTimes[i]>250){
             const nx=(b.x-p.x)/(d||1),ny=(b.y-p.y)/(d||1);
             b.x=p.x+nx*(p.r+R+1);b.y=p.y+ny*(p.r+R+1);
-            b.vx+=nx*3;b.vy-=4;s.targetTimes[i]=now;addPoints(250);
+            b.vx+=nx*3;b.vy-=4;s.targetTimes[i]=now;registerBounce();addPoints(250);
           }
         });
         // Slingshot faces kick the ball back into the playfield.
-        if((hitSegment(b,48,510,100,555,2.7)||hitSegment(b,265,555,315,510,2.7))&&now-s.slingScoreAt>220){s.slingScoreAt=now;addPoints(25);}
+        if((hitSegment(b,48,510,100,555,2.7)||hitSegment(b,265,555,315,510,2.7))&&now-s.slingScoreAt>220){s.slingScoreAt=now;registerBounce();addPoints(25);}
         const lx=168,ly=keys.current.left?545:622;
         const rx=187,ry=keys.current.right?545:622;
-        if((hitSegment(b,118,600,lx,ly,keys.current.left?5.2:3.2)||hitSegment(b,237,600,rx,ry,keys.current.right?5.2:3.2))&&now-s.flipperScoreAt>120){s.flipperScoreAt=now;addPoints(10);}
+        if((hitSegment(b,118,600,lx,ly,keys.current.left?5.2:3.2)||hitSegment(b,237,600,rx,ry,keys.current.right?5.2:3.2))&&now-s.flipperScoreAt>120){s.flipperScoreAt=now;registerBounce();addPoints(10);}
         // A narrow centre drain gives the player a chance to save the ball with either flipper.
         if(b.y>715){
           s.balls=Math.max(0,s.balls-1);setBalls(s.balls);
@@ -7491,7 +7493,7 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
     h('div',{className:'grid g2'},
       h('div',{className:'panel'},
         h('div',{className:'row spread'},h('h2',null,'Arcade table'),h('span',{className:'chip'},'100 chips per game')),
-        h('div',{className:'row spread',style:{marginBottom:8}},h('b',null,'Score: '+score.toLocaleString()),h('span',null,'Time: '+seconds+'s'),h('span',null,'Balls: '+balls)),
+        h('div',{className:'row spread',style:{marginBottom:8}},h('b',null,'Score: '+score.toLocaleString()),h('span',{className:'small'},'Bounce boost: x'+(1+((simRef.current?.bounceCount||0)*.01)).toFixed(2)),h('span',null,'Time: '+seconds+'s'),h('span',null,'Balls: '+balls)),
         h('div',{style:{maxWidth:420,margin:'0 auto',background:'#07191f',border:'2px solid var(--brass)',borderRadius:14,overflow:'hidden'}},
           h('canvas',{ref:canvasRef,style:{display:'block',width:'100%',height:'auto',touchAction:'none'}})
         ),
@@ -7504,7 +7506,7 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
           h('button',{className:'btn',onPointerDown:()=>keys.current.right=true,onPointerUp:()=>keys.current.right=false,onPointerLeave:()=>keys.current.right=false,onPointerCancel:()=>keys.current.right=false,style:{flex:1,touchAction:'none'},onContextMenu:e=>e.preventDefault()},'Hold right flipper ▶')
         ),
         result&&h('div',{className:'okbox',style:{marginTop:10}},'Score ',result.score,' · Prize +',result.prize,' chips · Balance ',result.balance),
-        h('p',{className:'small muted'},'Chip return: 5% of your final score (for example, 1,000 points returns 50 chips). Entry fee: 100 chips.')
+        h('p',{className:'small muted'},'Score multiplier increases by 1% with every rebound. Chip return: 5% of your final score (for example, 1,000 points returns 50 chips). Entry fee: 100 chips.')
       ),
       h('div',{className:'panel'},
         h('h2',null,'How to play'),
