@@ -512,7 +512,7 @@ const {
 } = React;
 const STORE_KEY = 'book1.2-local';
 const CFG = window.BOOK_CONFIG || {};
-const APP_SQL_VERSION = 41; // bump this whenever a new SQL script adds or changes a server function
+const APP_SQL_VERSION = 42; // bump this whenever a new SQL script adds or changes a server function
 const CLOUD = !!(CFG.url && CFG.key);
 const ADMINS = ['Chef', 'Lorcan'];
 const DECREES = ['Abstention is not permitted.', 'The Book sees all results.', 'Ball difference is destiny.', 'The Dictator collects. The Dictator distributes.', 'Report your score. Report it honestly.', 'Twelfth place is a service to the office.', 'The mong off is not optional.', 'Disputes are settled by the regime.'];
@@ -1028,7 +1028,7 @@ const api = CLOUD ? {
   async pinballFinish(cred, token, score) {
     const st=loadStore(),sess=(st.pinballSessions||[]).find(x=>x.token===token&&x.player===cred.name&&x.status==='playing');
     if(!sess) throw new Error('That Pinball game has already finished.');
-    const prize=score<500?0:score<1000?50:score<2000?125:score<3500?250:score<5000?500:1000;
+    const prize=score<500?0:score<1000?250:score<2000?625:score<3500?1250:score<5000?2500:5000;
     sess.status='finished';sess.score=score;sess.prize=prize;
     st.chips=st.chips||{};st.chips[cred.name]=(st.chips[cred.name]??1000)+prize;
     st.pinballScores=st.pinballScores||[];st.pinballScores.push({player:cred.name,score,prize,week:sess.week,at:Date.now()});
