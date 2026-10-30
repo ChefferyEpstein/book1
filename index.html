@@ -7296,7 +7296,7 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
       setScore(0);scoreRef.current=0;setSeconds(45);setBalls(3);
       keys.current={left:false,right:false};
       simRef.current={ball:{x:360,y:620,vx:0,vy:0,launched:false},score:0,balls:3,
-        bumpTimes:[0,0,0],targetTimes:[0,0],lastFrame:0,drainAt:0};
+        bumpTimes:[0,0,0],targetTimes:[0,0],lastFrame:0,drainAt:0,startedAt:Date.now(),pendingFinish:false,flipperScoreAt:0,slingScoreAt:0};
       setActive(true);await refresh();
     }catch(e){toast(e.message||'Could not start Pinball.');}
     finally{setBusy(false);}
@@ -7308,7 +7308,8 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
   };
   const addPoints=(n)=>{
     const s=simRef.current;if(!s)return;
-    s.score=Math.min(8000,s.score+n);
+    const fairPlayCap=Math.max(250,Math.floor((Date.now()-s.startedAt)*.17));
+    s.score=Math.min(8000,fairPlayCap,s.score+n);
     scoreRef.current=s.score;setScore(s.score);
   };
   useEffect(()=>{
@@ -7343,6 +7344,7 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
       const s=simRef.current;if(!s)return;
       const now=performance.now(),dt=Math.min(2.2,(now-(s.lastFrame||now))/16.667||1);
       s.lastFrame=now;
+      if(s.pendingFinish&&Date.now()-s.startedAt>=15000){s.pendingFinish=false;finishRef.current();}
       const b=s.ball;
       if(b.launched){
         b.vy+=.19*dt;b.x+=b.vx*dt;b.y+=b.vy*dt;
@@ -7369,17 +7371,16 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
           }
         });
         // Slingshot faces kick the ball back into the playfield.
-        if(hitSegment(b,48,490,105,535,3.2)||hitSegment(b,315,535,372,490,3.2))addPoints(25);
+        if((hitSegment(b,48,490,105,535,3.2)||hitSegment(b,315,535,372,490,3.2))&&now-s.slingScoreAt>220){s.slingScoreAt=now;addPoints(25);}
         const leftAngle=keys.current.left?-0.88:-0.22;
         const rightAngle=keys.current.right?Math.PI+0.88:Math.PI+0.22;
         const lx=150+Math.cos(leftAngle)*88,ly=590+Math.sin(leftAngle)*88;
         const rx=270+Math.cos(rightAngle)*88,ry=590+Math.sin(rightAngle)*88;
-        if(hitSegment(b,150,590,lx,ly,keys.current.left?5.8:1.0))addPoints(10);
-        if(hitSegment(b,270,590,rx,ry,keys.current.right?5.8:1.0))addPoints(10);
+        if((hitSegment(b,150,590,lx,ly,keys.current.left?5.8:1.0)||hitSegment(b,270,590,rx,ry,keys.current.right?5.8:1.0))&&now-s.flipperScoreAt>120){s.flipperScoreAt=now;addPoints(10);}
         // A narrow centre drain gives the player a chance to save the ball with either flipper.
         if(b.y>715){
           s.balls--;setBalls(s.balls);
-          if(s.balls<=0){finishRef.current();b.launched=false;}
+          if(s.balls<=0){b.launched=false;if(Date.now()-s.startedAt>=15000)finishRef.current();else s.pendingFinish=true;}
           else{s.drainAt=now;b.x=360;b.y=620;b.vx=0;b.vy=0;b.launched=false;}
         }
         b.vx*=Math.pow(.999,dt);b.vy*=Math.pow(.999,dt);
