@@ -7314,7 +7314,7 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
   const launch=()=>{
     const s=simRef.current;
     if(!active||!s||s.ball.launched||s.balls<=0||done.current)return;
-    s.ball.launched=true;s.ball.vx=0;s.ball.vy=-15.5;
+    s.ball.launched=true;s.ball.vx=0;s.ball.vy=-14;
   };
   const addPoints=(n)=>{
     const s=simRef.current;if(!s)return;
@@ -7357,7 +7357,7 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
       if(s.pendingFinish&&Date.now()-s.startedAt>=15000){s.pendingFinish=false;finishRef.current();}
       const b=s.ball;
       if(b.launched){
-        b.vy+=.19*dt;b.x+=b.vx*dt;b.y+=b.vy*dt;
+        b.vy+=.17*dt;b.x+=b.vx*dt;b.y+=b.vy*dt;
         if(b.x<37+R){b.x=37+R;b.vx=Math.abs(b.vx)*.82;}
         if(b.x>383-R){b.x=383-R;b.vx=-Math.abs(b.vx)*.82;}
         if(b.y<48+R){b.y=48+R;b.vy=Math.abs(b.vy)*.78;}
@@ -7370,9 +7370,9 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
           if(d<limit&&now-s.bumpTimes[i]>180){
             const nx=dx/(d||1),ny=dy/(d||1);
             b.x=p.x+nx*(limit+1);b.y=p.y+ny*(limit+1);
-            const speed=Math.max(7,Math.hypot(b.vx,b.vy));
-            b.vx=nx*speed*.9+(Math.random()-.5)*2.2;
-            b.vy=ny*speed*.9-2.8;
+            const speed=Math.max(6,Math.hypot(b.vx,b.vy));
+            b.vx=nx*speed*.84+(Math.random()-.5)*1.8;
+            b.vy=ny*speed*.84-2.4;
             s.bumpTimes[i]=now;addPoints(p.points);
           }
         });
@@ -7385,12 +7385,12 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
           }
         });
         // Slingshot faces kick the ball back into the playfield.
-        if((hitSegment(b,48,490,100,535,3.2)||hitSegment(b,265,535,315,490,3.2))&&now-s.slingScoreAt>220){s.slingScoreAt=now;addPoints(25);}
+        if((hitSegment(b,48,510,100,555,2.7)||hitSegment(b,265,555,315,510,2.7))&&now-s.slingScoreAt>220){s.slingScoreAt=now;addPoints(25);}
         const leftAngle=keys.current.left?-0.72:-0.30;
         const rightAngle=keys.current.right?Math.PI+0.72:Math.PI+0.30;
         const lx=130+Math.cos(leftAngle)*58,ly=600+Math.sin(leftAngle)*58;
         const rx=235+Math.cos(rightAngle)*58,ry=600+Math.sin(rightAngle)*58;
-        if((hitSegment(b,130,600,lx,ly,keys.current.left?5.8:1.0)||hitSegment(b,235,600,rx,ry,keys.current.right?5.8:1.0))&&now-s.flipperScoreAt>120){s.flipperScoreAt=now;addPoints(10);}
+        if((hitSegment(b,130,600,lx,ly,keys.current.left?4.8:0.8)||hitSegment(b,235,600,rx,ry,keys.current.right?4.8:0.8))&&now-s.flipperScoreAt>120){s.flipperScoreAt=now;addPoints(10);}
         // A narrow centre drain gives the player a chance to save the ball with either flipper.
         if(b.y>715){
           s.balls=Math.max(0,s.balls-1);setBalls(s.balls);
@@ -7401,7 +7401,7 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
           }else{s.drainAt=now;b.x=360;b.y=620;}
         }
         b.vx*=Math.pow(.999,dt);b.vy*=Math.pow(.999,dt);
-        b.vx=Math.max(-13,Math.min(13,b.vx));b.vy=Math.max(-18,Math.min(18,b.vy));
+        b.vx=Math.max(-11.5,Math.min(11.5,b.vx));b.vy=Math.max(-16,Math.min(16,b.vy));
       }
       // Cabinet and playfield.
       const bg=ctx.createLinearGradient(0,0,0,H);bg.addColorStop(0,'#123b3d');bg.addColorStop(1,'#07191f');
@@ -7430,7 +7430,7 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
       });
       // Slingshots.
       ctx.fillStyle='rgba(224,169,75,.22)';ctx.strokeStyle='#d9a94f';ctx.lineWidth=3;
-      [[48,490,100,535],[265,535,315,490]].forEach(v=>{ctx.beginPath();ctx.moveTo(v[0],v[1]);ctx.lineTo(v[2],v[3]);ctx.lineTo((v[0]+v[2])/2, v[1]+(v[3]-v[1])*.25);ctx.closePath();ctx.fill();ctx.stroke();});
+      [[48,510,100,555],[265,555,315,510]].forEach(v=>{ctx.beginPath();ctx.moveTo(v[0],v[1]);ctx.lineTo(v[2],v[3]);ctx.lineTo((v[0]+v[2])/2, v[1]+(v[3]-v[1])*.25);ctx.closePath();ctx.fill();ctx.stroke();});
       // Flippers.
       const drawFlipper=(x,y,angle,pressed)=>{
         const tx=x+Math.cos(angle)*58,ty=y+Math.sin(angle)*58;
@@ -7498,7 +7498,7 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
           h('button',{className:'btn',onPointerDown:()=>keys.current.right=true,onPointerUp:()=>keys.current.right=false,onPointerLeave:()=>keys.current.right=false,onPointerCancel:()=>keys.current.right=false,style:{flex:1,touchAction:'none'},onContextMenu:e=>e.preventDefault()},'Hold right flipper ▶')
         ),
         result&&h('div',{className:'okbox',style:{marginTop:10}},'Score ',result.score,' · Prize +',result.prize,' chips · Balance ',result.balance),
-        h('p',{className:'small muted'},'Rewards: 500+ = 250 chips; 1,000+ = 625; 2,000+ = 1,250; 3,500+ = 2,500; 5,000+ = 5,000.')
+        h('p',{className:'small muted'},'Chip return: 5% of your final score (for example, 1,000 points returns 50 chips). Entry fee: 100 chips.')
       ),
       h('div',{className:'panel'},
         h('h2',null,'How to play'),
