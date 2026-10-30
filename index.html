@@ -7280,7 +7280,7 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
   const finish=async(sc,tok)=>{
     if(done.current||!tok)return;
     done.current=true;setActive(false);setBusy(true);
-    try{const out=await api.pinballFinish(cred,tok,sc);setResult(out);await refresh();}
+    try{const out=await api.pinballFinish(cred,tok,sc);if(out&&out.expired){setResult(null);toast('Your Pinball game expired before the score was submitted.');}else setResult(out);await refresh();}
     catch(e){toast(e.message||'Could not submit Pinball score.');}
     finally{setBusy(false);}
   };
