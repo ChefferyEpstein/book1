@@ -3316,20 +3316,25 @@ const PRESTIGE_REWARDS = [
   {p:10,label:'Free Spin 5 minutes + 30% cheaper cases + 25% weekly bonus + 25pp duplicate refunds'}
 ];
 const CHALLENGE_POOL = {
-  wins3:{id:'wins3',name:'Hat-trick',desc:'Win 3 pool games this game week.',reward:10000,xp:750},
-  play4:{id:'play4',name:'Clock in',desc:'Complete 4 pool games this game week.',reward:5000,xp:400},
-  diff10:{id:'diff10',name:'Run it up',desc:'Reach +10 ball difference this game week.',reward:7500,xp:750},
-  c4wins2:{id:'c4wins2',name:'Four in a Row',desc:'Win 2 Connect 4 games this game week.',reward:5000,xp:500},
-  bswin1:{id:'bswin1',name:'Naval Warfare',desc:'Win a Battleships game this game week.',reward:5000,xp:500},
-  hogwin1:{id:'hogwin1',name:'Hog Supremacy',desc:'Win a Hog duel this game week.',reward:3000,xp:300},
-  chesswin1:{id:'chesswin1',name:'Checkmate',desc:'Win a Chess game this game week.',reward:5000,xp:500}
+  wins3:{id:'wins3',name:'Hat-trick',desc:'Win 3 pool games this game week.',reward:10000,xp:1000},
+  wins5:{id:'wins5',name:'Five Alive',desc:'Win 5 pool games this game week.',reward:15000,xp:1500},
+  wins8:{id:'wins8',name:'Pool Dominator',desc:'Win 8 pool games this game week.',reward:25000,xp:2500},
+  play4:{id:'play4',name:'Clock in',desc:'Complete 4 pool games this game week.',reward:7500,xp:750},
+  play8:{id:'play8',name:'Regular at the Table',desc:'Complete 8 pool games this game week.',reward:12500,xp:1250},
+  play12:{id:'play12',name:'Never Off the Table',desc:'Complete 12 pool games this game week.',reward:20000,xp:2000},
+  diff10:{id:'diff10',name:'Run it up',desc:'Reach +10 ball difference this game week.',reward:10000,xp:1000},
+  diff20:{id:'diff20',name:'Clear the Table',desc:'Reach +20 ball difference this game week.',reward:17500,xp:1750},
+  diff30:{id:'diff30',name:'Untouchable',desc:'Reach +30 ball difference this game week.',reward:25000,xp:2500},
+  c4wins2:{id:'c4wins2',name:'Four in a Row',desc:'Win 2 Connect 4 games this game week.',reward:7500,xp:750},
+  c4wins4:{id:'c4wins4',name:'Connect Four Champion',desc:'Win 4 Connect 4 games this game week.',reward:15000,xp:1500},
+  bswin1:{id:'bswin1',name:'Naval Warfare',desc:'Win a Battleships game this game week.',reward:7500,xp:750},
+  bswin2:{id:'bswin2',name:'Fleet Admiral',desc:'Win 2 Battleships games this game week.',reward:15000,xp:1500},
+  hogwin1:{id:'hogwin1',name:'Hog Supremacy',desc:'Win a Hog duel this game week.',reward:5000,xp:600},
+  hogwin2:{id:'hogwin2',name:'Hog Champion',desc:'Win 2 Hog duels this game week.',reward:10000,xp:1200},
+  chesswin1:{id:'chesswin1',name:'Checkmate',desc:'Win a Chess game this game week.',reward:7500,xp:750},
+  chesswin2:{id:'chesswin2',name:'Grandmaster in the Making',desc:'Win 2 Chess games this game week.',reward:15000,xp:1500}
 };
-function weeklyChallengesForWeek(n) {
-  const core=['wins3','play4','diff10'], mini=['c4wins2','bswin1','hogwin1','chesswin1'];
-  const base=Math.max(0,(+n||1)-1);
-  const ci=base%core.length, mi=base%mini.length;
-  return [CHALLENGE_POOL[core[ci]],CHALLENGE_POOL[mini[mi]],CHALLENGE_POOL[core[(ci+1)%core.length]]];
-}
+function weeklyChallengesForWeek(n) { return Object.values(CHALLENGE_POOL); }
 function weeklyChallengeProgress(store,p) {
   const w=store.weeks[store.weeks.length-1];
   const gs=(w.fixtures||[]).filter(g=>played(g)&&(g.p1===p||g.p2===p));
@@ -3343,12 +3348,20 @@ function weeklyChallengeProgress(store,p) {
   const chesswins=(store.chess||[]).filter(g=>+g.createdAt>=challengeStart&&g.status==='done'&&g.winner===p).length;
   return {week:w.n,wins,played:gs.length,diff:d,c4wins,bswins,hogwins,chesswins};
 }
-function weeklyChallengeDone(stats,id) {
-  return id==='wins3'?stats.wins>=3:id==='play4'?stats.played>=4:id==='diff10'?stats.diff>=10:id==='c4wins2'?stats.c4wins>=2:id==='bswin1'?stats.bswins>=1:id==='hogwin1'?stats.hogwins>=1:id==='chesswin1'?stats.chesswins>=1:false;
+function weeklyChallengeMetric(stats,id) {
+  const m={
+    wins3:['wins',3,'wins'],wins5:['wins',5,'wins'],wins8:['wins',8,'wins'],
+    play4:['played',4,'games'],play8:['played',8,'games'],play12:['played',12,'games'],
+    diff10:['diff',10,'ball diff'],diff20:['diff',20,'ball diff'],diff30:['diff',30,'ball diff'],
+    c4wins2:['c4wins',2,'Connect 4 wins'],c4wins4:['c4wins',4,'Connect 4 wins'],
+    bswin1:['bswins',1,'Battleships wins'],bswin2:['bswins',2,'Battleships wins'],
+    hogwin1:['hogwins',1,'Hog wins'],hogwin2:['hogwins',2,'Hog wins'],
+    chesswin1:['chesswins',1,'Chess wins'],chesswin2:['chesswins',2,'Chess wins']
+  };
+  return m[id]||null;
 }
-function weeklyChallengeProgressText(stats,id) {
-  return id==='wins3'?stats.wins+'/3 wins':id==='play4'?stats.played+'/4 games':id==='diff10'?stats.diff+'/+10 diff':id==='c4wins2'?stats.c4wins+'/2 C4 wins':id==='bswin1'?stats.bswins+'/1 Battleships win':id==='hogwin1'?stats.hogwins+'/1 Hog win':stats.chesswins+'/1 Chess win';
-}
+function weeklyChallengeDone(stats,id) { const m=weeklyChallengeMetric(stats,id); return !!m&&stats[m[0]]>=m[1]; }
+function weeklyChallengeProgressText(stats,id) { const m=weeklyChallengeMetric(stats,id); return m?stats[m[0]]+'/'+m[1]+' '+m[2]:''; }
 function minigameLeaderboard(store) {
   const board={};
   const row=n=>board[n]||(board[n]={name:n,w:0,l:0,d:0,gp:0,c4:{w:0,l:0,d:0},chess:{w:0,l:0,d:0},bs:{w:0,l:0,d:0},hog:{w:0,l:0,d:0}});
@@ -3378,22 +3391,36 @@ function brainSudoku(day=brainDayKey()) {
   return {puzzle:brainShiftDigits(BRAIN_SUDOKU_BASE,off),solution:brainShiftDigits(BRAIN_SUDOKU_SOLUTION,off)};
 }
 const BRAIN_CROSSWORDS=[
-  {words:['BALL','AREA','LEAD','LADY'],clues:['Pool object','A region or space','To guide; also a metal','An adult woman']},
-  {words:['LIMB','IDEA','MEAL','BALL'],clues:['Arm or leg','A thought','Food at one sitting','Pool object']},
-  {words:['SALT','AREA','LEAN','TANK'],clues:['Seasoning','A region or space','To incline','Large container']},
-  {words:['CARE','AREA','REAR','EARL'],clues:['Attention or concern','A region or space','The back part','British noble rank']},
-  {words:['LATE','AREA','TEAR','EARN'],clues:['Not on time','A region or space','Rip','Receive pay for work']},
-  {words:['SAND','AREA','NEAR','DART'],clues:['Beach material','A region or space','Close by','Small pointed missile']},
-  {words:['BITE','IDEA','TEAR','EARN'],clues:['Use your teeth','A thought','Rip','Receive pay for work']},
-  {words:['TAPE','AREA','PEAR','EARN'],clues:['Sticky strip','A region or space','Green fruit','Receive pay for work']},
-  {words:['CARD','AREA','REAR','DART'],clues:['Plastic in your wallet','A region or space','The back part','Small pointed missile']},
-  {words:['MATE','AREA','TEAR','EARN'],clues:['Friend','A region or space','Rip','Receive pay for work']},
-  {words:['BIND','IDEA','NEAR','DART'],clues:['Tie together','A thought','Close by','Small pointed missile']},
-  {words:['BILL','IDEA','LEAD','LADY'],clues:['Invoice','A thought','To guide; also a metal','An adult woman']},
-  {words:['BIRD','IDEA','REAR','DART'],clues:['Feathered animal','A thought','The back part','Small pointed missile']},
-  {words:['PARK','AREA','REAR','KART'],clues:['Green public space','A region or space','The back part','Small racing vehicle']},
-  {words:['CART','AREA','REAR','TART'],clues:['Wheeled carrier','A region or space','The back part','Sharp tasting; also a pastry']},
-  {words:['HARD','AREA','REAR','DART'],clues:['Not easy','A region or space','The back part','Small pointed missile']}
+  {words:['BALL','CUE','RACK','POKE'].map(x=>x.padEnd(4,' ')),clues:['Pool object','Stick used to strike a ball','Where balls are set up','A gentle prod']},
+  {words:['LION','BEAR','WOLF','DEER'],clues:['King of the jungle','Large woodland mammal','A wild canine','Antlered woodland animal']},
+  {words:['MINT','SAGE','THYME','BASIL'].map(x=>x.slice(0,4)),clues:['Fresh breath flavour','Wise person','Herb used with lemon','Classic pesto herb']},
+  {words:['MARS','VENUS','MOON','STAR'].map(x=>x.slice(0,4)),clues:['The red planet','Roman goddess of love','Earth’s natural satellite','Twinkling point in the night sky']},
+  {words:['JAZZ','ROCK','SOUL','FOLK'],clues:['Improvised music genre','Guitar-driven music','Aretha Franklin genre','Traditional acoustic music']},
+  {words:['FORK','KNIFE','SPOON','PLAT'].map(x=>x.slice(0,4)),clues:['Eating utensil with prongs','Cuts your dinner','Used for soup','A dinner dish, informally']},
+  {words:['LIME','PEAR','PLUM','KIWI'],clues:['Green citrus fruit','Bell-shaped fruit','Purple stone fruit','Fuzzy green fruit']},
+  {words:['GOLD','SILV','IRON','LEAD'],clues:['Precious yellow metal','Shiny precious metal (short)','Magnetic metal','Heavy metal and pool ball material']},
+  {words:['HATS','COAT','BOOT','SCAR'],clues:['Things worn on heads','Warm outer layer','Footwear','Neck accessory, shortened']},
+  {words:['ROSE','LILY','IRIS','DAIS'],clues:['A classic red flower','White trumpet-shaped flower','Flower and eye part','Common lawn flower']},
+  {words:['SHIP','BOAT','SAIL','MAST'],clues:['Large vessel','Small vessel','Canvas for catching wind','Tall pole on a vessel']},
+  {words:['MATH','READ','PLAY','DRAW'],clues:['Numbers and equations','Look at words on a page','Take part in a game','Make a picture']},
+  {words:['BLUE','PINK','GOLD','TEAL'],clues:['Colour of a clear sky','Pale red shade','Metallic yellow shade','Blue-green colour']},
+  {words:['RING','BELL','TONE','ECHO'],clues:['Jewellery worn on a finger','It chimes','A sound quality','Sound bouncing back']},
+  {words:['FISH','CRAB','SEAL','OTTR'],clues:['Aquatic animal with gills','Sideways-walking crustacean','Marine mammal','River mammal, shortened']},
+  {words:['CAMP','TENT','FIRE','HIKE'],clues:['Outdoor overnight stay','Portable shelter','Warmth around the campsite','Long countryside walk']},
+  {words:['CAKE','TART','PIES','FLAN'],clues:['Birthday dessert','Pastry with a filling','Baked fruit desserts','Open custard pastry']},
+  {words:['WIND','RAIN','SNOW','HAIL'],clues:['Moving air','Falling water','Frozen flakes','Small balls of ice']},
+  {words:['KING','QUEEN','ROOK','PAWN'].map(x=>x.slice(0,4)),clues:['Chess piece with the crown','Powerful chess piece','Straight-line chess piece','Smallest chess piece']},
+  {words:['FAST','SLOW','QUIC','RUSH'].map(x=>x.slice(0,4)),clues:['Opposite of slow','Opposite of fast','Quick, abbreviated','Hurry or dash']},
+  {words:['BARK','LEAF','ROOT','SEED'],clues:['Tree’s outer covering','Grows from a branch','Anchors a plant','Can grow into a plant']},
+  {words:['SOAP','TOWE','BATH','WASH'].map(x=>x.slice(0,4)),clues:['Used with water to clean','Dries you after a shower','A soak in the tub','Clean with water']},
+  {words:['GRID','CODE','DATA','BYTE'],clues:['Rows and columns','Instructions for a computer','Information stored digitally','Eight bits']},
+  {words:['BEER','WINE','CIDER','ALE'].map(x=>x.slice(0,4)),clues:['Pint of lager, broadly','Grape-based drink','Apple-based drink','Traditional pub drink']},
+  {words:['NOSE','EARS','EYES','LIPS'],clues:['Used for smelling','Used for hearing','Used for seeing','Part of the mouth']},
+  {words:['GATE','DOOR','WALL','ROOF'],clues:['Entrance to a garden','Entry to a room','Boundary of a building','Top covering of a house']},
+  {words:['FAME','FORT','LUCK','HOPE'],clues:['Being well-known','A stronghold','Good fortune','Optimism about the future']},
+  {words:['MILE','YARD','FOOT','INCH'],clues:['A distance of 1,760 yards','Three feet','12 inches','Small unit of length']},
+  {words:['BASS','DRUM','PIAN','HARP'].map(x=>x.slice(0,4)),clues:['Low musical range','Percussion instrument','Keyboard instrument, shortened','Stringed instrument']},
+  {words:['ZERO','ONES','TENS','DOZE'].map(x=>x.slice(0,4)),clues:['Nothing at all','Numerical units','Groups of ten','A short nap']}
 ];
 function brainCrossword(day=brainDayKey()) { return BRAIN_CROSSWORDS[((brainDayNumber(day)%BRAIN_CROSSWORDS.length)+BRAIN_CROSSWORDS.length)%BRAIN_CROSSWORDS.length]; }
 const BRAIN_TEASERS=[
@@ -3403,7 +3430,25 @@ const BRAIN_TEASERS=[
   {q:'What has a neck but no head?',a:['bottle']},
   {q:'What comes once in a minute, twice in a moment, and never in a thousand years?',a:['m','letterm']},
   {q:'What has keys but no locks and space but no rooms?',a:['keyboard']},
-  {q:'What speaks without a mouth and answers without ears?',a:['echo']}
+  {q:'What speaks without a mouth and answers without ears?',a:['echo']},
+  {q:'I am full of holes but still hold water. What am I?',a:['sponge']},
+  {q:'What has one eye but cannot see?',a:['needle']},
+  {q:'What goes up but never comes down?',a:['age']},
+  {q:'What has hands but cannot clap?',a:['clock']},
+  {q:'What can you catch but not throw?',a:['cold']},
+  {q:'What has a ring but no finger?',a:['phone','telephone']},
+  {q:'What has four legs but cannot walk?',a:['table','chair']},
+  {q:'The more you take, the more you leave behind. What are they?',a:['footsteps','steps']},
+  {q:'What belongs to you but other people use it more?',a:['name']},
+  {q:'What has words but never speaks?',a:['book']},
+  {q:'What runs but never walks, has a bed but never sleeps?',a:['river']},
+  {q:'What can fill a room but takes up no space?',a:['light']},
+  {q:'What has a thumb and four fingers but is not alive?',a:['glove']},
+  {q:'What begins with T, ends with T, and has T in it?',a:['teapot']},
+  {q:'What is always in front of you but cannot be seen?',a:['future']},
+  {q:'What has 13 hearts but no other organs?',a:['deck','deckofcards']},
+  {q:'What goes through towns and over hills but never moves?',a:['road']},
+  {q:'What has a head and a tail but no body?',a:['coin']}
 ];
 function brainTeaser(day=brainDayKey()) { return BRAIN_TEASERS[((brainDayNumber(day)%BRAIN_TEASERS.length)+BRAIN_TEASERS.length)%BRAIN_TEASERS.length]; }
 function brainNorm(x){return String(x||'').toLowerCase().replace(/[^a-z0-9]/g,'');}
@@ -7287,7 +7332,7 @@ function BrainGymPage({store,me,claimBrain}) {
       ),
       h('div',{className:'panel'},
         h('h2',null,'Mini crossword · 250 XP'),
-        h('p',{className:'small muted'},'Four answers form a word square: the same words read across and down.'),
+        h('p',{className:'small muted'},'Four varied clues. Enter each four-letter answer.'),
         cw.clues.map((clue,i)=>h('label',{key:i,className:'f',style:{display:'block',marginBottom:8}},(i+1)+'. '+clue,
           h('input',{value:cross[i],maxLength:4,disabled:claimed('crossword'),onChange:e=>{const n=cross.slice();n[i]=e.target.value.toUpperCase().replace(/[^A-Z]/g,'');setCross(n);},style:{marginLeft:8,width:90,textTransform:'uppercase'}})
         )),
