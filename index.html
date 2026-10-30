@@ -7329,7 +7329,7 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
     let raf=0,alive=true;
     const W=420,H=700,R=8;
     const bumpers=[{x:112,y:165,r:19,points:100},{x:248,y:165,r:19,points:100},{x:180,y:265,r:30,points:200},{x:112,y:365,r:23,points:125},{x:248,y:365,r:23,points:125}];
-    const targets=[{x:155,y:430,r:13},{x:205,y:430,r:13}];
+    const targets=[{x:170,y:430,r:13},{x:250,y:430,r:13}];
     const resize=()=>{
       const dpr=Math.min(window.devicePixelRatio||1,2);
       canvas.width=W*dpr;canvas.height=H*dpr;
@@ -7386,9 +7386,9 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
         });
         // Slingshot faces kick the ball back into the playfield.
         if((hitSegment(b,48,510,100,555,2.7)||hitSegment(b,265,555,315,510,2.7))&&now-s.slingScoreAt>220){s.slingScoreAt=now;addPoints(25);}
-        const lx=200,ly=keys.current.left?555:665;
-        const rx=220,ry=keys.current.right?555:665;
-        if((hitSegment(b,145,600,lx,ly,keys.current.left?4.8:0.8)||hitSegment(b,275,600,rx,ry,keys.current.right?4.8:0.8))&&now-s.flipperScoreAt>120){s.flipperScoreAt=now;addPoints(10);}
+        const lx=195,ly=keys.current.left?535:620;
+        const rx=225,ry=keys.current.right?535:620;
+        if((hitSegment(b,130,585,lx,ly,keys.current.left?4.8:0.8)||hitSegment(b,290,585,rx,ry,keys.current.right?4.8:0.8))&&now-s.flipperScoreAt>120){s.flipperScoreAt=now;addPoints(10);}
         // A narrow centre drain gives the player a chance to save the ball with either flipper.
         if(b.y>715){
           s.balls=Math.max(0,s.balls-1);setBalls(s.balls);
@@ -7436,8 +7436,8 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
         ctx.strokeStyle='#fff1c7';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(tx,ty);ctx.stroke();
         ctx.fillStyle='#f4d58a';ctx.beginPath();ctx.arc(x,y,7,0,Math.PI*2);ctx.fill();
       };
-      drawFlipper(145,600,200,keys.current.left?555:665,keys.current.left);
-      drawFlipper(275,600,220,keys.current.right?555:665,keys.current.right);
+      drawFlipper(130,585,195,keys.current.left?535:620,keys.current.left);
+      drawFlipper(290,585,225,keys.current.right?535:620,keys.current.right);
       ctx.fillStyle='#f4d58a';ctx.font='bold 12px sans-serif';ctx.textAlign='center';
       ctx.fillText('BOOK1 PINBALL',210,80);ctx.fillText('BUMPERS  ·  TARGETS  ·  SLINGSHOTS',210,105);
       // Ball and launch lane.
