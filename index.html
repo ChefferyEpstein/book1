@@ -7468,26 +7468,18 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
     raf=requestAnimationFrame(draw);
     return ()=>{alive=false;cancelAnimationFrame(raf);window.removeEventListener('keydown',onKeyDown);window.removeEventListener('keyup',onKeyUp);};
   },[active]);
+  // One aggregated leaderboard row per player, with their personal high and low.
+  // Normalise names so casing/whitespace differences cannot create duplicate rows.
   const rows=Object.values((store.pinballScores||[]).reduce((a,x)=>{
-    if(!x.player)return a;
-    if(!a[x.player])a[x.player]={name:x.player,high:0,low:Infinity,plays:0};
-    a[x.player].high=Math.max(a[x.player].high,+x.score||0);
-    a[x.player].low=Math.min(a[x.player].low,+x.score||0);
-    a[x.player].plays++;return a;
-  },{})).sort((a,b)=>b.high-a.high);
-  const max=Math.max(1,...rows.map(x=>x.high));
-  const high=rows.map((x,i)=>h('div',{key:x.name,style:{margin:'8px 0'}},
-    h('div',{className:'row spread'},h('span',null,(i+1)+'. '+x.name+' · '+x.plays+' games'),h('b',null,x.high.toLocaleString())),
-    h('div',{style:{height:8,background:'rgba(255,255,255,.1)',borderRadius:8,overflow:'hidden'}},
-      h('div',{style:{height:'100%',width:(x.high/max*100)+'%',background:'var(--brass)'}}))
-  ));
-  const lowRows=[...rows].sort((a,b)=>a.low-b.low);
-  const lowMax=Math.max(1,...lowRows.map(x=>x.low));
-  const low=lowRows.map((x,i)=>h('div',{key:x.name,style:{margin:'8px 0'}},
-    h('div',{className:'row spread'},h('span',null,(i+1)+'. '+x.name+' · '+x.plays+' games'),h('b',null,x.low.toLocaleString())),
-    h('div',{style:{height:8,background:'rgba(255,255,255,.1)',borderRadius:8,overflow:'hidden'}},
-      h('div',{style:{height:'100%',width:(x.low/lowMax*100)+'%',background:'var(--rust)'}}))
-  ));
+    const name=String(x.player||'').trim(), score=Number(x.score);
+    if(!name||!Number.isFinite(score))return a;
+    const key=name.toLocaleLowerCase();
+    if(!a[key])a[key]={name,high:score,low:score,plays:0};
+    a[key].high=Math.max(a[key].high,score);
+    a[key].low=Math.min(a[key].low,score);
+    a[key].plays++;
+    return a;
+  },{})).sort((a,b)=>b.high-a.high||a.name.localeCompare(b.name));
   return h('div',null,
     h('div',{className:'page-title'},h('h1',null,'Pinball'),h('span',{className:'sub'},'A proper table. Three balls. 100 chips to play.')),
     h('div',{className:'grid g2'},
@@ -7512,8 +7504,19 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
         h('h2',null,'How to play'),
         h('p',null,'Insert the ball in the separate right-hand lane and launch it up into the playfield. Use the upward-facing flippers to keep the ball in play, hit five gold pop bumpers (including the larger centre bumper) and the stand-up targets. The slingshots kick the ball back into the table. Let it drain and you lose one of your three balls. Leaving the Pinball tab does not abandon the game; its 45-second timer continues and the session expires when time runs out.'),
         h('p',{className:'small muted'},'Keyboard: A / ← left flipper, D / → right flipper, Space / ↑ launch. On phones and tablets, use the on-screen controls.'),
-        h('h3',null,'Highest scores'),...(high.length?high:[h('p',{className:'small muted',key:'no-high'},'No scores recorded yet.')]),
-        h('h3',{style:{marginTop:18}},'Lowest scores'),...(low.length?low:[h('p',{className:'small muted',key:'no-low'},'No scores recorded yet.')])
+        h('h3',null,'Player leaderboard'),
+        rows.length?h('div',{style:{marginTop:10}},
+          h('div',{className:'row spread small muted',style:{padding:'6px 0',borderBottom:'1px solid var(--smoke)'}},
+            h('b',null,'Player'),h('span',null,'High / Low')
+          ),
+          ...rows.map((x,i)=>h('div',{key:x.name,className:'row spread',style:{padding:'9px 0',borderBottom:'1px solid var(--smoke)'}},
+            h('div',null,h('b',null,(i+1)+'. '+x.name),h('div',{className:'small muted'},x.plays+' game'+(x.plays===1?'':'s'))),
+            h('div',{style:{textAlign:'right'}},
+              h('b',{style:{color:'var(--brass)'}},x.high.toLocaleString()),
+              h('div',{className:'small muted'},'Low: '+x.low.toLocaleString())
+            )
+          ))
+        ):h('p',{className:'small muted'},'No scores recorded yet.')
       )
     )
   );
