@@ -7272,6 +7272,9 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
   const [seconds,setSeconds]=useState(45);
   const [balls,setBalls]=useState(3);
   const [result,setResult]=useState(null);
+  const [sessionClock,setSessionClock]=useState(Date.now());
+  const activeSession=(store.pinballSessions||[]).find(x=>x.player===me&&x.status==='playing');
+  const sessionRemaining=activeSession?Math.max(0,45-Math.floor((sessionClock-(+activeSession.startedAt||sessionClock))/1000)):0;
   const done=useRef(false),scoreRef=useRef(0),tokenRef=useRef(null),finishRef=useRef(null);
   scoreRef.current=score;tokenRef.current=token;
   const finish=async(sc,tok)=>{
@@ -7282,6 +7285,11 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
     finally{setBusy(false);}
   };
   finishRef.current=()=>finish(scoreRef.current,tokenRef.current);
+  useEffect(()=>{
+    if(!activeSession||active)return;
+    const id=setInterval(()=>setSessionClock(Date.now()),500);
+    return ()=>clearInterval(id);
+  },[!!activeSession,active]);
   useEffect(()=>{
     if(!active)return;
     const id=setInterval(()=>setSeconds(v=>{
@@ -7489,7 +7497,7 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
         h('div',{style:{maxWidth:420,margin:'0 auto',background:'#07191f',border:'2px solid var(--brass)',borderRadius:14,overflow:'hidden'}},
           h('canvas',{ref:canvasRef,style:{display:'block',width:'100%',height:'auto',touchAction:'none'}})
         ),
-        !active?h('button',{className:'btn',disabled:busy,onClick:start,style:{marginTop:12,width:'100%'}},busy?'Working…':'Insert 100 chips'):h('div',{className:'row spread',style:{marginTop:12}},
+        !active?(activeSession&&sessionRemaining>0?h('div',{className:'panel',style:{marginTop:12,textAlign:'center'}},h('b',null,'Pinball game in progress'),h('p',{className:'small muted'},'This game remains reserved if you leave the Pinball tab. It expires after the 45-second game limit.'),h('div',{className:'chip'},'Expires in '+sessionRemaining+'s')):h('button',{className:'btn',disabled:busy,onClick:start,style:{marginTop:12,width:'100%'}},busy?'Working…':'Insert 100 chips')):h('div',{className:'row spread',style:{marginTop:12}},
           h('button',{className:'btn',disabled:busy||!simRef.current||simRef.current.ball.launched||simRef.current.balls<=0,onClick:launch},'⬆ Launch ball'),
           h('span',{className:'small muted'},'Space / ↑ to launch')
         ),
@@ -7502,7 +7510,7 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
       ),
       h('div',{className:'panel'},
         h('h2',null,'How to play'),
-        h('p',null,'Launch up the redesigned right-hand chute and through its wide open exit. Use the shorter, downward-angled flippers to keep the ball in play, hit nine matching gold pop bumpers and the stand-up targets. The slingshots kick the ball back into the table. Let it drain and you lose one of your three balls.'),
+        h('p',null,'Insert the ball in the separate right-hand lane and launch it up into the playfield. Use the upward-facing flippers to keep the ball in play, hit five gold pop bumpers (including the larger centre bumper) and the stand-up targets. The slingshots kick the ball back into the table. Let it drain and you lose one of your three balls. Leaving the Pinball tab does not abandon the game; its 45-second timer continues and the session expires when time runs out.'),
         h('p',{className:'small muted'},'Keyboard: A / ← left flipper, D / → right flipper, Space / ↑ launch. On phones and tablets, use the on-screen controls.'),
         h('h3',null,'Highest scores'),...(high.length?high:[h('p',{className:'small muted',key:'no-high'},'No scores recorded yet.')]),
         h('h3',{style:{marginTop:18}},'Lowest scores'),...(low.length?low:[h('p',{className:'small muted',key:'no-low'},'No scores recorded yet.')])
