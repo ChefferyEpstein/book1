@@ -512,7 +512,7 @@ const {
 } = React;
 const STORE_KEY = 'book1.2-local';
 const CFG = window.BOOK_CONFIG || {};
-const APP_SQL_VERSION = 42; // bump this whenever a new SQL script adds or changes a server function
+const APP_SQL_VERSION = 43; // bump this whenever a new SQL script adds or changes a server function
 const CLOUD = !!(CFG.url && CFG.key);
 const ADMINS = ['Chef', 'Lorcan'];
 const DECREES = ['Abstention is not permitted.', 'The Book sees all results.', 'Ball difference is destiny.', 'The Dictator collects. The Dictator distributes.', 'Report your score. Report it honestly.', 'Twelfth place is a service to the office.', 'The mong off is not optional.', 'Disputes are settled by the regime.'];
@@ -7319,7 +7319,7 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
   const addPoints=(n)=>{
     const s=simRef.current;if(!s)return;
     const fairPlayCap=Math.max(250,Math.floor((Date.now()-s.startedAt)*.17));
-    s.score=Math.min(8000,fairPlayCap,s.score+n);
+    s.score=Math.min(fairPlayCap,s.score+n);
     scoreRef.current=s.score;setScore(s.score);
   };
   useEffect(()=>{
