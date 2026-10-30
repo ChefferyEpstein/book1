@@ -7386,11 +7386,9 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
         });
         // Slingshot faces kick the ball back into the playfield.
         if((hitSegment(b,48,510,100,555,2.7)||hitSegment(b,265,555,315,510,2.7))&&now-s.slingScoreAt>220){s.slingScoreAt=now;addPoints(25);}
-        const leftAngle=keys.current.left?-0.72:-0.30;
-        const rightAngle=keys.current.right?Math.PI+0.72:Math.PI+0.30;
-        const lx=130+Math.cos(leftAngle)*58,ly=600+Math.sin(leftAngle)*58;
-        const rx=235+Math.cos(rightAngle)*58,ry=600+Math.sin(rightAngle)*58;
-        if((hitSegment(b,130,600,lx,ly,keys.current.left?4.8:0.8)||hitSegment(b,235,600,rx,ry,keys.current.right?4.8:0.8))&&now-s.flipperScoreAt>120){s.flipperScoreAt=now;addPoints(10);}
+        const lx=keys.current.left?175:175,ly=keys.current.left?550:590;
+        const rx=keys.current.right?205:205,ry=keys.current.right?550:590;
+        if((hitSegment(b,105,610,lx,ly,keys.current.left?4.8:0.8)||hitSegment(b,275,610,rx,ry,keys.current.right?4.8:0.8))&&now-s.flipperScoreAt>120){s.flipperScoreAt=now;addPoints(10);}
         // A narrow centre drain gives the player a chance to save the ball with either flipper.
         if(b.y>715){
           s.balls=Math.max(0,s.balls-1);setBalls(s.balls);
@@ -7439,8 +7437,8 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
         ctx.strokeStyle='#fff1c7';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(tx,ty);ctx.stroke();
         ctx.fillStyle='#f4d58a';ctx.beginPath();ctx.arc(x,y,7,0,Math.PI*2);ctx.fill();
       };
-      drawFlipper(130,600,keys.current.left?-0.72:-0.30,keys.current.left);
-      drawFlipper(235,600,keys.current.right?Math.PI+0.72:Math.PI+0.30,keys.current.right);
+      drawFlipper(105,610,Math.atan2((keys.current.left?550:590)-610,175-105),keys.current.left);
+      drawFlipper(275,610,Math.atan2((keys.current.right?550:590)-610,205-275),keys.current.right);
       ctx.fillStyle='#f4d58a';ctx.font='bold 12px sans-serif';ctx.textAlign='center';
       ctx.fillText('BOOK1 PINBALL',210,80);ctx.fillText('BUMPERS  ·  TARGETS  ·  SLINGSHOTS',210,105);
       // Ball and launch lane.
@@ -7507,13 +7505,12 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
         h('h3',null,'Player leaderboard'),
         rows.length?h('div',{style:{marginTop:10}},
           h('div',{className:'row spread small muted',style:{padding:'6px 0',borderBottom:'1px solid var(--smoke)'}},
-            h('b',null,'Player'),h('span',null,'High / Low')
+            h('b',null,'Player'),h('span',null,'High score')
           ),
           ...rows.map((x,i)=>h('div',{key:x.name,className:'row spread',style:{padding:'9px 0',borderBottom:'1px solid var(--smoke)'}},
             h('div',null,h('b',null,(i+1)+'. '+x.name),h('div',{className:'small muted'},x.plays+' game'+(x.plays===1?'':'s'))),
             h('div',{style:{textAlign:'right'}},
-              h('b',{style:{color:'var(--brass)'}},x.high.toLocaleString()),
-              h('div',{className:'small muted'},'Low: '+x.low.toLocaleString())
+              h('b',{style:{color:'var(--brass)'}},x.high.toLocaleString())
             )
           ))
         ):h('p',{className:'small muted'},'No scores recorded yet.')
