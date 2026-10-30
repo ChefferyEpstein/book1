@@ -7329,7 +7329,7 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
     let raf=0,alive=true;
     const W=420,H=700,R=8;
     const bumpers=[{x:112,y:165,r:19,points:100},{x:248,y:165,r:19,points:100},{x:180,y:265,r:30,points:200},{x:112,y:365,r:23,points:125},{x:248,y:365,r:23,points:125}];
-    const targets=[{x:95,y:430,r:13},{x:325,y:430,r:13}];
+    const targets=[{x:145,y:430,r:13},{x:235,y:430,r:13}];
     const resize=()=>{
       const dpr=Math.min(window.devicePixelRatio||1,2);
       canvas.width=W*dpr;canvas.height=H*dpr;
@@ -7386,9 +7386,9 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
         });
         // Slingshot faces kick the ball back into the playfield.
         if((hitSegment(b,48,510,100,555,2.7)||hitSegment(b,265,555,315,510,2.7))&&now-s.slingScoreAt>220){s.slingScoreAt=now;addPoints(25);}
-        const lx=keys.current.left?146:160,ly=keys.current.left?569:594;
-        const rx=keys.current.right?234:220,ry=keys.current.right?569:594;
-        if((hitSegment(b,105,610,lx,ly,keys.current.left?4.8:0.8)||hitSegment(b,275,610,rx,ry,keys.current.right?4.8:0.8))&&now-s.flipperScoreAt>120){s.flipperScoreAt=now;addPoints(10);}
+        const lx=200,ly=keys.current.left?555:630;
+        const rx=220,ry=keys.current.right?555:630;
+        if((hitSegment(b,120,610,lx,ly,keys.current.left?4.8:0.8)||hitSegment(b,300,610,rx,ry,keys.current.right?4.8:0.8))&&now-s.flipperScoreAt>120){s.flipperScoreAt=now;addPoints(10);}
         // A narrow centre drain gives the player a chance to save the ball with either flipper.
         if(b.y>715){
           s.balls=Math.max(0,s.balls-1);setBalls(s.balls);
@@ -7430,15 +7430,14 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
       ctx.fillStyle='rgba(224,169,75,.22)';ctx.strokeStyle='#d9a94f';ctx.lineWidth=3;
       [[48,510,100,555],[265,555,315,510]].forEach(v=>{ctx.beginPath();ctx.moveTo(v[0],v[1]);ctx.lineTo(v[2],v[3]);ctx.lineTo((v[0]+v[2])/2, v[1]+(v[3]-v[1])*.25);ctx.closePath();ctx.fill();ctx.stroke();});
       // Flippers.
-      const drawFlipper=(x,y,angle,pressed)=>{
-        const tx=x+Math.cos(angle)*58,ty=y+Math.sin(angle)*58;
+      const drawFlipper=(x,y,tx,ty,pressed)=>{
         ctx.lineCap='round';ctx.strokeStyle=pressed?'#fff0b3':'#d5a64d';ctx.lineWidth=12;
         ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(tx,ty);ctx.stroke();
         ctx.strokeStyle='#fff1c7';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(tx,ty);ctx.stroke();
         ctx.fillStyle='#f4d58a';ctx.beginPath();ctx.arc(x,y,7,0,Math.PI*2);ctx.fill();
       };
-      drawFlipper(105,610,Math.atan2((keys.current.left?569:594)-610,(keys.current.left?146:160)-105),keys.current.left);
-      drawFlipper(275,610,Math.atan2((keys.current.right?569:594)-610,(keys.current.right?234:220)-275),keys.current.right);
+      drawFlipper(120,610,200,keys.current.left?555:630,keys.current.left);
+      drawFlipper(300,610,220,keys.current.right?555:630,keys.current.right);
       ctx.fillStyle='#f4d58a';ctx.font='bold 12px sans-serif';ctx.textAlign='center';
       ctx.fillText('BOOK1 PINBALL',210,80);ctx.fillText('BUMPERS  ·  TARGETS  ·  SLINGSHOTS',210,105);
       // Ball and launch lane.
