@@ -7138,8 +7138,10 @@ function BokémongsPage({store,me,dispatch,sync}){
       h('div',{className:'page-title'},h('h1',null,'Bokémong battle'),h('span',{className:'sub'},live.a,' v ',live.b)),
       h('div',{className:'grid g2'},
         h('div',{className:'panel'},h('div',{className:'small muted'},theirSide==='a'?live.a:live.b),theirMon&&h(BokHp,{mon:theirMon}),h('div',{className:'display',style:{fontSize:44,textAlign:'center',padding:'28px 0'}},bokById(theirMon&&theirMon.id)?.name||'Fainted'),
+          h('div',{className:'stamp',style:{display:'inline-block',margin:'0 auto 10px'}},theirMon?(bokById(theirMon.id)?.type||'Unknown type'):'No active type'),
           h('div',{className:'row',style:{justifyContent:'center'}},theirTeam.map((m,i)=>h('span',{key:i,className:'chip'+(i===theirIdx?' on':'')},m.hp>0?'●':'×')))),
         h('div',{className:'panel'},h('div',{className:'small muted'},me),myMon&&h(BokHp,{mon:myMon}),h('div',{className:'display',style:{fontSize:44,textAlign:'center',padding:'28px 0'}},bokById(myMon&&myMon.id)?.name||'Fainted'),
+          h('div',{className:'stamp',style:{display:'inline-block',margin:'0 auto 10px'}},myMon?(bokById(myMon.id)?.type||'Unknown type'):'No active type'),
           h('div',{className:'row',style:{justifyContent:'center'}},myTeam.map((m,i)=>h('span',{key:i,className:'chip'+(i===myIdx?' on':'')},m.hp>0?'●':'×'))))
       ),
       h('div',{className:'panel',style:{marginTop:18}},
