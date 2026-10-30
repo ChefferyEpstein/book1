@@ -172,6 +172,14 @@ table.plain tr.me td{background:rgba(200,16,46,.1)}
 .hogstat{display:flex;justify-content:space-between;gap:12px;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--smoke);padding:9px 6px;color:var(--bone);font-size:15px}
 .hogstat.on{background:rgba(201,162,39,.12);border-left:3px solid var(--brass)}
 .hogstat .small{color:var(--ash);text-align:right}
+
+.bok-type-side{position:fixed;right:22px;top:92px;width:278px;max-height:calc(100vh - 116px);overflow:auto;z-index:15;background:var(--coal);border:1px solid var(--brass);padding:13px;box-shadow:0 8px 28px rgba(0,0,0,.5)}
+.bok-type-side h2{font-family:Anton;font-size:23px;color:var(--chalk);margin:0 0 5px}
+.bok-type-side .type-row{padding:7px 0;border-bottom:1px solid var(--smoke);font-size:12px}
+.bok-type-side .type-row b{display:block;color:var(--chalk);font-size:13px}
+.bok-type-side .type-row span{color:var(--ash)}
+.bok-battle-content{padding-right:300px}
+@media(max-width:1100px){.bok-type-side{position:static;width:auto;max-height:none;margin-top:16px}.bok-battle-content{padding-right:0}}
 </style>
 </head>
 <body>
@@ -7039,21 +7047,49 @@ const BOKEMONGS=[
 function bokById(id){return BOKEMONGS.find(x=>x.id===id);}
 function bokXp(store,p){return rawPlayerXp(store,p);}
 const BOKEMONG_MOVE_SETS={
-  Machine:[['Servo Smack','Reliable metal-on-bone damage.'],['Overclock','Harder hit with a small miss chance.'],['Firewall','Guard against the next attack.'],['Critical Error','Huge damage. Dubious reliability.']],
-  Finance:[['Invoice Bite','A basic charge nobody remembers approving.'],['Compound Interest','Type attack that gets expensive quickly.'],['Hedge Position','Guard against the next attack.'],['Audit Bomb','High-risk financial devastation.']],
-  Regime:[['Decree Slap','The decision has already been made.'],['Red Stamp','Type attack. Appeal not permitted.'],['Party Line','Guard against the next attack.'],['Purge','High-risk administrative violence.']],
-  Pool:[['Chalk Jab','Quick and dependable.'],['Bank Shot','Type attack off three cushions.'],['Safety Play','Guard against the next attack.'],['Golden Break','High-risk table-clearing violence.']],
-  Office:[['Teams Ping','Annoying, immediate damage.'],['Reply All','Type attack affecting morale.'],['Out of Office','Guard against the next attack.'],['Performance Review','High-risk career damage.']],
-  Arcade:[['Button Mash','Primitive but effective.'],['Combo Chain','Type attack. Do not drop it.'],['Pause Buffer','Guard against the next attack.'],['Final Boss','High-risk cabinet rattler.']],
-  Strategy:[['Pawn Prod','Small positional violence.'],['Fork','Type attack with two problems at once.'],['Castle Up','Guard against the next attack.'],['Mate Threat','High-risk calculated strike.']],
-  Abomination:[['Wet Slap','Nobody asked for this.'],['Mong Energy','Type attack powered by pure wrongness.'],['Feral Guard','Guard against the next attack.'],['Absolute State','High-risk biological incident.']],
-  Degenerate:[['Smoke Break','Somehow still counts as an attack.'],['Pub Maths','Type attack powered by terrible decisions.'],['Sick Day','Guard against the next attack.'],['One More Pint','High-risk degenerate behaviour.']],
-  Work:[['Pan Slap','Straight from the pass.'],['Understaffed','Type attack caused by one person doing three jobs.'],['Mise en Place','Guard against the next attack.'],['SERVICE!','High-risk workplace eruption.']]
+  Machine:[['Servo Smack','A precise mechanical strike.'],['Overclock Surge','A faster, heavier burst.'],['Firewall','Brace behind a hardened firewall.'],['Critical Error','A devastating but unreliable overload.']],
+  Finance:[['Invoice Bite','A quick charge to the balance sheet.'],['Compound Interest','Damage compounds at a steady rate.'],['Hedge Position','Reduce the next incoming hit.'],['Audit Bomb','A huge financial detonation.']],
+  Regime:[['Decree Slap','A swift executive decision.'],['Red Stamp','A forceful stamp of approval.'],['Party Line','Hide behind the official position.'],['Purge Protocol','An extreme administrative strike.']],
+  Pool:[['Chalk Jab','A quick, accurate cue tap.'],['Bank Shot','A tricky shot off the cushions.'],['Safety Play','Set up a defensive safety.'],['Golden Break','A brutal break with low precision.']],
+  Office:[['Teams Ping','A sharp notification to the face.'],['Reply All','A chaotic office-wide blast.'],['Out of Office','Avoid the next incoming attack.'],['Performance Review','A career-ending assessment.']],
+  Arcade:[['Button Mash','A quick and reliable combo.'],['Combo Chain','A longer, harder-hitting sequence.'],['Pause Buffer','Hide in the pause menu.'],['Final Boss','A massive high-risk finisher.']],
+  Strategy:[['Pawn Prod','A careful positional poke.'],['Fork Tactic','Threaten from two angles at once.'],['Castle Up','Fortify your position.'],['Mate Threat','A powerful calculated strike.']],
+  Abomination:[['Wet Slap','A surprisingly accurate slap.'],['Mong Energy','Unstable power in a bottle.'],['Feral Guard','A desperate defensive stance.'],['Absolute State','A catastrophic biological incident.']],
+  Degenerate:[['Smoke Break','A quick hit before disappearing.'],['Pub Maths','Questionable maths, serious impact.'],['Sick Day','Call in sick to the next hit.'],['One More Pint','A wild and inaccurate haymaker.']],
+  Work:[['Pan Slap','A quick strike straight from the pass.'],['Understaffed','One person doing three jobs.'],['Mise en Place','Get everything in position to defend.'],['SERVICE!','A full-volume kitchen eruption.']]
 };
 function bokMoves(id){
-  const x=bokById(id), set=BOKEMONG_MOVE_SETS[(x&&x.type)||'Machine']||BOKEMONG_MOVE_SETS.Machine;
-  return set.map((m,i)=>({slot:i+1,name:m[0],desc:m[1],power:i===0?18:i===1?26:i===2?0:38,accuracy:i===0?100:i===1?92:i===2?100:72,guard:i===2}));
+  const x=bokById(id),set=BOKEMONG_MOVE_SETS[(x&&x.type)||'Machine']||BOKEMONG_MOVE_SETS.Machine;
+  const type=(x&&x.type)||'Machine';
+  const power={Machine:[17,29,0,42],Finance:[19,27,0,40],Regime:[18,30,0,44],Pool:[16,28,0,39],Office:[15,25,0,38],Arcade:[17,31,0,43],Strategy:[16,28,0,41],Abomination:[20,32,0,46],Degenerate:[18,30,0,44],Work:[19,27,0,42]}[type]||[18,28,0,40];
+  const accuracy={Machine:[98,88,100,76],Finance:[96,91,100,72],Regime:[99,86,100,68],Pool:[100,93,100,80],Office:[97,90,100,82],Arcade:[95,84,100,70],Strategy:[99,92,100,74],Abomination:[92,82,100,65],Degenerate:[94,85,100,69],Work:[97,89,100,73]}[type]||[98,90,100,72];
+  return set.map((m,i)=>({slot:i+1,name:m[0],desc:m[1],power:power[i],accuracy:accuracy[i],guard:i===2}));
 }
+
+const BOK_TYPE_MATCHUPS=[
+  ['Machine','No type advantage','No type resistance'],
+  ['Finance','Regime','Office'],
+  ['Pool','Office','Regime'],
+  ['Office','Finance','Pool'],
+  ['Regime','Pool','Finance'],
+  ['Arcade','Strategy','Strategy'],
+  ['Strategy','Arcade','Arcade'],
+  ['Degenerate','Work','—'],
+  ['Work','Office','Degenerate'],
+  ['Abomination','—','—']
+];
+function BokTypeChart(){
+  const h=React.createElement;
+  return h('aside',{className:'bok-type-side'},
+    h('h2',null,'Type effectiveness'),
+    h('p',{className:'small muted',style:{margin:'0 0 7px'}},'Move 2 and 4 use type matchups. Advantage: +25% damage · resistance: −20%.'),
+    BOK_TYPE_MATCHUPS.map(([type,strong,weak])=>h('div',{key:type,className:'type-row'},
+      h('b',null,type),
+      h('span',null,'Strong vs: ',strong,' · Resisted by: ',weak)
+    ))
+  );
+}
+
 function BokHp({mon}){
   const h=React.createElement,pct=mon&&mon.maxHp?Math.max(0,Math.round(mon.hp/mon.maxHp*100)):0;
   return h('div',null,h('div',{className:'row spread small'},h('b',null,bokById(mon.id)?.name||mon.id),h('span',null,Math.max(0,mon.hp),' / ',mon.maxHp,' HP')),
@@ -7133,18 +7169,7 @@ function BokémongsPage({store,me,dispatch,sync}){
       h('div',{className:'panel'},h('h2',null,'Challenge'),opponents.length?h('div',null,h('select',{value:opp,onChange:e=>setOpp(e.target.value),disabled:busy},opponents.map(n=>h('option',{key:n,value:n},n))),h('button',{className:'btn',style:{marginLeft:8},disabled:busy||!opp,onClick:()=>act({t:'bokemongChallenge',opponent:opp})},busy?'Sending…':'Challenge to 3v3'),h('p',{className:'small muted'},'They accept, then you alternate moves until all three Bokémongs on one side faint.')):h('p',{className:'muted'},'Nobody else has picked a starter yet.'))
     ),
     h('div',{className:'panel',style:{marginTop:18}},h('h2',null,'Bokedex · ',ownedIds.length,' / ',BOKEMONGS.length),h('div',{className:'grid g3'},BOKEMONGS.map(x=>h('div',{key:x.id,className:ownedIds.includes(x.id)?'okbox':'panel',style:{opacity:ownedIds.includes(x.id)?1:.45}},h('b',null,ownedIds.includes(x.id)?x.name:'???'),h('div',{className:'small muted'},x.type,' · ',x.rarity),ownedIds.includes(x.id)&&h('p',{className:'small'},x.flavour))))),
-    h('div',{className:'panel',style:{marginTop:18}},h('h2',null,'Type effectiveness'),h('p',{className:'small muted'},'Type attacks (moves 2 and 4) use the matchups below. Advantage deals 25% more damage; resistance deals 20% less.'),
-      h('div',{className:'grid g3'},[
-        ['Pool','Office','Pool beats Office; Office resists Pool'],
-        ['Office','Finance','Office beats Finance; Finance resists Office'],
-        ['Finance','Regime','Finance beats Regime; Regime resists Finance'],
-        ['Regime','Pool','Regime beats Pool; Pool resists Regime'],
-        ['Arcade','Strategy','Arcade and Strategy are both marked super-effective against each other'],
-        ['Degenerate','Work','Degenerate deals 25% more damage to Work; Work resists Degenerate'],
-        ['Work','Office','Work deals 25% more damage to Office; Office resists Work'],
-        ['Arcade','Strategy','Arcade and Strategy are both super-effective against each other']
-      ].map((x,i)=>h('div',{key:i,className:'warnbox'},h('b',null,x[0]+' → '+x[1]),h('p',{className:'small',style:{marginBottom:0}},x[2]))))
-    ),
+    h(BokTypeChart),
     history.length>0&&h('div',{className:'panel',style:{marginTop:18}},h('h2',null,'Battle history'),history.map(x=>h('div',{key:x.id,className:'row spread small',style:{padding:'6px 0',borderBottom:'1px solid var(--smoke)'}},h('span',null,x.a,' v ',x.b),h('span',{className:x.winner===me?'stamp ok':'stamp bad'},x.winner?((x.winner===me?'WIN':'LOSS')+' · '+x.winner):x.status||'complete'))))
   );
 }
