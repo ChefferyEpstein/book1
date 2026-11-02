@@ -7250,6 +7250,7 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
   const [busy,setBusy]=useState(false);
   const [token,setToken]=useState(null);
   const [score,setScore]=useState(0);
+  const [boost,setBoost]=useState(1);
   const [seconds,setSeconds]=useState(90);
   const [balls,setBalls]=useState(3);
   const [result,setResult]=useState(null);
@@ -7284,7 +7285,7 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
     try{
       const out=await api.pinballStart(cred);
       done.current=false;setToken(out.token);tokenRef.current=out.token;
-      setScore(0);scoreRef.current=0;setSeconds(90);setBalls(3);
+      setScore(0);scoreRef.current=0;setBoost(1);setSeconds(90);setBalls(3);
       keys.current={left:false,right:false};
       simRef.current={ball:{x:360,y:620,vx:0,vy:0,launched:false},score:0,balls:3,
         bumpTimes:Array(5).fill(0),targetTimes:[0,0],bounceCount:0,lastFrame:0,drainAt:0,startedAt:Date.now(),pendingFinish:false,flipperScoreAt:0,slingScoreAt:0};
@@ -7297,7 +7298,7 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
     if(!active||!s||s.ball.launched||s.balls<=0||done.current)return;
     s.ball.launched=true;s.ball.vx=0;s.ball.vy=-14;
   };
-  const registerBounce=()=>{const s=simRef.current;if(s)s.bounceCount=(s.bounceCount||0)+1;};
+  const registerBounce=()=>{const s=simRef.current;if(!s)return;s.bounceCount=(s.bounceCount||0)+1;setBoost(1+s.bounceCount*.01);};
   const addPoints=(n)=>{
     const s=simRef.current;if(!s)return;
     const fairPlayCap=Math.max(250,Math.floor((Date.now()-s.startedAt)*.17));
@@ -7359,7 +7360,7 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
         if(b.x>330&&b.y<145){b.x=329;b.vx=-Math.max(4.5,Math.abs(b.vx));b.vy=Math.min(b.vy,-8);}
         bumpers.forEach((p,i)=>{
           const dx=b.x-p.x,dy=b.y-p.y,d=Math.hypot(dx,dy),limit=p.r+R;
-          if(d<limit&&now-s.bumpTimes[i]>180){
+          if(d<limit){
             const nx=dx/(d||1),ny=dy/(d||1);
             b.x=p.x+nx*(limit+1);b.y=p.y+ny*(limit+1);
             const speed=Math.max(6,Math.hypot(b.vx,b.vy));
@@ -7370,20 +7371,21 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
         });
         targets.forEach((p,i)=>{
           const d=Math.hypot(b.x-p.x,b.y-p.y);
-          if(d<p.r+R&&now-s.targetTimes[i]>250){
+          if(d<p.r+R){
             const nx=(b.x-p.x)/(d||1),ny=(b.y-p.y)/(d||1);
             b.x=p.x+nx*(p.r+R+1);b.y=p.y+ny*(p.r+R+1);
             b.vx+=nx*3;b.vy-=4;s.targetTimes[i]=now;registerBounce();addPoints(250);
           }
         });
         // Slingshot faces kick the ball back into the playfield.
-        if((hitSegment(b,48,510,100,555,2.7)||hitSegment(b,265,555,315,510,2.7))&&now-s.slingScoreAt>220){s.slingScoreAt=now;registerBounce();addPoints(25);}
+        if(hitSegment(b,48,510,100,555,2.7)||hitSegment(b,265,555,315,510,2.7)){s.slingScoreAt=now;registerBounce();addPoints(25);}
         const lx=168,ly=keys.current.left?545:622;
         const rx=187,ry=keys.current.right?545:622;
-        if((hitSegment(b,118,600,lx,ly,keys.current.left?5.2:3.2)||hitSegment(b,237,600,rx,ry,keys.current.right?5.2:3.2))&&now-s.flipperScoreAt>120){s.flipperScoreAt=now;registerBounce();addPoints(10);}
+        if(hitSegment(b,118,600,lx,ly,keys.current.left?5.2:3.2)||hitSegment(b,237,600,rx,ry,keys.current.right?5.2:3.2)){s.flipperScoreAt=now;registerBounce();addPoints(10);}
         // A narrow centre drain gives the player a chance to save the ball with either flipper.
         if(b.y>715){
           s.balls=Math.max(0,s.balls-1);setBalls(s.balls);
+          s.bounceCount=0;setBoost(1);
           b.launched=false;b.vx=0;b.vy=0;
           if(s.balls===0){
             if(Date.now()-s.startedAt>=15000)finishRef.current();
@@ -7474,7 +7476,7 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
     h('div',{className:'grid g2'},
       h('div',{className:'panel'},
         h('div',{className:'row spread'},h('h2',null,'Arcade table'),h('span',{className:'chip'},'100 chips per game')),
-        h('div',{className:'row spread',style:{marginBottom:8}},h('b',null,'Score: '+score.toLocaleString()),h('span',{className:'small'},'Bounce boost: x'+(1+((simRef.current?.bounceCount||0)*.01)).toFixed(2)),h('span',null,'Time: '+seconds+'s'),h('span',null,'Balls: '+balls)),
+        h('div',{className:'row spread',style:{marginBottom:8}},h('b',null,'Score: '+score.toLocaleString()),h('span',{className:'small'},'Bounce boost: x'+boost.toFixed(2)),h('span',null,'Time: '+seconds+'s'),h('span',null,'Balls: '+balls)),
         h('div',{style:{maxWidth:420,margin:'0 auto',background:'#07191f',border:'2px solid var(--brass)',borderRadius:14,overflow:'hidden'}},
           h('canvas',{ref:canvasRef,style:{display:'block',width:'100%',height:'auto',touchAction:'none'}})
         ),
