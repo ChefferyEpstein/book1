@@ -5,7 +5,7 @@
 do $$
 declare
   src text;
-  old_check text := 'if p_score>greatest(250,floor((elapsed::numeric/1000)*180)::int) then';
+  old_check text := E'if p_score>greatest(250,floor((elapsed::numeric/1000)*180)::int) then\n    raise exception ''That score is too high for the time played.'';\n  end if;';
 begin
   select pg_get_functiondef('public.book_pinball_finish(text,text,text,integer)'::regprocedure)
     into src;
