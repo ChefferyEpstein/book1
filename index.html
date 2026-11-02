@@ -7288,7 +7288,7 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
       setScore(0);scoreRef.current=0;setBoost(1);setSeconds(90);setBalls(3);
       keys.current={left:false,right:false};
       simRef.current={ball:{x:360,y:620,vx:0,vy:0,launched:false},score:0,balls:3,
-        bumpTimes:Array(5).fill(0),targetTimes:[0,0],bounceCount:0,lastFrame:0,drainAt:0,startedAt:Date.now(),pendingFinish:false,flipperScoreAt:0,slingScoreAt:0};
+        bumpTimes:Array(5).fill(0),targetTimes:[0,0],bounceCount:0,lastFrame:0,drainAt:0,startedAt:Date.now(),pendingFinish:false,flipperScoreAt:0,slingScoreAt:0,prevFlippers:{left:{x:168,y:622},right:{x:187,y:622}}};
       setActive(true);await refresh();
     }catch(e){toast(e.message||'Could not start Pinball.');}
     finally{setBusy(false);}
@@ -7301,9 +7301,8 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
   const registerBounce=()=>{const s=simRef.current;if(!s)return;s.bounceCount=(s.bounceCount||0)+1;setBoost(1+s.bounceCount*.01);};
   const addPoints=(n)=>{
     const s=simRef.current;if(!s)return;
-    const fairPlayCap=Math.max(250,Math.floor((Date.now()-s.startedAt)*.17));
     const multiplier=1+(s.bounceCount||0)*.01;
-    s.score=Math.min(fairPlayCap,s.score+Math.round(n*multiplier));
+    s.score+=Math.round(n*multiplier);
     scoreRef.current=s.score;setScore(s.score);
   };
   useEffect(()=>{
@@ -7360,7 +7359,8 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
         if(b.x>330&&b.y<145){b.x=329;b.vx=-Math.max(4.5,Math.abs(b.vx));b.vy=Math.min(b.vy,-8);}
         bumpers.forEach((p,i)=>{
           const dx=b.x-p.x,dy=b.y-p.y,d=Math.hypot(dx,dy),limit=p.r+R;
-          if(d<limit){
+          // A short per-bumper re-arm prevents repeated impulses while the ball is being separated.
+          if(d<limit&&now-(s.bumpTimes[i]||0)>120){
             const nx=dx/(d||1),ny=dy/(d||1);
             b.x=p.x+nx*(limit+1);b.y=p.y+ny*(limit+1);
             const speed=Math.max(6,Math.hypot(b.vx,b.vy));
@@ -7381,14 +7381,24 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
         if(hitSegment(b,48,510,100,555,2.7)||hitSegment(b,265,555,315,510,2.7)){s.slingScoreAt=now;registerBounce();addPoints(25);}
         const lx=168,ly=keys.current.left?545:622;
         const rx=187,ry=keys.current.right?545:622;
-        const leftFlipperHit=hitSegment(b,118,600,lx,ly,keys.current.left?1.1:0.25,10.5,0.12);
-        const rightFlipperHit=hitSegment(b,237,600,rx,ry,keys.current.right?1.1:0.25,10.5,0.12);
+        const prevL=s.prevFlippers?.left||{x:lx,y:ly},prevR=s.prevFlippers?.right||{x:rx,y:ry};
+        const leftMoving=keys.current.left&&prevL.y>ly;
+        const rightMoving=keys.current.right&&prevR.y>ry;
+        // Test both the current blade and the blade's swept path. This catches balls crossed
+        // by the flipper itself, not just balls already overlapping the final blade position.
+        const leftFlipperHit=hitSegment(b,118,600,lx,ly,0,10.5,0.08)||
+          hitSegment(b,118,600,prevL.x,prevL.y,0,10.5,0.08)||
+          (leftMoving&&hitSegment(b,prevL.x,prevL.y,lx,ly,0,10.5,0.08));
+        const rightFlipperHit=hitSegment(b,237,600,rx,ry,0,10.5,0.08)||
+          hitSegment(b,237,600,prevR.x,prevR.y,0,10.5,0.08)||
+          (rightMoving&&hitSegment(b,prevR.x,prevR.y,rx,ry,0,10.5,0.08));
         if(leftFlipperHit||rightFlipperHit){
-          // A held flipper actively launches the ball; a resting flipper only cushions contact.
-          if(leftFlipperHit&&keys.current.left){b.vy=Math.min(b.vy,-13.5);b.vx-=1.25;}
-          if(rightFlipperHit&&keys.current.right){b.vy=Math.min(b.vy,-13.5);b.vx+=1.25;}
+          // A moving/held flipper gives a decisive upward impulse; a resting blade only cushions.
+          if(leftFlipperHit&&keys.current.left){b.vy=Math.min(b.vy,-15.5);b.vx-=1.8;}
+          if(rightFlipperHit&&keys.current.right){b.vy=Math.min(b.vy,-15.5);b.vx+=1.8;}
           s.flipperScoreAt=now;registerBounce();addPoints(10);
         }
+        s.prevFlippers={left:{x:lx,y:ly},right:{x:rx,y:ry}};
         // A narrow centre drain gives the player a chance to save the ball with either flipper.
         if(b.y>715){
           s.balls=Math.max(0,s.balls-1);setBalls(s.balls);
