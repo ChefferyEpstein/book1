@@ -3428,37 +3428,11 @@ function brainSudoku(day=brainDayKey()) {
   const off=((brainDayNumber(day)%6)+6)%6;
   return {puzzle:brainShiftDigits(BRAIN_SUDOKU_BASE,off),solution:brainShiftDigits(BRAIN_SUDOKU_SOLUTION,off)};
 }
+// A proper 4x4 word-square: reading across or down gives the same
+// four answers, so every letter belongs to both an across and a down word.
 const BRAIN_CROSSWORDS=[
-  {words:['BALL','CUE','RACK','POKE'].map(x=>x.padEnd(4,' ')),clues:['Pool object','Stick used to strike a ball','Where balls are set up','A gentle prod']},
-  {words:['LION','BEAR','WOLF','DEER'],clues:['King of the jungle','Large woodland mammal','A wild canine','Antlered woodland animal']},
-  {words:['MINT','SAGE','THYME','BASIL'].map(x=>x.slice(0,4)),clues:['Fresh breath flavour','Wise person','Herb used with lemon','Classic pesto herb']},
-  {words:['MARS','VENUS','MOON','STAR'].map(x=>x.slice(0,4)),clues:['The red planet','Roman goddess of love','Earth’s natural satellite','Twinkling point in the night sky']},
-  {words:['JAZZ','ROCK','SOUL','FOLK'],clues:['Improvised music genre','Guitar-driven music','Aretha Franklin genre','Traditional acoustic music']},
-  {words:['FORK','KNIFE','SPOON','PLAT'].map(x=>x.slice(0,4)),clues:['Eating utensil with prongs','Cuts your dinner','Used for soup','A dinner dish, informally']},
-  {words:['LIME','PEAR','PLUM','KIWI'],clues:['Green citrus fruit','Bell-shaped fruit','Purple stone fruit','Fuzzy green fruit']},
-  {words:['GOLD','SILV','IRON','LEAD'],clues:['Precious yellow metal','Shiny precious metal (short)','Magnetic metal','Heavy metal and pool ball material']},
-  {words:['HATS','COAT','BOOT','SCAR'],clues:['Things worn on heads','Warm outer layer','Footwear','Neck accessory, shortened']},
-  {words:['ROSE','LILY','IRIS','DAIS'],clues:['A classic red flower','White trumpet-shaped flower','Flower and eye part','Common lawn flower']},
-  {words:['SHIP','BOAT','SAIL','MAST'],clues:['Large vessel','Small vessel','Canvas for catching wind','Tall pole on a vessel']},
-  {words:['MATH','READ','PLAY','DRAW'],clues:['Numbers and equations','Look at words on a page','Take part in a game','Make a picture']},
-  {words:['BLUE','PINK','GOLD','TEAL'],clues:['Colour of a clear sky','Pale red shade','Metallic yellow shade','Blue-green colour']},
-  {words:['RING','BELL','TONE','ECHO'],clues:['Jewellery worn on a finger','It chimes','A sound quality','Sound bouncing back']},
-  {words:['FISH','CRAB','SEAL','OTTR'],clues:['Aquatic animal with gills','Sideways-walking crustacean','Marine mammal','River mammal, shortened']},
-  {words:['CAMP','TENT','FIRE','HIKE'],clues:['Outdoor overnight stay','Portable shelter','Warmth around the campsite','Long countryside walk']},
-  {words:['CAKE','TART','PIES','FLAN'],clues:['Birthday dessert','Pastry with a filling','Baked fruit desserts','Open custard pastry']},
-  {words:['WIND','RAIN','SNOW','HAIL'],clues:['Moving air','Falling water','Frozen flakes','Small balls of ice']},
-  {words:['KING','QUEEN','ROOK','PAWN'].map(x=>x.slice(0,4)),clues:['Chess piece with the crown','Powerful chess piece','Straight-line chess piece','Smallest chess piece']},
-  {words:['FAST','SLOW','QUIC','RUSH'].map(x=>x.slice(0,4)),clues:['Opposite of slow','Opposite of fast','Quick, abbreviated','Hurry or dash']},
-  {words:['BARK','LEAF','ROOT','SEED'],clues:['Tree’s outer covering','Grows from a branch','Anchors a plant','Can grow into a plant']},
-  {words:['SOAP','TOWE','BATH','WASH'].map(x=>x.slice(0,4)),clues:['Used with water to clean','Dries you after a shower','A soak in the tub','Clean with water']},
-  {words:['GRID','CODE','DATA','BYTE'],clues:['Rows and columns','Instructions for a computer','Information stored digitally','Eight bits']},
-  {words:['BEER','WINE','CIDER','ALE'].map(x=>x.slice(0,4)),clues:['Pint of lager, broadly','Grape-based drink','Apple-based drink','Traditional pub drink']},
-  {words:['NOSE','EARS','EYES','LIPS'],clues:['Used for smelling','Used for hearing','Used for seeing','Part of the mouth']},
-  {words:['GATE','DOOR','WALL','ROOF'],clues:['Entrance to a garden','Entry to a room','Boundary of a building','Top covering of a house']},
-  {words:['FAME','FORT','LUCK','HOPE'],clues:['Being well-known','A stronghold','Good fortune','Optimism about the future']},
-  {words:['MILE','YARD','FOOT','INCH'],clues:['A distance of 1,760 yards','Three feet','12 inches','Small unit of length']},
-  {words:['BASS','DRUM','PIAN','HARP'].map(x=>x.slice(0,4)),clues:['Low musical range','Percussion instrument','Keyboard instrument, shortened','Stringed instrument']},
-  {words:['ZERO','ONES','TENS','DOZE'].map(x=>x.slice(0,4)),clues:['Nothing at all','Numerical units','Groups of ten','A short nap']}
+  {words:['WALL','AREA','LEAD','LADY'],clues:['A barrier around a garden','A region or amount of space','A heavy metal','A woman, informally'],
+   downClues:['A barrier around a garden','A region or amount of space','A heavy metal','A woman, informally']}
 ];
 function brainCrossword(day=brainDayKey()) { return BRAIN_CROSSWORDS[((brainDayNumber(day)%BRAIN_CROSSWORDS.length)+BRAIN_CROSSWORDS.length)%BRAIN_CROSSWORDS.length]; }
 const BRAIN_TEASERS=[
@@ -7640,13 +7614,16 @@ function BrainGymPage({store,me,claimBrain}) {
       ),
       h('div',{className:'panel'},
         h('h2',null,'Mini crossword · 250 XP'),
-        h('p',{className:'small muted'},'Four varied clues. Enter each four-letter answer.'),
+        h('p',{className:'small muted'},'Solve the four across clues. The same four words also read down, so every square is shared by both directions.'),
         cw.clues.map((clue,i)=>h('label',{key:i,className:'f',style:{display:'block',marginBottom:8}},(i+1)+'. '+clue,
           h('input',{value:cross[i],maxLength:4,disabled:claimed('crossword'),onChange:e=>{const n=cross.slice();n[i]=e.target.value.toUpperCase().replace(/[^A-Z]/g,'');setCross(n);},style:{marginLeft:8,width:90,textTransform:'uppercase'}})
         )),
-        h('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,34px)',width:'fit-content',margin:'12px 0',border:'1px solid var(--smoke)'}},
+        h('div',{className:'small muted',style:{marginTop:12,fontWeight:700}},'ACROSS'),
+        h('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,34px)',width:'fit-content',margin:'6px 0 10px',border:'1px solid var(--smoke)'}},
           Array.from({length:16},(_,i)=>h('div',{key:i,style:{width:34,height:34,border:'1px solid rgba(255,255,255,.12)',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800}},(cross[Math.floor(i/4)]||'')[i%4]||''))
         ),
+        h('div',{className:'small muted',style:{fontWeight:700}},'DOWN — the same four answers read vertically'),
+        (cw.downClues||cw.clues).map((clue,i)=>h('div',{key:'down'+i,className:'small muted',style:{marginTop:3}},(i+1)+'. '+clue)),
         h('button',{className:'btn',disabled:claimed('crossword')||!crossDone,onClick:()=>submit('crossword',cross.join('|'))},claimed('crossword')?'Completed':crossDone?'Claim 250 XP':'Solve to claim')
       ),
       h('div',{className:'panel'},
