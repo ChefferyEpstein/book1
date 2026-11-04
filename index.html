@@ -1168,13 +1168,14 @@ const diff = (g, p) => g.p1 === p ? g.s1 - g.s2 : g.s2 - g.s1;
 const winner = g => played(g) ? g.s1 > g.s2 ? g.p1 : g.p2 : null;
 const loser = g => played(g) ? g.s1 > g.s2 ? g.p2 : g.p1 : null;
 const gbp = n => '£' + n;
-function fates(n, po) {
+function fates(n, po, has10ManPrizes) {
   if (n === 12) return ['Final, ' + gbp(po.gold[0]) + ' or ' + gbp(po.gold[1]), 'v 3rd, then 1st', 'v 2nd, then 1st', 'Final, ' + gbp(po.silver[0]) + ' or ' + gbp(po.silver[1]), 'v 6th, then 4th', 'v 5th, then 4th', 'Final, ' + gbp(po.bronze[0]) + ' or ' + gbp(po.bronze[1]), 'v 9th, then 7th', 'v 8th, then 7th', 'Mong off, ' + gbp(po.mongoff), 'Mong off, ' + gbp(po.mongoff), 'Worst player in the office'];
+  if (n === 10 && has10ManPrizes) return ['Final, ' + gbp(po.gold[0]) + ' or ' + gbp(po.gold[1]), 'v 3rd, then 1st', 'v 2nd, then 1st', 'Final, ' + gbp(po.silver[0]) + ' or ' + gbp(po.silver[1]), 'v 6th, then 4th', 'v 5th, then 4th', 'Final, ' + gbp(po.bronze[0]) + ' or ' + gbp(po.bronze[1]), 'v 9th, then 7th', 'v 8th, then 7th', 'Worst player in the office'];
   const a = [];
   for (let i = 0; i < n; i++) a.push(i === n - 1 ? 'worst player in the office' : '');
   return a;
 }
-const zoneOf = (i, n) => n === 12 ? i < 3 ? 'gold' : i < 6 ? 'silver' : i < 9 ? 'bronze' : i < 11 ? 'mong' : 'worst' : i === n - 1 ? 'worst' : '';
+const zoneOf = (i, n) => n === 12 ? i < 3 ? 'gold' : i < 6 ? 'silver' : i < 9 ? 'bronze' : i < 11 ? 'mong' : 'worst' : n === 10 ? i < 3 ? 'gold' : i < 6 ? 'silver' : i < 9 ? 'bronze' : 'worst' : i === n - 1 ? 'worst' : '';
 function standings(w) {
   const rows = w.players.map(p => {
     const gs = w.fixtures.filter(g => played(g) && (g.p1 === p || g.p2 === p));
@@ -6034,12 +6035,13 @@ function TablePage({
   const w = store.weeks[weekIdx];
   const st = standings(w);
   const po = store.payouts;
-  const f = fates(w.players.length, po);
+  const weekPo = w.prizeRules || po;
+  const f = fates(w.players.length, weekPo, !!w.prizeRules);
   const [byPlayer, setByPlayer] = useState(me && w.players.includes(me) ? me : 'all');
   const playedN = w.fixtures.filter(played).length;
   const list = byPlayer === 'all' ? w.fixtures : w.fixtures.filter(g => g.p1 === byPlayer || g.p2 === byPlayer);
   const pot = w.players.length * po.entry;
-  const slots = [['gold', 'Final for ' + gbp(po.gold[0])], ['silver', 'Final for ' + gbp(po.silver[0])], ['bronze', 'Final for ' + gbp(po.bronze[0])], ['mongoff', 'Mong off for ' + gbp(po.mongoff)]];
+  const slots = [['gold', 'Final for ' + gbp(weekPo.gold[0])], ['silver', 'Final for ' + gbp(weekPo.silver[0])], ['bronze', 'Final for ' + gbp(weekPo.bronze[0])], ...(w.players.length === 10 ? [] : [['mongoff', 'Mong off for ' + gbp(po.mongoff)]])];
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: "page-title"
   }, /*#__PURE__*/React.createElement("h1", null, "Game week ", w.n), /*#__PURE__*/React.createElement("div", {
@@ -8315,6 +8317,7 @@ function RegimePage({
   const st = standings(w);
   const allPlayed = w.fixtures.every(played);
   const [numbers, setNumbers] = useState({});
+  const [tableSize, setTableSize] = useState(12);
   const [swapSel, setSwapSel] = useState({});
   const [suspendMsg, setSuspendMsg] = useState('');
   const [koSeasonIdx, setKoSeasonIdx] = useState(null);
@@ -8518,13 +8521,13 @@ function RegimePage({
     className: "muted"
   }, allPlayed ? 'All league games are in.' : 'League games still outstanding: ' + w.fixtures.filter(g => !played(g)).length), /*#__PURE__*/React.createElement("button", {
     className: "btn",
-    disabled: !allPlayed || w.players.length !== 12,
+    disabled: !allPlayed || ![10, 12].includes(w.players.length),
     onClick: () => dispatch({
       t: 'setupPlayoffs'
     })
-  }, "Draw the play-offs from the table"), w.players.length !== 12 && /*#__PURE__*/React.createElement("p", {
+  }, "Draw the play-offs from the table"), ![10, 12].includes(w.players.length) && /*#__PURE__*/React.createElement("p", {
     className: "small muted"
-  }, "Automatic draw needs a 12-man table.")), w.playoffs.map(g => /*#__PURE__*/React.createElement("div", {
+  }, "Automatic draw needs a 10- or 12-man table.")), w.playoffs.map(g => /*#__PURE__*/React.createElement("div", {
     key: g.id,
     className: "fx"
   }, /*#__PURE__*/React.createElement("div", {
@@ -8875,7 +8878,7 @@ function RegimePage({
     className: "panel"
   }, /*#__PURE__*/React.createElement("h2", null, "Roll call for game week ", w.n + 1), /*#__PURE__*/React.createElement("p", {
     className: "muted small"
-  }, "Everyone active is in by default. Out requests need approving here. You need 12 on the table."), /*#__PURE__*/React.createElement("div", {
+  }, "Everyone active is in by default. Out requests need approving here. Choose a 12-man standard table or a 10-man reduced table when starting the next week."), /*#__PURE__*/React.createElement("div", {
     className: "row spread"
   }, /*#__PURE__*/React.createElement("b", null, Object.values(store.rollcall).filter(v => v === 'in').length, " in"), /*#__PURE__*/React.createElement("span", {
     className: "muted"
@@ -8986,14 +8989,14 @@ function RegimePage({
     className: "warnbox"
   }, "Game week ", w.n, " is still open. Close it from Enter results first."), /*#__PURE__*/React.createElement("p", {
     className: "small muted"
-  }, "Players marked In on the roll call go on the table. Each submits a number 1 to 12; the numbers set the seeding and the schedule follows. Nobody knows what their number does. Leave blank for a random draw."), (() => {
+  }, "Choose a 12-man standard table or a 10-man reduced table. Players marked In go on the table. Each can submit a unique seeding number; leave any blank for a random draw."), (() => {
     const ins = store.players.filter(p => p.active && store.rollcall[p.name] === 'in').map(p => p.name);
-    return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("p", null, /*#__PURE__*/React.createElement("b", null, ins.length), " in: ", ins.join(', '), ins.length !== 12 && /*#__PURE__*/React.createElement("span", {
+    return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", { className: "row", style: { marginBottom: 10 } }, /*#__PURE__*/React.createElement("label", { className: "f" }, "Table format", /*#__PURE__*/React.createElement("br", null), /*#__PURE__*/React.createElement("select", { value: tableSize, onChange: e => { setTableSize(+e.target.value); setNumbers({}); } }, /*#__PURE__*/React.createElement("option", { value: 12 }, "12-man — standard"), /*#__PURE__*/React.createElement("option", { value: 10 }, "10-man — reduced numbers"))), /*#__PURE__*/React.createElement("span", { className: "small muted" }, tableSize === 10 ? "GW5 format: 30 league games, six per player, then three group finals." : "Standard 12-man format.")), /*#__PURE__*/React.createElement("p", null, /*#__PURE__*/React.createElement("b", null, ins.length), " in: ", ins.join(', '), ins.length !== tableSize && /*#__PURE__*/React.createElement("span", {
       className: "stamp bad",
       style: {
         marginLeft: 8
       }
-    }, "need 12")), /*#__PURE__*/React.createElement("div", {
+    }, "need ", tableSize)), /*#__PURE__*/React.createElement("div", {
       className: "row"
     }, ins.map(p => /*#__PURE__*/React.createElement("label", {
       key: p,
@@ -9010,13 +9013,14 @@ function RegimePage({
       }))
     })))), /*#__PURE__*/React.createElement("button", {
       className: "btn",
-      disabled: !w.closed || ins.length !== 12,
+      disabled: !w.closed || ins.length !== tableSize,
       onClick: () => {
-        const nums = Object.values(numbers).filter(Boolean);
-        const uniq = new Set(nums).size === 12 && nums.every(x => x >= 1 && x <= 12);
+        const nums = ins.map(p => numbers[p]).filter(Boolean);
+        const uniq = nums.length === tableSize && new Set(nums).size === tableSize && nums.every(x => x >= 1 && x <= tableSize);
         dispatch({
           t: 'newWeek',
           players: ins,
+          tableSize,
           fixtures: generateFixtures(ins, uniq ? numbers : null)
         });
         toast('Game week ' + (w.n + 1) + ' is live.' + (uniq ? '' : ' Random draw used.'));
@@ -9820,7 +9824,9 @@ function rebuildPlayoffs(w, store) {
     status: 'open',
     sub: {}
   });
-  w.playoffs = [mk(st[9], st[10], 'mongoff'), mk(st[7], st[8], 'bronze'), mk(st[6], null, 'bronze'), mk(st[4], st[5], 'silver'), mk(st[3], null, 'silver'), mk(st[1], st[2], 'gold'), mk(st[0], null, 'gold')];
+  w.playoffs = w.players.length === 10
+    ? [mk(st[1], st[2], 'gold'), mk(st[0], null, 'gold'), mk(st[4], st[5], 'silver'), mk(st[3], null, 'silver'), mk(st[7], st[8], 'bronze'), mk(st[6], null, 'bronze')]
+    : [mk(st[9], st[10], 'mongoff'), mk(st[7], st[8], 'bronze'), mk(st[6], null, 'bronze'), mk(st[4], st[5], 'silver'), mk(st[3], null, 'silver'), mk(st[1], st[2], 'gold'), mk(st[0], null, 'gold')];
 }
 function afterSet(store, ctx) {
   const {
@@ -9985,7 +9991,7 @@ function reduce(store, a) {
     case 'closeWeek':
       {
         const w = s.weeks[s.weeks.length - 1];
-        const po = s.payouts;
+        const po = w.prizeRules || s.payouts;
         const pr = [];
         const fin = slot => w.playoffs.filter(g => g.slot === slot).slice(-1)[0];
         const m = fin('mongoff');
@@ -10032,6 +10038,8 @@ function reduce(store, a) {
         s.weeks.push({
           n,
           players: a.players,
+          tableSize: a.tableSize || a.players.length,
+          ...(a.players.length === 10 ? { prizeRules: { gold: [40, 15], silver: [20, 10], bronze: [10, 5] } } : {}),
           paid: {},
           closed: false,
           fixtures: a.fixtures.map(f => ({
