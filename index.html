@@ -7258,7 +7258,7 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
   const h=React.createElement;
   const canvasRef=useRef(null);
   const simRef=useRef(null);
-  const keys=useRef({left:false,right:false});
+  const keys=useRef({left:false,right:false,space:false});
   const [active,setActive]=useState(false);
   const [busy,setBusy]=useState(false);
   const [token,setToken]=useState(null);
@@ -7300,7 +7300,7 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
       done.current=false;setToken(out.token);tokenRef.current=out.token;
       setScore(0);scoreRef.current=0;setBoost(1);setSeconds(90);setBalls(3);
       keys.current={left:false,right:false};
-      simRef.current={ball:{x:360,y:620,vx:0,vy:0,launched:false},score:0,balls:3,
+      simRef.current={ball:{x:360,y:620,vx:0,vy:0,launched:false},score:0,balls:3,secretDropUsed:false,
         bumpTimes:Array(5).fill(0),targetTimes:[0,0],bounceCount:0,lastFrame:0,drainAt:0,startedAt:Date.now(),pendingFinish:false,flipperScoreAt:0,slingScoreAt:0,prevFlippers:{left:{x:168,y:622},right:{x:187,y:622}}};
       setActive(true);await refresh();
     }catch(e){toast(e.message||'Could not start Pinball.');}
@@ -7479,11 +7479,21 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
     const onKeyDown=e=>{
       if(e.code==='ArrowLeft'||e.code==='KeyA'){keys.current.left=true;e.preventDefault();}
       if(e.code==='ArrowRight'||e.code==='KeyD'){keys.current.right=true;e.preventDefault();}
-      if(e.code==='Space'||e.code==='ArrowUp'){launch();e.preventDefault();}
+      if(e.code==='Space'){
+        keys.current.space=true;e.preventDefault();
+        const s=simRef.current;
+        if(keys.current.left&&keys.current.right&&s&&!s.secretDropUsed&&s.balls>0){
+          // Hidden keyboard easter egg: feed one ball gently onto the raised flipper tips.
+          s.secretDropUsed=true;
+          const b=s.ball;b.x=178;b.y=510;b.vx=0;b.vy=2.4;b.launched=true;
+        }else launch();
+      }
+      if(e.code==='ArrowUp'){launch();e.preventDefault();}
     };
     const onKeyUp=e=>{
       if(e.code==='ArrowLeft'||e.code==='KeyA')keys.current.left=false;
       if(e.code==='ArrowRight'||e.code==='KeyD')keys.current.right=false;
+      if(e.code==='Space')keys.current.space=false;
     };
     window.addEventListener('keydown',onKeyDown);window.addEventListener('keyup',onKeyUp);
     raf=requestAnimationFrame(draw);
