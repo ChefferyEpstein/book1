@@ -3266,8 +3266,8 @@ function rawPlayerXp(store, p) {
   xp += (store.challengeClaims || []).filter(c => c.player === p).reduce((t,c)=>t+(+c.xp||0),0);
   xp += (store.brainClaims || []).filter(c => c.player === p).reduce((t,c)=>t+(+c.xp||0),0);
   // Pinball scores are stored only after the server validates the completed game.
-  // Award 1% of each recorded score as whole XP, rounding down.
-  xp += (store.pinballScores || []).filter(g => g.player === p).reduce((t,g)=>t+Math.floor(Math.max(0,+g.score||0)/100),0);
+  // Award 0.1% of each recorded score as whole XP, rounding down.
+  xp += (store.pinballScores || []).filter(g => g.player === p).reduce((t,g)=>t+Math.floor(Math.max(0,+g.score||0)/1000),0);
   return xp;
 }
 const BASE_LEVEL_XP = Array.from({length:25},(_,i)=>Math.round((100 + i * (1400 / 24)) / 25) * 25);
