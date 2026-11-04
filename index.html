@@ -9017,11 +9017,12 @@ function RegimePage({
       onClick: () => {
         const nums = ins.map(p => numbers[p]).filter(Boolean);
         const uniq = nums.length === tableSize && new Set(nums).size === tableSize && nums.every(x => x >= 1 && x <= tableSize);
+        const seedNumbers = Object.fromEntries(ins.map(p => [p, numbers[p]]));
         dispatch({
           t: 'newWeek',
           players: ins,
           tableSize,
-          fixtures: generateFixtures(ins, uniq ? numbers : null)
+          fixtures: generateFixtures(ins, uniq ? seedNumbers : null)
         });
         toast('Game week ' + (w.n + 1) + ' is live.' + (uniq ? '' : ' Random draw used.'));
       }
