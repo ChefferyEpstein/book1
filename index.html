@@ -7420,7 +7420,7 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
         // A narrow centre drain gives the player a chance to save the ball with either flipper.
         if(b.y>715){
           s.balls=Math.max(0,s.balls-1);setBalls(s.balls);
-          s.bounceCount=0;setBoost(1);
+          s.bounceCount=((1+(s.bounceCount||0)*.01)/2-1)*100;setBoost(1+s.bounceCount*.01);
           b.launched=false;b.vx=0;b.vy=0;
           if(s.balls===0){
             if(Date.now()-s.startedAt>=15000)finishRef.current();
