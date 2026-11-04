@@ -7407,8 +7407,10 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
           (rightMoving&&hitSegment(b,prevR.x,prevR.y,rx,ry,0,10.5,0.08));
         if(leftFlipperHit||rightFlipperHit){
           // A moving/held flipper gives a decisive upward impulse; a resting blade only cushions.
-          if(leftFlipperHit&&keys.current.left){b.vy=Math.min(b.vy,-15.5);b.vx-=1.8;}
-          if(rightFlipperHit&&keys.current.right){b.vy=Math.min(b.vy,-15.5);b.vx+=1.8;}
+          if(now>(s.secretDropNoKickUntil||0)){
+            if(leftFlipperHit&&keys.current.left){b.vy=Math.min(b.vy,-15.5);b.vx-=1.8;}
+            if(rightFlipperHit&&keys.current.right){b.vy=Math.min(b.vy,-15.5);b.vx+=1.8;}
+          }
           s.flipperScoreAt=now;registerBounce();addPoints(10);
         }
         s.prevFlippers={left:{x:lx,y:ly},right:{x:rx,y:ry}};
@@ -7485,7 +7487,8 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
         if(keys.current.left&&keys.current.right&&s&&!s.secretDropUsed&&s.balls>0){
           // Hidden keyboard easter egg: feed one ball gently onto the raised flipper tips.
           s.secretDropUsed=true;
-          const b=s.ball;b.x=178;b.y=510;b.vx=0;b.vy=2.4;b.launched=true;
+          const b=s.ball;b.x=178;b.y=505;b.vx=0;b.vy=0.65;b.launched=true;
+          s.secretDropNoKickUntil=Date.now()+1400;
         }else launch();
       }
       if(e.code==='ArrowUp'){launch();e.preventDefault();}
