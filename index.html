@@ -7713,6 +7713,15 @@ function FantasyPage({store,me,dispatch}) {
   const valid=picks.every(Boolean)&&new Set(picks).size===4&&tiers.elite.includes(elite)&&tiers.challenger.includes(challenger)&&tiers.mongs.includes(mong1)&&tiers.mongs.includes(mong2)&&picks.includes(captain);
   const board=Object.entries(fw.picks||{}).map(([player,p])=>({player,picks:p,captain:fw.captains&&fw.captains[player],score:fantasyScore(store,w,p,tiers,fw.captains&&fw.captains[player])})).sort((a,b)=>b.score-a.score||a.player.localeCompare(b.player));
   const individualBoard=fantasyIndividualBoard(store),optimal=fantasyOptimalTeam(w,tiers);
+  const tierByName={};
+  (tiers.elite||[]).forEach(n=>tierByName[n]='Elite');
+  (tiers.challenger||[]).forEach(n=>tierByName[n]='Challenger');
+  (tiers.mongs||[]).forEach(n=>tierByName[n]='Mong');
+  const weekIndividualBoard=(w.players||[]).map(name=>{
+    const row=standings(w).find(r=>r.name===name)||{w:0,d:0};
+    const tier=tierByName[name]||'Mong';
+    return {name,tier,wins:row.w||0,diff:row.d||0,points:fantasyPointsForPlayer(w,name,tier.toLowerCase())};
+  }).sort((a,b)=>b.points-a.points||a.name.localeCompare(b.name));
   const sel=(value,setter,list)=>h('select',{value,onChange:e=>setter(e.target.value),disabled:locked},list.map(n=>h('option',{key:n,value:n},n)));
   return h('div',null,
     h('div',{className:'page-title'},h('h1',null,'Fantasy'),h('span',{className:'sub'},'GW',w.n,' — 1 Elite, 1 Challenger, 2 Mongs.')),
@@ -7745,6 +7754,10 @@ function FantasyPage({store,me,dispatch}) {
     h('div',{className:'panel',style:{marginTop:18}},h('h2',null,'GW'+w.n+' fantasy leaderboard'),
       board.length===0?h('p',{className:'muted'},'Nobody has submitted a team yet.'):
       h('table',{className:'plain'},h('thead',null,h('tr',null,['#','Player','Team','Captain','Points'].map(x=>h('th',{key:x},x)))),h('tbody',null,board.map((r,i)=>h('tr',{key:r.player,className:r.player===me?'me':''},h('td',{className:'n muted'},i+1),h('td',null,h(Nm,{n:r.player,size:16})),h('td',{className:'small muted'},r.picks.join(', ')),h('td',{className:'small'},r.captain||'—'),h('td',{className:'n'},r.score)))))
+    ),
+    h('div',{className:'panel',style:{marginTop:18}},h('h2',null,'GW'+w.n+' individual player points'),h('p',{className:'small muted'},'Fantasy points each league player has earned this game week, using their frozen tier. These are before any captain double-points bonus.'),
+      weekIndividualBoard.length===0?h('p',{className:'muted'},'No players in this game week yet.'):
+      h('table',{className:'plain'},h('thead',null,h('tr',null,['#','Player','Tier','Wins','Ball difference','Fantasy points'].map(x=>h('th',{key:x},x)))),h('tbody',null,weekIndividualBoard.map((r,i)=>h('tr',{key:r.name,className:r.name===me?'me':''},h('td',{className:'n muted'},i+1),h('td',null,h(Nm,{n:r.name,size:16})),h('td',{className:'small muted'},r.tier),h('td',{className:'n'},r.wins),h('td',{className:'n'},r.diff>0?'+'+r.diff:r.diff),h('td',{className:'n'},r.points)))))
     ),
     h('div',{className:'panel',style:{marginTop:18}},h('h2',null,'All-time individual player points'),h('p',{className:'small muted'},'Points earned by each player in the league, independent of who picked them in Fantasy.'),
       individualBoard.length===0?h('p',{className:'muted'},'No completed Fantasy weeks to score yet.'):
