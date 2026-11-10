@@ -512,7 +512,7 @@ const {
 } = React;
 const STORE_KEY = 'book1.2-local';
 const CFG = window.BOOK_CONFIG || {};
-const APP_SQL_VERSION = 48; // bump this whenever a new SQL script adds or changes a server function
+const APP_SQL_VERSION = 50; // bump this whenever a new SQL script adds or changes a server function
 const CLOUD = !!(CFG.url && CFG.key);
 const ADMINS = ['Chef', 'Lorcan'];
 const DECREES = ['Abstention is not permitted.', 'The Book sees all results.', 'Ball difference is destiny.', 'The Dictator collects. The Dictator distributes.', 'Report your score. Report it honestly.', 'Twelfth place is a service to the office.', 'The mong off is not optional.', 'Disputes are settled by the regime.'];
@@ -3401,7 +3401,7 @@ function weeklyChallengeProgress(store,p) {
   const chesswins=(store.chess||[]).filter(g=>+g.createdAt>=challengeStart&&g.status==='done'&&g.winner===p).length;
   const pinball=(store.pinballScores||[]).filter(g=>g.player===p&&+g.week===+w.n);
   const pinplays=pinball.length, pinbest=pinball.reduce((m,g)=>Math.max(m,+g.score||0),0);
-  const predictionWins=Object.values(store.predictionRewards||{}).filter(players=>players&&players[p]===true).length;
+  const predictionWins=(w.fixtures||[]).filter(g=>g.id&&store.predictionRewards&&store.predictionRewards[g.id]&&store.predictionRewards[g.id][p]===true).length;
   const bokBattles=((store.bokemongs||{}).battles||[]).filter(g=>(g.a===p||g.b===p)&&+g.at>=challengeStart&&g.winner);
   const bokplays=bokBattles.length,bokwins=bokBattles.filter(g=>g.winner===p).length;
   const spins=(store.wheelSpinHistory||[]).filter(g=>g.player===p&&+g.at>=challengeStart).length;
