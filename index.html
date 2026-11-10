@@ -3526,7 +3526,7 @@ function fantasySnapshot(store) {
 function fantasyPointsForPlayer(w,name,tier) {
   const row=standings(w).find(r=>r.name===name) || {w:0,d:0};
   const winPts=tier==='elite'?10:tier==='challenger'?15:20;
-  return row.w*winPts + row.d;
+  return row.w*winPts + row.d*2;
 }
 function fantasyScore(store,w,picks,tiers,captain) {
   if (!picks || picks.length!==4 || !tiers) return 0;
@@ -7800,8 +7800,8 @@ function FantasyPage({store,me,dispatch}) {
       h('div',{className:'panel'},
         h('h2',null,'Scoring'),
         h('p',null,h('b',null,'Elite:'),' 10 per win'),
-        h('p',null,h('b',null,'Challenger:'),' 12 per win'),
-        h('p',null,h('b',null,'Mong:'),' 15 per win'),
+        h('p',null,h('b',null,'Challenger:'),' 15 per win'),
+        h('p',null,h('b',null,'Mong:'),' 20 per win'),
         h('p',null,h('b',null,'Everyone:'),' +2 per point of ball difference (positive or negative).'),
         h('p',{className:'display',style:{fontSize:26}},100000 .toLocaleString(),' chips'),
         h('p',{className:'small muted'},'The 100,000-chip regular pot is paid to the top Fantasy score every game week. Ties split the weekly pot.'),
