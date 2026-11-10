@@ -3402,7 +3402,7 @@ function weeklyChallengeProgress(store,p) {
   const pinball=(store.pinballScores||[]).filter(g=>g.player===p&&+g.week===+w.n);
   const pinplays=pinball.length, pinbest=pinball.reduce((m,g)=>Math.max(m,+g.score||0),0);
   const predictionWins=(w.fixtures||[]).filter(g=>g.id&&store.predictionRewards&&store.predictionRewards[g.id]&&store.predictionRewards[g.id][p]===true).length;
-  const bokBattles=((store.bokemongs||{}).battles||[]).filter(g=>(g.a===p||g.b===p)&&+g.at>=challengeStart&&g.winner);
+  const bokBattles=((store.bokemongs||{}).battles||[]).filter(g=>{const completedAt=+(g.completedAt||g.at||0),completed=g.status==='done'||(!g.status&&!!g.winner);return (g.a===p||g.b===p)&&completed&&completedAt>=challengeStart;});
   const bokplays=bokBattles.length,bokwins=bokBattles.filter(g=>g.winner===p).length;
   const spins=(store.wheelSpinHistory||[]).filter(g=>g.player===p&&+g.at>=challengeStart).length;
   return {week:w.n,wins,played:gs.length,diff:d,c4wins,bswins,hogwins,chesswins,pinplays,pinbest,predictionWins,bokplays,bokwins,spins};
