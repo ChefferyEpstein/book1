@@ -3525,7 +3525,7 @@ function fantasySnapshot(store) {
 }
 function fantasyPointsForPlayer(w,name,tier) {
   const row=standings(w).find(r=>r.name===name) || {w:0,d:0};
-  const winPts=tier==='elite'?10:tier==='challenger'?12:15;
+  const winPts=tier==='elite'?10:tier==='challenger'?15:20;
   return row.w*winPts + row.d*2;
 }
 function fantasyScore(store,w,picks,tiers,captain) {
