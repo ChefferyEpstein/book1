@@ -1155,6 +1155,8 @@ const api = CLOUD ? {
     st.chips = st.chips || {};
     st.chips[cred.name] = (st.chips[cred.name] != null ? st.chips[cred.name] : 1000) + amt;
     st.wheelSpins[cred.name] = now;
+    st.wheelSpinHistory = st.wheelSpinHistory || [];
+    st.wheelSpinHistory.push({player:cred.name,at:now,amount:amt});
     saveStore(st);
     return { amount: amt, next: now + cooldownMs, cooldownMinutes };
   }
@@ -3359,15 +3361,11 @@ const PRESTIGE_REWARDS = [
 const CHALLENGE_POOL = {
   wins3:{id:'wins3',name:'Hat-trick',desc:'Win 3 pool games this game week.',reward:10000,xp:1800},
   wins5:{id:'wins5',name:'Five Alive',desc:'Win 5 pool games this game week.',reward:15000,xp:2700},
-  wins6:{id:'wins6',name:'Pool Dominator',desc:'Win 6 pool games this game week.',reward:25000,xp:3600},
   play2:{id:'play2',name:'First Session',desc:'Complete 2 pool games this game week.',reward:5000,xp:900},
   play4:{id:'play4',name:'Clock in',desc:'Complete 4 pool games this game week.',reward:7500,xp:1500},
-  play6:{id:'play6',name:'Regular at the Table',desc:'Complete 6 pool games this game week.',reward:15000,xp:2400},
-  
   diff5:{id:'diff5',name:'Good Start',desc:'Reach +5 ball difference this game week.',reward:7500,xp:1800},
   diff10:{id:'diff10',name:'Run it up',desc:'Reach +10 ball difference this game week.',reward:10000,xp:2700},
   diff15:{id:'diff15',name:'Clear the Table',desc:'Reach +15 ball difference this game week.',reward:17500,xp:3600},
-  
   c4wins2:{id:'c4wins2',name:'Four in a Row',desc:'Win 2 Connect 4 games this game week.',reward:7500,xp:900},
   c4wins4:{id:'c4wins4',name:'Connect Four Champion',desc:'Win 4 Connect 4 games this game week.',reward:15000,xp:1800},
   bswin1:{id:'bswin1',name:'Naval Warfare',desc:'Win a Battleships game this game week.',reward:7500,xp:900},
@@ -3376,10 +3374,18 @@ const CHALLENGE_POOL = {
   hogwin2:{id:'hogwin2',name:'Hog Champion',desc:'Win 2 Hog duels this game week.',reward:10000,xp:1400},
   chesswin1:{id:'chesswin1',name:'Checkmate',desc:'Win a Chess game this game week.',reward:7500,xp:900},
   chesswin2:{id:'chesswin2',name:'Grandmaster in the Making',desc:'Win 2 Chess games this game week.',reward:15000,xp:1800},
-  pinplays1:{id:'pinplays1',name:'First Tilt',desc:'Play one Pinball game this week.',reward:5000,xp:700},
-  pinplays3:{id:'pinplays3',name:'Arcade Regular',desc:'Play three Pinball games this week.',reward:10000,xp:1400},
-  pinscore1000:{id:'pinscore1000',name:'Score Chaser',desc:'Score at least 1,000 in Pinball this week.',reward:7500,xp:1000},
-  pinscore3000:{id:'pinscore3000',name:'Wizard Mode',desc:'Score at least 3,000 in Pinball this week.',reward:15000,xp:2200}
+  pinplays3:{id:'pinplays3',name:'Arcade Regular',desc:'Play 3 Pinball games this week.',reward:10000,xp:1400},
+  pinplays5:{id:'pinplays5',name:'Pinball Devotee',desc:'Play 5 Pinball games this week.',reward:20000,xp:2600},
+  pinscore50000:{id:'pinscore50000',name:'Getting Warm',desc:'Score at least 50,000 in Pinball this week.',reward:10000,xp:1500},
+  pinscore125000:{id:'pinscore125000',name:'Multiball Mayhem',desc:'Score at least 125,000 in Pinball this week.',reward:17500,xp:2500},
+  pinscore200000:{id:'pinscore200000',name:'Table Wizard',desc:'Score at least 200,000 in Pinball this week.',reward:25000,xp:3500},
+  pinscore250000:{id:'pinscore250000',name:'Perfect Storm',desc:'Score 250,000 in Pinball this week.',reward:40000,xp:5000},
+  pred3:{id:'pred3',name:'Tipster',desc:'Get 3 predictions correct this game week.',reward:10000,xp:1500},
+  pred5:{id:'pred5',name:'Oracle',desc:'Get 5 predictions correct this game week.',reward:20000,xp:3000},
+  bokplay1:{id:'bokplay1',name:'First Encounter',desc:'Complete a Bokémong battle this game week.',reward:10000,xp:1500},
+  bokwin1:{id:'bokwin1',name:'Mong Champion',desc:'Win a Bokémong battle this game week.',reward:15000,xp:2200},
+  spins2:{id:'spins2',name:'Lucky Dip',desc:'Use the casino wheel twice this game week.',reward:7500,xp:1000},
+  spins5:{id:'spins5',name:'Wheel Addict',desc:'Use the casino wheel 5 times this game week.',reward:15000,xp:2200}
 };
 function weeklyChallengesForWeek(n) { return Object.values(CHALLENGE_POOL); }
 function weeklyChallengeProgress(store,p) {
@@ -3395,19 +3401,27 @@ function weeklyChallengeProgress(store,p) {
   const chesswins=(store.chess||[]).filter(g=>+g.createdAt>=challengeStart&&g.status==='done'&&g.winner===p).length;
   const pinball=(store.pinballScores||[]).filter(g=>g.player===p&&+g.week===+w.n);
   const pinplays=pinball.length, pinbest=pinball.reduce((m,g)=>Math.max(m,+g.score||0),0);
-  return {week:w.n,wins,played:gs.length,diff:d,c4wins,bswins,hogwins,chesswins,pinplays,pinbest};
+  const predictionWins=Object.values(store.predictionRewards||{}).filter(players=>players&&players[p]===true).length;
+  const bokBattles=((store.bokemongs||{}).battles||[]).filter(g=>(g.a===p||g.b===p)&&+g.at>=challengeStart&&g.winner);
+  const bokplays=bokBattles.length,bokwins=bokBattles.filter(g=>g.winner===p).length;
+  const spins=(store.wheelSpinHistory||[]).filter(g=>g.player===p&&+g.at>=challengeStart).length;
+  return {week:w.n,wins,played:gs.length,diff:d,c4wins,bswins,hogwins,chesswins,pinplays,pinbest,predictionWins,bokplays,bokwins,spins};
 }
 function weeklyChallengeMetric(stats,id) {
   const m={
-    wins3:['wins',3,'wins'],wins5:['wins',5,'wins'],wins6:['wins',6,'wins'],
-    play2:['played',2,'games'],play4:['played',4,'games'],play6:['played',6,'games'],
+    wins3:['wins',3,'wins'],wins5:['wins',5,'wins'],
+    play2:['played',2,'games'],play4:['played',4,'games'],
     diff5:['diff',5,'ball diff'],diff10:['diff',10,'ball diff'],diff15:['diff',15,'ball diff'],
     c4wins2:['c4wins',2,'Connect 4 wins'],c4wins4:['c4wins',4,'Connect 4 wins'],
     bswin1:['bswins',1,'Battleships wins'],bswin2:['bswins',2,'Battleships wins'],
     hogwin1:['hogwins',1,'Hog wins'],hogwin2:['hogwins',2,'Hog wins'],
     chesswin1:['chesswins',1,'Chess wins'],chesswin2:['chesswins',2,'Chess wins'],
-    pinplays1:['pinplays',1,'Pinball games'],pinplays3:['pinplays',3,'Pinball games'],
-    pinscore1000:['pinbest',1000,'best Pinball score'],pinscore3000:['pinbest',3000,'best Pinball score']
+    pinplays3:['pinplays',3,'Pinball games'],pinplays5:['pinplays',5,'Pinball games'],
+    pinscore50000:['pinbest',50000,'best Pinball score'],pinscore125000:['pinbest',125000,'best Pinball score'],
+    pinscore200000:['pinbest',200000,'best Pinball score'],pinscore250000:['pinbest',250000,'best Pinball score'],
+    pred3:['predictionWins',3,'correct predictions'],pred5:['predictionWins',5,'correct predictions'],
+    bokplay1:['bokplays',1,'Bokémong battles'],bokwin1:['bokwins',1,'Bokémong wins'],
+    spins2:['spins',2,'casino spins'],spins5:['spins',5,'casino spins']
   };
   return m[id]||null;
 }
@@ -7889,7 +7903,7 @@ function PredictionsPage({
     className: "page-title"
   }, /*#__PURE__*/React.createElement("h1", null, "Predictions"), /*#__PURE__*/React.createElement("span", {
     className: "sub"
-  }, "Call the winners before the results land. Each correct prediction earns 100 XP and 1,000 chips.")), /*#__PURE__*/React.createElement("div", {
+  }, "Call the winners before the results land. Each correct prediction earns 100 XP and 500 chips.")), /*#__PURE__*/React.createElement("div", {
     className: "grid g2"
   }, /*#__PURE__*/React.createElement("div", {
     className: "panel"
