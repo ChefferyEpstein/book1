@@ -7699,14 +7699,29 @@ function FantasyPage({store,me,dispatch}) {
   const h=React.createElement;
   const w=store.weeks[store.weeks.length-1];
   const fw=(store.fantasyWeeks||{})[String(w.n)]||{tiers:fantasySnapshot(store),picks:{},paid:false};
-  const tiers=fw.tiers||fantasySnapshot(store);
+  // Keep the frozen tiers from the four-week Knockout table, but only offer
+  // players who are actually entered in this gameweek.
+  const frozenTiers=fw.tiers||fantasySnapshot(store);
+  const weekPlayers=new Set(w.players||[]);
+  const tiers={
+    elite:(frozenTiers.elite||[]).filter(n=>weekPlayers.has(n)),
+    challenger:(frozenTiers.challenger||[]).filter(n=>weekPlayers.has(n)),
+    mongs:(frozenTiers.mongs||[]).filter(n=>weekPlayers.has(n))
+  };
   const existing=fw.picks&&fw.picks[me]||[];
-  const [elite,setElite]=useState(existing[0]||tiers.elite[0]||'');
-  const [challenger,setChallenger]=useState(existing[1]||tiers.challenger[0]||'');
-  const [mong1,setMong1]=useState(existing[2]||tiers.mongs[0]||'');
-  const [mong2,setMong2]=useState(existing[3]||tiers.mongs[1]||tiers.mongs[0]||'');
-  const [captain,setCaptain]=useState((fw.captains&&fw.captains[me])||existing[0]||tiers.elite[0]||'');
-  useEffect(()=>{const p=fw.picks&&fw.picks[me];if(p){setElite(p[0]);setChallenger(p[1]);setMong1(p[2]);setMong2(p[3]);setCaptain((fw.captains&&fw.captains[me])||p[0]);}},[w.n,me]);
+  const [elite,setElite]=useState(tiers.elite.includes(existing[0])?existing[0]:tiers.elite[0]||'');
+  const [challenger,setChallenger]=useState(tiers.challenger.includes(existing[1])?existing[1]:tiers.challenger[0]||'');
+  const [mong1,setMong1]=useState(tiers.mongs.includes(existing[2])?existing[2]:tiers.mongs[0]||'');
+  const [mong2,setMong2]=useState(tiers.mongs.includes(existing[3])?existing[3]:tiers.mongs[1]||tiers.mongs[0]||'');
+  const [captain,setCaptain]=useState((fw.captains&&fw.captains[me]&&existing.includes(fw.captains[me]))?fw.captains[me]:existing[0]||tiers.elite[0]||'');
+  useEffect(()=>{
+    const p=fw.picks&&fw.picks[me]||[];
+    setElite(tiers.elite.includes(p[0])?p[0]:tiers.elite[0]||'');
+    setChallenger(tiers.challenger.includes(p[1])?p[1]:tiers.challenger[0]||'');
+    setMong1(tiers.mongs.includes(p[2])?p[2]:tiers.mongs[0]||'');
+    setMong2(tiers.mongs.includes(p[3])?p[3]:tiers.mongs[1]||tiers.mongs[0]||'');
+    setCaptain((fw.captains&&p.includes(fw.captains[me]))?fw.captains[me]:p[0]||tiers.elite[0]||'');
+  },[w.n,me]);
   const locked=w.closed||(w.fixtures||[]).some(played);
   const picks=[elite,challenger,mong1,mong2];
   useEffect(()=>{if(!picks.includes(captain))setCaptain(picks.find(Boolean)||'');},[elite,challenger,mong1,mong2,captain]);
