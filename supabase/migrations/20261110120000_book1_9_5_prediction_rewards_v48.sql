@@ -87,7 +87,7 @@ begin
       fixture_id := g->>'id';
       preds := d->'predictions'->fixture_id;
       if jsonb_typeof(preds) <> 'object' then continue; end if;
-      if jsonb_typeof(d->'predictionRewards'->fixture_id) <> 'object' then
+      if jsonb_typeof(d->'predictionRewards'->fixture_id) is distinct from 'object' then
         d := jsonb_set(d, array['predictionRewards',fixture_id], '{}'::jsonb, true);
       end if;
       for pred_player, pred_pick in select key, value from jsonb_each_text(preds) loop
