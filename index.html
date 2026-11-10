@@ -8552,7 +8552,11 @@ function RegimePage({
   }, "🌟"), /*#__PURE__*/React.createElement("button", {
     className: "btn sm",
     onClick: () => enter(g)
-  }, played(g) ? 'Fix' : 'Set')), /*#__PURE__*/React.createElement("div", {
+  }, played(g) ? "Fix" : "Set"), played(g) && /*#__PURE__*/React.createElement(ConfirmButton, {
+    className: "btn sm ghost",
+    confirmText: "Confirm removal?",
+    onConfirm: () => dispatch({ t: "clearScore", id: g.id, by: me })
+  }, "Remove score")), /*#__PURE__*/React.createElement("div", {
     className: "r"
   }, g.p2)))), /*#__PURE__*/React.createElement("div", {
     className: "panel"
@@ -10080,6 +10084,20 @@ function reduce(store, a) {
         if (a.golden) g.golden = true;else delete g.golden;
         log(`${a.by} set ${g.p1} ${g.s1}-${g.s2} ${g.p2}` + (a.golden ? ' (golden break)' : ''));
         afterSet(s, ctx);
+        break;
+      }
+    case 'clearScore':
+      {
+        const ctx = findGame(s, a.id);
+        const g = ctx.g;
+        if (!g || !ctx.w || !ctx.w.fixtures.includes(g)) throw new Error('Only a gameweek league score can be cleared here.');
+        if (!played(g)) throw new Error('That fixture does not have a score to remove.');
+        const hasSettledBets = (s.bets || []).some(b => b.status !== 'open' && (b.game === g.id || (b.legs || []).some(l => l.game === g.id)));
+        const hasSettledScoreBets = (s.scoreBets || []).some(b => b.game === g.id && b.status !== 'open');
+        const hasPredictionSettlement = !!(s.predictionRewards && s.predictionRewards[g.id] && Object.keys(s.predictionRewards[g.id]).length);
+        if (hasSettledBets || hasSettledScoreBets || hasPredictionSettlement) throw new Error('This result has already settled bets or prediction rewards. Ask the regime to correct it so payouts can be reconciled safely.');
+        g.s1 = null; g.s2 = null; g.status = 'open'; g.sub = {}; delete g.golden;
+        log(a.by + ' removed the score for ' + g.p1 + ' v ' + g.p2 + ' and reopened the fixture');
         break;
       }
     case 'setupPlayoffs':
