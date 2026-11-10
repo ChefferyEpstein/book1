@@ -3380,12 +3380,12 @@ const CHALLENGE_POOL = {
   pinscore125000:{id:'pinscore125000',name:'Multiball Mayhem',desc:'Score at least 125,000 in Pinball this week.',reward:17500,xp:2500},
   pinscore200000:{id:'pinscore200000',name:'Table Wizard',desc:'Score at least 200,000 in Pinball this week.',reward:25000,xp:3500},
   pinscore250000:{id:'pinscore250000',name:'Perfect Storm',desc:'Score 250,000 in Pinball this week.',reward:40000,xp:5000},
-  pred3:{id:'pred3',name:'Tipster',desc:'Get 3 predictions correct this game week.',reward:10000,xp:1500},
-  pred5:{id:'pred5',name:'Oracle',desc:'Get 5 predictions correct this game week.',reward:20000,xp:3000},
+  pred3:{id:'pred3',name:'Tipster',desc:'Get 9 predictions correct this game week.',reward:10000,xp:1500},
+  pred5:{id:'pred5',name:'Oracle',desc:'Get 15 predictions correct this game week.',reward:20000,xp:3000},
   bokplay1:{id:'bokplay1',name:'First Encounter',desc:'Complete a Bokémong battle this game week.',reward:10000,xp:1500},
   bokwin1:{id:'bokwin1',name:'Mong Champion',desc:'Win a Bokémong battle this game week.',reward:15000,xp:2200},
-  spins2:{id:'spins2',name:'Lucky Dip',desc:'Use the casino wheel twice this game week.',reward:7500,xp:1000},
-  spins5:{id:'spins5',name:'Wheel Addict',desc:'Use the casino wheel 5 times this game week.',reward:15000,xp:2200}
+  spins2:{id:'spins2',name:'Lucky Dip',desc:'Use the casino wheel 20 times this game week.',reward:7500,xp:1000},
+  spins5:{id:'spins5',name:'Wheel Addict',desc:'Use the casino wheel 50 times this game week.',reward:15000,xp:2200}
 };
 function weeklyChallengesForWeek(n) { return Object.values(CHALLENGE_POOL); }
 function weeklyChallengeProgress(store,p) {
@@ -3419,9 +3419,9 @@ function weeklyChallengeMetric(stats,id) {
     pinplays3:['pinplays',3,'Pinball games'],pinplays5:['pinplays',5,'Pinball games'],
     pinscore50000:['pinbest',50000,'best Pinball score'],pinscore125000:['pinbest',125000,'best Pinball score'],
     pinscore200000:['pinbest',200000,'best Pinball score'],pinscore250000:['pinbest',250000,'best Pinball score'],
-    pred3:['predictionWins',3,'correct predictions'],pred5:['predictionWins',5,'correct predictions'],
+    pred3:['predictionWins',9,'correct predictions'],pred5:['predictionWins',15,'correct predictions'],
     bokplay1:['bokplays',1,'Bokémong battles'],bokwin1:['bokwins',1,'Bokémong wins'],
-    spins2:['spins',2,'casino spins'],spins5:['spins',5,'casino spins']
+    spins2:['spins',20,'casino spins'],spins5:['spins',50,'casino spins']
   };
   return m[id]||null;
 }
