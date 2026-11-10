@@ -3268,6 +3268,8 @@ function rawPlayerXp(store, p) {
   // Pinball scores are stored only after the server validates the completed game.
   // Award 0.1% of each recorded score as whole XP, rounding down.
   xp += (store.pinballScores || []).filter(g => g.player === p).reduce((t,g)=>t+Math.floor(Math.max(0,+g.score||0)/1000),0);
+  // Each correctly settled prediction is worth 100 XP.
+  xp += Object.values(store.predictionRewards || {}).filter(players => players && players[p] === true).length * 100;
   return xp;
 }
 const BASE_LEVEL_XP = Array.from({length:25},(_,i)=>Math.round((100 + i * (1400 / 24)) / 25) * 25);
@@ -3581,6 +3583,34 @@ function fantasyIndividualBoard(store) {
     });
   });
   return Object.values(rows).sort((a,b)=>b.points-a.points||b.weeks-a.weeks||a.name.localeCompare(b.name));
+}
+function fantasySelectedTeamBoard(store) {
+  const rows={};
+  (store.weeks||[]).filter(w=>w.closed).forEach(w=>{
+    const fw=(store.fantasyWeeks||{})[String(w.n)];
+    if(!fw||!fw.picks)return;
+    const tiers=fw.tiers||fantasySnapshotBeforeWeek(store,w);
+    Object.entries(fw.picks).forEach(([player,picks])=>{
+      const score=fantasyScore(store,w,picks,tiers,fw.captains&&fw.captains[player]);
+      rows[player]=rows[player]||{player,points:0,weeks:0};
+      rows[player].points+=score;rows[player].weeks++;
+    });
+  });
+  return Object.values(rows).sort((a,b)=>b.points-a.points||b.weeks-a.weeks||a.player.localeCompare(b.player));
+}
+function fantasyPreviousWinners(store,currentWeek) {
+  return (store.weeks||[]).filter(w=>w.closed&&w.n<currentWeek).map(w=>{
+    const fw=(store.fantasyWeeks||{})[String(w.n)];
+    if(!fw||!fw.picks)return null;
+    const tiers=fw.tiers||fantasySnapshotBeforeWeek(store,w);
+    const entries=Object.entries(fw.picks).map(([player,picks])=>({
+      player,score:fantasyScore(store,w,picks,tiers,fw.captains&&fw.captains[player])
+    }));
+    if(!entries.length)return null;
+    const top=fw.potWinningScore!=null?+fw.potWinningScore:Math.max(...entries.map(x=>x.score));
+    const winners=Array.isArray(fw.potWinners)&&fw.potWinners.length?fw.potWinners:entries.filter(x=>x.score===top).map(x=>x.player);
+    return {week:w.n,winners,score:top};
+  }).filter(x=>x&&x.winners.length).sort((a,b)=>b.week-a.week).slice(0,6);
 }
 function settleFantasyWeek(s,w,log) {
   s.fantasyWeeks=s.fantasyWeeks||{};
@@ -7727,7 +7757,7 @@ function FantasyPage({store,me,dispatch}) {
   useEffect(()=>{if(!picks.includes(captain))setCaptain(picks.find(Boolean)||'');},[elite,challenger,mong1,mong2,captain]);
   const valid=picks.every(Boolean)&&new Set(picks).size===4&&tiers.elite.includes(elite)&&tiers.challenger.includes(challenger)&&tiers.mongs.includes(mong1)&&tiers.mongs.includes(mong2)&&picks.includes(captain);
   const board=Object.entries(fw.picks||{}).map(([player,p])=>({player,picks:p,captain:fw.captains&&fw.captains[player],score:fantasyScore(store,w,p,tiers,fw.captains&&fw.captains[player])})).sort((a,b)=>b.score-a.score||a.player.localeCompare(b.player));
-  const individualBoard=fantasyIndividualBoard(store),optimal=fantasyOptimalTeam(w,tiers);
+  const individualBoard=fantasyIndividualBoard(store),selectedTeamBoard=fantasySelectedTeamBoard(store),previousWinners=fantasyPreviousWinners(store,w.n),optimal=fantasyOptimalTeam(w,tiers);
   const tierByName={};
   (tiers.elite||[]).forEach(n=>tierByName[n]='Elite');
   (tiers.challenger||[]).forEach(n=>tierByName[n]='Challenger');
@@ -7743,7 +7773,7 @@ function FantasyPage({store,me,dispatch}) {
     h('div',{className:'grid g2'},
       h('div',{className:'panel'},
         h('h2',null,'Your four'),
-        h('p',{className:'small muted'},'Tiers are frozen from the Master sheet at the start of the week. Picks lock when the first league result lands.'),
+        h('p',{className:'small muted'},'Tiers are based on the four-week Knockout table. Only players entered in this gameweek are available to pick. Picks lock when the first league result lands.'),
         h('label',{className:'f'},'Elite (Master 1–4)',h('br'),sel(elite,setElite,tiers.elite||[])),
         h('label',{className:'f'},'Challenger (Master 5–8)',h('br'),sel(challenger,setChallenger,tiers.challenger||[])),
         h('label',{className:'f'},'Mong #1',h('br'),sel(mong1,setMong1,tiers.mongs||[])),
@@ -7769,6 +7799,18 @@ function FantasyPage({store,me,dispatch}) {
     h('div',{className:'panel',style:{marginTop:18}},h('h2',null,'GW'+w.n+' fantasy leaderboard'),
       board.length===0?h('p',{className:'muted'},'Nobody has submitted a team yet.'):
       h('table',{className:'plain'},h('thead',null,h('tr',null,['#','Player','Team','Captain','Points'].map(x=>h('th',{key:x},x)))),h('tbody',null,board.map((r,i)=>h('tr',{key:r.player,className:r.player===me?'me':''},h('td',{className:'n muted'},i+1),h('td',null,h(Nm,{n:r.player,size:16})),h('td',{className:'small muted'},r.picks.join(', ')),h('td',{className:'small'},r.captain||'—'),h('td',{className:'n'},r.score)))))
+    ),
+    h('div',{className:'grid g2',style:{marginTop:18}},
+      h('div',{className:'panel'},h('h2',null,'All-time Fantasy points'),h('p',{className:'small muted'},'Total points earned by each player from their own selected Fantasy teams, including captain doubles, across completed gameweeks.'),
+        selectedTeamBoard.length===0?h('p',{className:'muted'},'No completed Fantasy teams yet.'):
+        h('table',{className:'plain'},h('thead',null,h('tr',null,['#','Player','Weeks','Fantasy points'].map(x=>h('th',{key:x},x)))),h('tbody',null,selectedTeamBoard.map((r,i)=>h('tr',{key:r.player,className:r.player===me?'me':''},h('td',{className:'n muted'},i+1),h('td',null,h(Nm,{n:r.player,size:16})),h('td',{className:'n'},r.weeks),h('td',{className:'n'},r.points)))))
+      ),
+      h('div',{className:'panel'},h('h2',null,'Previous gameweek winners'),previousWinners.length===0?h('p',{className:'small muted'},'No completed Fantasy gameweeks yet.'):
+        previousWinners.map(r=>h('div',{key:r.week,className:'row spread',style:{padding:'7px 0',borderBottom:'1px solid var(--smoke)'}},
+          h('span',null,h('b',null,'GW'+r.week),h('span',{className:'small muted'},' · '+r.winners.join(', '))),
+          h('b',{className:'n'},r.score+' pts')
+        ))
+      )
     ),
     h('div',{className:'panel',style:{marginTop:18}},h('h2',null,'GW'+w.n+' individual player points'),h('p',{className:'small muted'},'Fantasy points each league player has earned this game week, using their frozen tier. These are before any captain double-points bonus.'),
       weekIndividualBoard.length===0?h('p',{className:'muted'},'No players in this game week yet.'):
@@ -7847,7 +7889,7 @@ function PredictionsPage({
     className: "page-title"
   }, /*#__PURE__*/React.createElement("h1", null, "Predictions"), /*#__PURE__*/React.createElement("span", {
     className: "sub"
-  }, "Call the winners before the results land.")), /*#__PURE__*/React.createElement("div", {
+  }, "Call the winners before the results land. Each correct prediction earns 100 XP and 1,000 chips.")), /*#__PURE__*/React.createElement("div", {
     className: "grid g2"
   }, /*#__PURE__*/React.createElement("div", {
     className: "panel"
