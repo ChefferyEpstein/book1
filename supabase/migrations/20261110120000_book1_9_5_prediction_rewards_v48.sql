@@ -91,7 +91,7 @@ begin
         d := jsonb_set(d, array['predictionRewards',fixture_id], '{}'::jsonb, true);
       end if;
       for pred_player, pred_pick in select key, value from jsonb_each_text(preds) loop
-        if pred_pick = case when (g->>'s1')::int > (g->>'s2')::int then g->>'p1' else g->>'p2' end
+        if pred_pick = (case when (g->>'s1')::int > (g->>'s2')::int then g->>'p1' else g->>'p2' end)
            and not coalesce((d #>> array['predictionRewards',fixture_id,pred_player])::boolean,false) then
           cur := coalesce((d->'chips'->>pred_player)::int,1000);
           d := jsonb_set(d, array['chips',pred_player], to_jsonb(cur+1000), true);
