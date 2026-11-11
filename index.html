@@ -946,8 +946,8 @@ const api = CLOUD ? {
     if (error) throw error;
     return data;
   },
-  async pinballFinish(cred, token, score) {
-    const { data, error } = await sb.rpc('book_pinball_finish', { p_name: cred.name, p_pin: cred.pin, p_token: token, p_score: score });
+  async pinballFinish(cred, token, events) {
+    const { data, error } = await sb.rpc('book_pinball_finish', { p_name: cred.name, p_pin: cred.pin, p_token: token, p_events: events });
     if (error) throw error;
     return data;
   },
@@ -7319,14 +7319,14 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
   const sessionRemaining=activeSession?Math.max(0,90-Math.floor((sessionClock-(+activeSession.startedAt||sessionClock))/1000)):0;
   const done=useRef(false),scoreRef=useRef(0),tokenRef=useRef(null),finishRef=useRef(null);
   scoreRef.current=score;tokenRef.current=token;
-  const finish=async(sc,tok)=>{
+  const finish=async(sc,tok,events)=>{
     if(done.current||!tok)return;
     done.current=true;setActive(false);setBusy(true);
-    try{const out=await api.pinballFinish(cred,tok,sc);if(out&&out.expired){setResult(null);toast('Your Pinball game expired before the score was submitted.');}else setResult(out);await refresh();}
+    try{const out=await api.pinballFinish(cred,tok,events||[]);if(out&&out.expired){setResult(null);toast('Your Pinball game expired before the score was submitted.');}else setResult(out);await refresh();}
     catch(e){toast(e.message||'Could not submit Pinball score.');}
     finally{setBusy(false);}
   };
-  finishRef.current=()=>finish(scoreRef.current,tokenRef.current);
+  finishRef.current=()=>finish(scoreRef.current,tokenRef.current,simRef.current?.scoreEvents||[]);
   useEffect(()=>{
     if(!activeSession||active)return;
     const id=setInterval(()=>setSessionClock(Date.now()),500);
@@ -7347,7 +7347,7 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
       done.current=false;setToken(out.token);tokenRef.current=out.token;
       setScore(0);scoreRef.current=0;setBoost(1);setSeconds(90);setBalls(3);
       keys.current={left:false,right:false};
-      simRef.current={ball:{x:360,y:620,vx:0,vy:0,launched:false},score:0,balls:3,secretDropUsed:false,
+      simRef.current={ball:{x:360,y:620,vx:0,vy:0,launched:false},score:0,scoreEvents:[],balls:3,secretDropUsed:false,
         bumpTimes:Array(5).fill(0),targetTimes:[0,0],bounceCount:0,lastFrame:0,drainAt:0,startedAt:Date.now(),pendingFinish:false,flipperScoreAt:0,slingScoreAt:0,flipperContactLock:false,slingContactLock:false,prevFlippers:{left:{x:168,y:622},right:{x:187,y:622}}};
       setActive(true);await refresh();
     }catch(e){toast(e.message||'Could not start Pinball.');}
@@ -7359,9 +7359,11 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
     s.ball.launched=true;s.ball.vx=0;s.ball.vy=-14;
   };
   const registerBounce=()=>{const s=simRef.current;if(!s)return;s.bounceCount=(s.bounceCount||0)+1;setBoost(1+s.bounceCount*.01);};
-  const addPoints=(n)=>{
+  const addPoints=(n,type,index=0)=>{
     const s=simRef.current;if(!s)return;
     const multiplier=1+(s.bounceCount||0)*.01;
+    s.scoreEvents=s.scoreEvents||[];
+    s.scoreEvents.push({type,index,t:Math.max(0,Math.min(90000,Date.now()-s.startedAt))});
     s.score+=Math.round(n*multiplier);
     scoreRef.current=s.score;setScore(s.score);
   };
@@ -7426,7 +7428,7 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
             const speed=Math.max(6,Math.hypot(b.vx,b.vy));
             b.vx=nx*speed*.84+(Math.random()-.5)*1.8;
             b.vy=ny*speed*.84-2.4;
-            s.bumpTimes[i]=now;registerBounce();addPoints(p.points);
+            s.bumpTimes[i]=now;registerBounce();addPoints(p.points,'bumper',i);
           }
         });
         targets.forEach((p,i)=>{
@@ -7434,14 +7436,14 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
           if(d<p.r+R&&now-(s.targetTimes[i]||0)>300){
             const nx=(b.x-p.x)/(d||1),ny=(b.y-p.y)/(d||1);
             b.x=p.x+nx*(p.r+R+1);b.y=p.y+ny*(p.r+R+1);
-            b.vx+=nx*3;b.vy-=4;s.targetTimes[i]=now;registerBounce();addPoints(250);
+            b.vx+=nx*3;b.vy-=4;s.targetTimes[i]=now;registerBounce();addPoints(250,'target',i);
           }
         });
         // Slingshots award once per contact, not once per animation frame.
         const slingHit=hitSegment(b,48,510,100,555,2.7)||hitSegment(b,265,555,315,510,2.7);
         if(!slingHit)s.slingContactLock=false;
         if(slingHit&&!s.slingContactLock&&now-(s.slingScoreAt||0)>250){
-          s.slingContactLock=true;s.slingScoreAt=now;registerBounce();addPoints(25);
+          s.slingContactLock=true;s.slingScoreAt=now;registerBounce();addPoints(25,'sling',0);
         }
         const lx=168,ly=keys.current.left?545:622;
         const rx=187,ry=keys.current.right?545:622;
@@ -7464,7 +7466,7 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
             if(leftFlipperHit&&keys.current.left){b.vy=Math.min(b.vy,-15.5);b.vx-=1.8;}
             if(rightFlipperHit&&keys.current.right){b.vy=Math.min(b.vy,-15.5);b.vx+=1.8;}
           }
-          registerBounce();addPoints(10);
+          registerBounce();addPoints(10,'flipper',0);
         }
         s.prevFlippers={left:{x:lx,y:ly},right:{x:rx,y:ry}};
         // A narrow centre drain gives the player a chance to save the ball with either flipper.
