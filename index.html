@@ -1558,6 +1558,7 @@ const GLYPHS = {
   shield: '<path d="M50 6l38 12v34c0 22-18 36-38 44C30 88 12 74 12 52V18z"/>',
   skull: '<circle cx="50" cy="42" r="30"/><rect x="34" y="60" width="32" height="24" rx="4"/><circle cx="39" cy="42" r="7" fill="__B__"/><circle cx="61" cy="42" r="7" fill="__B__"/><rect x="45" y="70" width="4" height="10" fill="__B__"/><rect x="52" y="70" width="4" height="10" fill="__B__"/>',
   eightball: '<circle cx="50" cy="50" r="42"/><circle cx="50" cy="50" r="18" fill="#fff"/><text x="50" y="59" font-size="26" font-family="Anton,Impact,sans-serif" text-anchor="middle" fill="#000">8</text>',
+  prestigeMasterBall: '<circle cx="50" cy="57" r="35" fill="#D6A928" stroke="#FFF0B0" stroke-width="4"/><path d="M25 36Q38 20 57 25" fill="none" stroke="#FFF1B8" stroke-width="5" stroke-linecap="round" opacity=".8"/><circle cx="50" cy="58" r="15" fill="#FFF7DF" stroke="#9B7419" stroke-width="2"/><text x="50" y="65" font-size="19" font-weight="900" font-family="Arial,sans-serif" text-anchor="middle" fill="#171717">10</text><path d="M13 25L8 7L27 18L50 2L73 18L92 7L87 25Z" fill="#C8102E" stroke="#F4A0A8" stroke-width="3"/><rect x="13" y="24" width="74" height="9" rx="3" fill="#A30D25" stroke="#F4A0A8" stroke-width="2"/>',
   cue: '<polygon points="6,90 12,96 96,14 92,4"/>',
   splat: '<path d="M50 30c-6-12-20-14-30-8c8 2 12 8 10 16c-10-2-20 0-26 8c10-2 18 2 20 10c-8 2-12 8-10 16c6-6 14-8 22-4c-2 6 0 12 6 16l8-14l8 14c6-4 8-10 6-16c8-4 16-2 22 4c2-8-2-14-10-16c2-8 10-12 20-10c-6-8-16-10-26-8c-2-8 2-14 10-16c-10-6-24-4-30 8z"/>',
   text: '<text x="50" y="72" font-size="64" font-family="Anton,Impact,sans-serif" text-anchor="middle">T</text>'
@@ -1640,13 +1641,14 @@ function Emblem({
 function prestigeEmblem(level) {
   const p=Math.max(0,+level||0);
   if(!p) return null;
-  const tier=p>=10?'mythic':p>=5?'red':p>=3?'gold':p>=2?'silver':'bronze';
+  const tier=p>=10?'prestigeMaster':p>=5?'red':p===4?'diamond':p===3?'gold':p===2?'silver':'bronze';
   const cfg={
     bronze:{bg:'#2A2626',c:'#C9824B',g:'star'},
     silver:{bg:'#20242A',c:'#D7DCE2',g:'shield'},
     gold:{bg:'#0A0A0A',c:'#C9A227',g:'crown'},
+    diamond:{bg:'#101820',c:'#DCE8F5',g:'diamond'},
     red:{bg:'#2B0508',c:'#EDE6D6',g:'crown'},
-    mythic:{bg:'#000000',c:'#C9A227',g:'skull'}
+    prestigeMaster:{bg:'#111111',c:'#D6A928',g:'prestigeMasterBall'}
   }[tier];
   return {bg:cfg.bg,shape:'shield',layers:[{g:cfg.g,c:cfg.c,x:0,y:-4,s:.72,r:0}]};
 }
