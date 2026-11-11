@@ -512,7 +512,7 @@ const {
 } = React;
 const STORE_KEY = 'book1.2-local';
 const CFG = window.BOOK_CONFIG || {};
-const APP_SQL_VERSION = 58; // bump this whenever a new SQL script adds or changes a server function
+const APP_SQL_VERSION = 59; // bump this whenever a new SQL script adds or changes a server function
 const CLOUD = !!(CFG.url && CFG.key);
 const ADMINS = ['Chef', 'Lorcan'];
 const DECREES = ['Abstention is not permitted.', 'The Book sees all results.', 'Ball difference is destiny.', 'The Dictator collects. The Dictator distributes.', 'Report your score. Report it honestly.', 'Twelfth place is a service to the office.', 'The mong off is not optional.', 'Disputes are settled by the regime.'];
@@ -3267,10 +3267,11 @@ function rawPlayerXp(store, p) {
   });
   xp += (store.challengeClaims || []).filter(c => c.player === p).reduce((t,c)=>t+(+c.xp||0),0);
   xp += (store.brainClaims || []).filter(c => c.player === p).reduce((t,c)=>t+(+c.xp||0),0);
-  // Preserve XP earned before the Pinball rate change; new validated scores award 1% XP.
+  // Preserve XP earned before the Pinball rate change; scores from now on award 0.5% XP.
   xp += Math.max(0,Math.floor(+(store.pinballArchivedXP||{})[p]||0));
   const pinballXPResetAt=Number(store.pinballXPResetAt||0);
-  xp += (store.pinballScores || []).filter(g => g.player === p && Number(g.at||0)>=pinballXPResetAt).reduce((t,g)=>t+Math.floor(Math.max(0,+g.score||0)/100),0);
+  const pinballHalfRateFrom=1794404120183;
+  xp += (store.pinballScores || []).filter(g => g.player === p && Number(g.at||0)>=pinballXPResetAt).reduce((t,g)=>t+Math.floor(Math.max(0,+g.score||0)/(Number(g.at||0)>=pinballHalfRateFrom?200:100)),0);
   // Each correctly settled prediction is worth 100 XP.
   xp += Object.values(store.predictionRewards || {}).filter(players => players && players[p] === true).length * 100;
   return xp;
@@ -7609,7 +7610,7 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
           h('button',{className:'btn',onPointerDown:()=>keys.current.right=true,onPointerUp:()=>keys.current.right=false,onPointerLeave:()=>keys.current.right=false,onPointerCancel:()=>keys.current.right=false,style:{flex:1,touchAction:'none'},onContextMenu:e=>e.preventDefault()},'Hold right flipper ▶')
         ),
         result&&h('div',{className:'okbox',style:{marginTop:10}},'Score ',result.score,' · Prize +',result.prize,' chips · Balance ',result.balance),
-        h('p',{className:'small muted'},'Each rebound increases your score multiplier by 2%. When a ball drains, your multiplier is halved but never drops below 1x. Earn XP equal to 1% of your final score, rounded down. Chip return: 5% of your final score (for example, 1,000 points returns 50 chips). Entry fee: 100 chips. Each game lasts 90 seconds and gives you three balls.')
+        h('p',{className:'small muted'},'Each rebound increases your score multiplier by 2%. When a ball drains, your multiplier is halved but never drops below 1x. Earn XP equal to 0.5% of your final score, rounded down. Chip return: 5% of your final score (for example, 1,000 points returns 50 chips). Entry fee: 100 chips. Each game lasts 90 seconds and gives you three balls.')
       ),
       h('div',{className:'panel'},
         h('h2',null,'How to play'),
