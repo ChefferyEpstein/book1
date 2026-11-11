@@ -1670,6 +1670,7 @@ function Nm({
   const card = cardId && CATALOG.find(c => c.id === cardId);
   const prog = PROGRESS_STORE && PROGRESS_STORE.weeks ? playerProgress(PROGRESS_STORE,n) : null;
   const pBadge = prog && prestigeEmblem(prog.prestige);
+  const masterBadge = prog && prog.prestige >= 10 ? prestigeMasterEmblem() : null;
   return /*#__PURE__*/React.createElement("button", {
     type: "button",
     className: "nm-click",
@@ -1683,6 +1684,14 @@ function Nm({
     style: {
       marginRight: 5,
       border: '1px solid var(--brass)',
+      borderRadius: '50%'
+    }
+  }), masterBadge && /*#__PURE__*/React.createElement(Emblem, {
+    e: masterBadge,
+    size: Math.round(size * .9),
+    style: {
+      marginRight: 5,
+      border: '1px solid #C8102E',
       borderRadius: '50%'
     }
   }), p && p.emblem && /*#__PURE__*/React.createElement(Emblem, {
