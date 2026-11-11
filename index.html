@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Book1.9.6</title>
+<title>Book1.9.7</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -11216,7 +11216,7 @@ function Login({
     style: {
       fontSize: 96
     }
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.9.6")), /*#__PURE__*/React.createElement("p", {
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.9.7")), /*#__PURE__*/React.createElement("p", {
     className: "muted"
   }, "Twelve players. Six games. One office. Report to the table."), /*#__PURE__*/React.createElement("div", {
     className: "pinbox"
@@ -11319,7 +11319,7 @@ function App() {
   const bsPending = store && me ? (store.battleships || []).filter(g => (g.status === 'playing' && g.turn === me) || (g.status === 'setup' && g.opponent === me && !g.ready[me])).length : 0;
   const c4Pending = store && me ? (store.connect4 || []).filter(g => (g.status === 'pending' && g.opponent === me) || (g.status === 'playing' && g.turn === me)).length : 0;
   const chessPending = store && me ? (store.chess || []).filter(g => (g.status === 'pending' && g.opponent === me) || (g.status === 'playing' && ((g.white === me ? 'w' : g.black === me ? 'b' : '') === g.turn))).length : 0;
-  useEffect(() => { document.title = (hogPending + bsPending + c4Pending + chessPending > 0 ? '(' + (hogPending + bsPending + c4Pending + chessPending) + ') ' : '') + 'Book1.9.6'; }, [hogPending, bsPending, c4Pending, chessPending]);
+  useEffect(() => { document.title = (hogPending + bsPending + c4Pending + chessPending > 0 ? '(' + (hogPending + bsPending + c4Pending + chessPending) + ') ' : '') + 'Book1.9.7'; }, [hogPending, bsPending, c4Pending, chessPending]);
   const cloudEmpty = !!(store && !store.weeks);
   const persistCred = c => {
     setCred(c);
@@ -11467,7 +11467,7 @@ function App() {
     style: {
       fontSize: 96
     }
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.9.6"));
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.9.7"));
   if (!store) return /*#__PURE__*/React.createElement("div", {
     className: "login"
   }, mark, /*#__PURE__*/React.createElement("p", {
@@ -11669,7 +11669,7 @@ function App() {
     className: "rail"
   }, /*#__PURE__*/React.createElement("div", {
     className: "wordmark"
-  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.9.6")), /*#__PURE__*/React.createElement("div", {
+  }, "BOOK", /*#__PURE__*/React.createElement("span", null, "1.9.7")), /*#__PURE__*/React.createElement("div", {
     className: "decree"
   }, decree), /*#__PURE__*/React.createElement("div", {
     className: "nav"
