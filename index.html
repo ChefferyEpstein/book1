@@ -512,7 +512,7 @@ const {
 } = React;
 const STORE_KEY = 'book1.2-local';
 const CFG = window.BOOK_CONFIG || {};
-const APP_SQL_VERSION = 55; // bump this whenever a new SQL script adds or changes a server function
+const APP_SQL_VERSION = 56; // bump this whenever a new SQL script adds or changes a server function
 const CLOUD = !!(CFG.url && CFG.key);
 const ADMINS = ['Chef', 'Lorcan'];
 const DECREES = ['Abstention is not permitted.', 'The Book sees all results.', 'Ball difference is destiny.', 'The Dictator collects. The Dictator distributes.', 'Report your score. Report it honestly.', 'Twelfth place is a service to the office.', 'The mong off is not optional.', 'Disputes are settled by the regime.'];
@@ -3267,9 +3267,10 @@ function rawPlayerXp(store, p) {
   });
   xp += (store.challengeClaims || []).filter(c => c.player === p).reduce((t,c)=>t+(+c.xp||0),0);
   xp += (store.brainClaims || []).filter(c => c.player === p).reduce((t,c)=>t+(+c.xp||0),0);
-  // Pinball scores are stored only after the server validates the completed game.
-  // Award 0.1% of each recorded score as whole XP, rounding down.
-  xp += (store.pinballScores || []).filter(g => g.player === p).reduce((t,g)=>t+Math.floor(Math.max(0,+g.score||0)/1000),0);
+  // Preserve XP earned before the Pinball rate change; new validated scores award 1% XP.
+  xp += Math.max(0,Math.floor(+(store.pinballArchivedXP||{})[p]||0));
+  const pinballXPResetAt=Number(store.pinballXPResetAt||0);
+  xp += (store.pinballScores || []).filter(g => g.player === p && Number(g.at||0)>=pinballXPResetAt).reduce((t,g)=>t+Math.floor(Math.max(0,+g.score||0)/100),0);
   // Each correctly settled prediction is worth 100 XP.
   xp += Object.values(store.predictionRewards || {}).filter(players => players && players[p] === true).length * 100;
   return xp;
@@ -3376,10 +3377,10 @@ const CHALLENGE_POOL = {
   chesswin2:{id:'chesswin2',name:'Grandmaster in the Making',desc:'Win 2 Chess games this game week.',reward:15000,xp:1800},
   pinplays3:{id:'pinplays3',name:'Arcade Regular',desc:'Play 3 Pinball games this week.',reward:10000,xp:1400},
   pinplays5:{id:'pinplays5',name:'Pinball Devotee',desc:'Play 5 Pinball games this week.',reward:20000,xp:2600},
-  pinscore50000:{id:'pinscore50000',name:'Getting Warm',desc:'Score at least 50,000 in Pinball this week.',reward:10000,xp:1500},
-  pinscore125000:{id:'pinscore125000',name:'Multiball Mayhem',desc:'Score at least 125,000 in Pinball this week.',reward:17500,xp:2500},
-  pinscore200000:{id:'pinscore200000',name:'Table Wizard',desc:'Score at least 200,000 in Pinball this week.',reward:25000,xp:3500},
-  pinscore250000:{id:'pinscore250000',name:'Perfect Storm',desc:'Score 250,000 in Pinball this week.',reward:40000,xp:5000},
+  pinscore50000:{id:'pinscore50000',name:'Getting Warm',desc:'Score at least 1,000 in Pinball this week.',reward:10000,xp:1500},
+  pinscore125000:{id:'pinscore125000',name:'Multiball Mayhem',desc:'Score at least 5,000 in Pinball this week.',reward:17500,xp:2500},
+  pinscore200000:{id:'pinscore200000',name:'Table Wizard',desc:'Score at least 10,000 in Pinball this week.',reward:25000,xp:3500},
+  pinscore250000:{id:'pinscore250000',name:'Perfect Storm',desc:'Score at least 20,000 in Pinball this week.',reward:40000,xp:5000},
   pred3:{id:'pred3',name:'Tipster',desc:'Get 9 predictions correct this game week.',reward:10000,xp:1500},
   pred5:{id:'pred5',name:'Oracle',desc:'Get 15 predictions correct this game week.',reward:20000,xp:3000},
   bokplay1:{id:'bokplay1',name:'First Encounter',desc:'Complete a Bokémong battle this game week.',reward:10000,xp:1500},
@@ -3399,7 +3400,7 @@ function weeklyChallengeProgress(store,p) {
   const bswins=(store.battleships||[]).filter(g=>inWeek(g)&&g.status==='done'&&g.winner===p).length;
   const hogwins=(store.hogDuels||[]).filter(g=>+g.week===+w.n&&g.status==='done'&&g.winner===p).length;
   const chesswins=(store.chess||[]).filter(g=>+g.createdAt>=challengeStart&&g.status==='done'&&g.winner===p).length;
-  const pinball=(store.pinballScores||[]).filter(g=>g.player===p&&+g.week===+w.n);
+  const pinball=(store.pinballScores||[]).filter(g=>g.player===p&&+g.week===+w.n&&Number(g.at||0)>=Number(store.pinballLeaderboardResetAt||0));
   const pinplays=pinball.length, pinbest=pinball.reduce((m,g)=>Math.max(m,+g.score||0),0);
   const predictionWins=(w.fixtures||[]).filter(g=>g.id&&store.predictionRewards&&store.predictionRewards[g.id]&&store.predictionRewards[g.id][p]===true).length;
   const bokBattles=((store.bokemongs||{}).battles||[]).filter(g=>{const completedAt=+(g.completedAt||g.at||0),completed=g.status==='done'||(!g.status&&!!g.winner);return (g.a===p||g.b===p)&&completed&&completedAt>=challengeStart;});
@@ -3417,8 +3418,8 @@ function weeklyChallengeMetric(stats,id) {
     hogwin1:['hogwins',1,'Hog wins'],hogwin2:['hogwins',2,'Hog wins'],
     chesswin1:['chesswins',1,'Chess wins'],chesswin2:['chesswins',2,'Chess wins'],
     pinplays3:['pinplays',3,'Pinball games'],pinplays5:['pinplays',5,'Pinball games'],
-    pinscore50000:['pinbest',50000,'best Pinball score'],pinscore125000:['pinbest',125000,'best Pinball score'],
-    pinscore200000:['pinbest',200000,'best Pinball score'],pinscore250000:['pinbest',250000,'best Pinball score'],
+    pinscore50000:['pinbest',1000,'best Pinball score'],pinscore125000:['pinbest',5000,'best Pinball score'],
+    pinscore200000:['pinbest',10000,'best Pinball score'],pinscore250000:['pinbest',20000,'best Pinball score'],
     pred3:['predictionWins',9,'correct predictions'],pred5:['predictionWins',15,'correct predictions'],
     bokplay1:['bokplays',1,'Bokémong battles'],bokwin1:['bokwins',1,'Bokémong wins'],
     spins2:['spins',20,'casino spins'],spins5:['spins',50,'casino spins']
@@ -7348,7 +7349,7 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
       setScore(0);scoreRef.current=0;setBoost(1);setSeconds(90);setBalls(3);
       keys.current={left:false,right:false};
       simRef.current={ball:{x:360,y:620,vx:0,vy:0,launched:false},score:0,scoreEvents:[],balls:3,secretDropUsed:false,
-        bumpTimes:Array(5).fill(0),targetTimes:[0,0],bounceCount:0,lastFrame:0,drainAt:0,startedAt:Date.now(),pendingFinish:false,flipperScoreAt:0,slingScoreAt:0,flipperContactLock:false,slingContactLock:false,prevFlippers:{left:{x:168,y:622},right:{x:187,y:622}}};
+        bumpTimes:Array(5).fill(0),targetTimes:[0,0],multiplier:1,lastFrame:0,drainAt:0,startedAt:Date.now(),pendingFinish:false,flipperScoreAt:0,slingScoreAt:0,flipperContactLock:false,slingContactLock:false,prevFlippers:{left:{x:168,y:622},right:{x:187,y:622}}};
       setActive(true);await refresh();
     }catch(e){toast(e.message||'Could not start Pinball.');}
     finally{setBusy(false);}
@@ -7358,10 +7359,10 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
     if(!active||!s||s.ball.launched||s.balls<=0||done.current)return;
     s.ball.launched=true;s.ball.vx=0;s.ball.vy=-14;
   };
-  const registerBounce=()=>{const s=simRef.current;if(!s)return;s.bounceCount=(s.bounceCount||0)+1;setBoost(1+s.bounceCount*.01);};
+  const registerBounce=()=>{const s=simRef.current;if(!s)return;s.multiplier=Math.max(1,(s.multiplier||1)+.02);setBoost(s.multiplier);s.scoreEvents=s.scoreEvents||[];s.scoreEvents.push({type:'bounce',index:0,t:Math.max(0,Math.min(90000,Date.now()-s.startedAt))});};
   const addPoints=(n,type,index=0)=>{
     const s=simRef.current;if(!s)return;
-    const multiplier=1+(s.bounceCount||0)*.01;
+    const multiplier=Math.max(1,s.multiplier||1);
     s.scoreEvents=s.scoreEvents||[];
     s.scoreEvents.push({type,index,t:Math.max(0,Math.min(90000,Date.now()-s.startedAt))});
     s.score+=Math.round(n*multiplier);
@@ -7381,6 +7382,30 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
       ctx.setTransform(dpr,0,0,dpr,0,0);
     };
     resize();
+    const hitMovingFlipper=(ball,prevA,prevB,curA,curB,active)=>{
+      const bx0=ball.prevX??ball.x,by0=ball.prevY??ball.y,bx1=ball.x,by1=ball.y;
+      let hit=null;
+      // Sweep the ball and the rotating blade together, rather than testing a few static blade poses.
+      for(let i=0;i<=20;i++){
+        const q=i/20,bx=bx0+(bx1-bx0)*q,by=by0+(by1-by0)*q;
+        const ax=prevA.x+(curA.x-prevA.x)*q,ay=prevA.y+(curA.y-prevA.y)*q;
+        const ex=prevB.x+(curB.x-prevB.x)*q,ey=prevB.y+(curB.y-prevB.y)*q;
+        const dx=ex-ax,dy=ey-ay,len2=dx*dx+dy*dy;
+        const u=len2?Math.max(0,Math.min(1,((bx-ax)*dx+(by-ay)*dy)/len2)):0;
+        const px=ax+u*dx,py=ay+u*dy,nx=bx-px,ny=by-py,dist=Math.hypot(nx,ny);
+        if(dist<R+5.25){hit={q,u,px,py,nx,ny,dist};break;}
+      }
+      if(!hit)return false;
+      const {u,px,py,nx,ny,dist}=hit,ux=dist?nx/dist:0,uy=dist?ny/dist:-1;
+      ball.x=px+ux*(R+6.25);ball.y=py+uy*(R+6.25);
+      // Transfer the blade's endpoint motion into the ball's relative velocity.
+      const bladeVx=(curA.x-prevA.x)*(1-u)+(curB.x-prevB.x)*u;
+      const bladeVy=(curA.y-prevA.y)*(1-u)+(curB.y-prevB.y)*u;
+      const rvx=ball.vx-bladeVx,rvy=ball.vy-bladeVy,dot=rvx*ux+rvy*uy;
+      if(dot<0){ball.vx=bladeVx+rvx-1.55*dot*ux;ball.vy=bladeVy+rvy-1.55*dot*uy;}
+      if(active){ball.vy=Math.min(ball.vy,-15.5);ball.vx+=curB.x<curA.x?1.8:-1.8;}
+      return true;
+    };
     const hitSegment=(ball,x1,y1,x2,y2,boost,hitWidth=22,restitution=2.05)=>{
       const dx=x2-x1,dy=y2-y1,len2=dx*dx+dy*dy;
       // Sweep the ball's movement between frames so a fast-moving ball cannot tunnel through a flipper.
@@ -7452,12 +7477,8 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
         const rightMoving=keys.current.right&&prevR.y>ry;
         // Test both the current blade and the blade's swept path. This catches balls crossed
         // by the flipper itself, not just balls already overlapping the final blade position.
-        const leftFlipperHit=hitSegment(b,118,600,lx,ly,0,10.5,0.08)||
-          hitSegment(b,118,600,prevL.x,prevL.y,0,10.5,0.08)||
-          (leftMoving&&hitSegment(b,prevL.x,prevL.y,lx,ly,0,10.5,0.08));
-        const rightFlipperHit=hitSegment(b,237,600,rx,ry,0,10.5,0.08)||
-          hitSegment(b,237,600,prevR.x,prevR.y,0,10.5,0.08)||
-          (rightMoving&&hitSegment(b,prevR.x,prevR.y,rx,ry,0,10.5,0.08));
+        const leftFlipperHit=hitMovingFlipper(b,{x:118,y:600},prevL,{x:118,y:600},{x:lx,y:ly},keys.current.left);
+        const rightFlipperHit=hitMovingFlipper(b,{x:237,y:600},prevR,{x:237,y:600},{x:rx,y:ry},keys.current.right);
         if(!leftFlipperHit&&!rightFlipperHit)s.flipperContactLock=false;
         if((leftFlipperHit||rightFlipperHit)&&!s.flipperContactLock&&now-(s.flipperScoreAt||0)>180){
           s.flipperContactLock=true;s.flipperScoreAt=now;
@@ -7472,7 +7493,7 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
         // A narrow centre drain gives the player a chance to save the ball with either flipper.
         if(b.y>715){
           s.balls=Math.max(0,s.balls-1);setBalls(s.balls);
-          s.bounceCount=((1+(s.bounceCount||0)*.01)/2-1)*100;setBoost(1+s.bounceCount*.01);
+          s.multiplier=Math.max(1,(s.multiplier||1)/2);setBoost(s.multiplier);s.scoreEvents.push({type:'drain',index:0,t:Math.max(0,Math.min(90000,Date.now()-s.startedAt))});
           b.launched=false;b.vx=0;b.vy=0;
           if(s.balls===0){
             if(Date.now()-s.startedAt>=15000)finishRef.current();
