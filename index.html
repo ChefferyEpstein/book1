@@ -4636,12 +4636,7 @@ function BattleshipsPage({
       stake,
       by: me
     })
-  }, "Challenge ", target, stake > 0 ? ' for ' + stake : '')), /*#__PURE__*/React.createElement(MinigameIntelligence, {
-    store: store,
-    me: me,
-    kind: "battleships",
-    title: "Battleships"
-  }), pending.length > 0 && /*#__PURE__*/React.createElement("div", {
+  }, "Challenge ", target, stake > 0 ? ' for ' + stake : '')), pending.length > 0 && /*#__PURE__*/React.createElement("div", {
     className: "panel",
     style: {
       marginBottom: 18
@@ -4703,7 +4698,12 @@ function BattleshipsPage({
       className: 'btn sm' + (g.turn === me ? '' : ' ghost'),
       onClick: () => setSelected(g.id)
     }, g.turn === me ? 'Your move' : 'View'));
-  })), done.length > 0 && /*#__PURE__*/React.createElement("div", {
+  })) , /*#__PURE__*/React.createElement(MinigameIntelligence, {
+    store: store,
+    me: me,
+    kind: "battleships",
+    title: "Battleships"
+  }), done.length > 0 && /*#__PURE__*/React.createElement("div", {
     className: "panel"
   }, /*#__PURE__*/React.createElement("h2", null, "Recent games"), done.map(g => {
     const other = g.challenger === me ? g.opponent : g.challenger;
