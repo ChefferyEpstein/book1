@@ -7559,7 +7559,8 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
   },[active]);
   // One aggregated leaderboard row per player, with their personal high and low.
   // Normalise names so casing/whitespace differences cannot create duplicate rows.
-  const rows=Object.values((store.pinballScores||[]).reduce((a,x)=>{
+  const leaderboardResetAt=Number(store.pinballLeaderboardResetAt||0);
+  const rows=Object.values((store.pinballScores||[]).filter(x=>Number(x.at||0)>=leaderboardResetAt).reduce((a,x)=>{
     const name=String(x.player||'').trim(), score=Number(x.score);
     if(!name||!Number.isFinite(score))return a;
     const key=name.toLocaleLowerCase();
