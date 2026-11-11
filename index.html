@@ -7349,7 +7349,7 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
       setScore(0);scoreRef.current=0;setBoost(1);setSeconds(90);setBalls(3);
       keys.current={left:false,right:false};
       simRef.current={ball:{x:360,y:620,vx:0,vy:0,launched:false},score:0,scoreEvents:[],balls:3,secretDropUsed:false,
-        bumpTimes:Array(5).fill(0),targetTimes:[0,0],multiplier:1,lastFrame:0,drainAt:0,startedAt:Date.now(),pendingFinish:false,flipperScoreAt:0,slingScoreAt:0,flipperContactLock:false,slingContactLock:false,prevFlippers:{left:{x:168,y:622},right:{x:187,y:622}}};
+        bumpTimes:Array(5).fill(0),targetTimes:[0,0],multiplier:1,lastBounceAt:0,lastFrame:0,drainAt:0,startedAt:Date.now(),pendingFinish:false,flipperScoreAt:0,slingScoreAt:0,flipperContactLock:false,slingContactLock:false,prevFlippers:{left:{x:168,y:622},right:{x:187,y:622}}};
       setActive(true);await refresh();
     }catch(e){toast(e.message||'Could not start Pinball.');}
     finally{setBusy(false);}
@@ -7359,7 +7359,7 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
     if(!active||!s||s.ball.launched||s.balls<=0||done.current)return;
     s.ball.launched=true;s.ball.vx=0;s.ball.vy=-14;
   };
-  const registerBounce=()=>{const s=simRef.current;if(!s)return;s.multiplier=Math.max(1,(s.multiplier||1)+.02);setBoost(s.multiplier);s.scoreEvents=s.scoreEvents||[];s.scoreEvents.push({type:'bounce',index:0,t:Math.max(0,Math.min(90000,Date.now()-s.startedAt))});};
+  const registerBounce=()=>{const s=simRef.current;if(!s)return;const now=Date.now();if(now-(s.lastBounceAt||0)<30)return;s.lastBounceAt=now;s.multiplier=Math.max(1,(s.multiplier||1)+.02);setBoost(s.multiplier);s.scoreEvents=s.scoreEvents||[];s.scoreEvents.push({type:'bounce',index:0,t:Math.max(0,Math.min(90000,now-s.startedAt))});};
   const addPoints=(n,type,index=0)=>{
     const s=simRef.current;if(!s)return;
     const multiplier=Math.max(1,s.multiplier||1);
