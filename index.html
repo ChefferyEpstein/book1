@@ -4120,7 +4120,7 @@ function CasinoPageInner({
     className: "page-title"
   }, /*#__PURE__*/React.createElement("h1", null, "The Casino"), /*#__PURE__*/React.createElement("span", {
     className: "sub"
-  }, "Virtual chips only. Never real money, never touches the Master sheet. Max bet ", cap.toLocaleString(), " chips."), /*#__PURE__*/React.createElement("p", { className: "small muted", style: { marginTop: 4 } }, "Pinball also earns XP: 1% of your score, rounded down.")), /*#__PURE__*/React.createElement("div", {
+  }, "Virtual chips only. Never real money, never touches the Master sheet. Max bet ", cap.toLocaleString(), " chips.")), /*#__PURE__*/React.createElement("div", {
     className: "grid g2"
   }, /*#__PURE__*/React.createElement("div", null, !unlocked ? /*#__PURE__*/React.createElement(CasinoPaywall, {
     cost: unlockCost,
@@ -7609,7 +7609,7 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
           h('button',{className:'btn',onPointerDown:()=>keys.current.right=true,onPointerUp:()=>keys.current.right=false,onPointerLeave:()=>keys.current.right=false,onPointerCancel:()=>keys.current.right=false,style:{flex:1,touchAction:'none'},onContextMenu:e=>e.preventDefault()},'Hold right flipper ▶')
         ),
         result&&h('div',{className:'okbox',style:{marginTop:10}},'Score ',result.score,' · Prize +',result.prize,' chips · Balance ',result.balance),
-        h('p',{className:'small muted'},'Score multiplier increases by 1% with every rebound. Chip return: 5% of your final score (for example, 1,000 points returns 50 chips). Entry fee: 100 chips.')
+        h('p',{className:'small muted'},'Each rebound increases your score multiplier by 2%. When a ball drains, your multiplier is halved but never drops below 1x. Earn XP equal to 1% of your final score, rounded down. Chip return: 5% of your final score (for example, 1,000 points returns 50 chips). Entry fee: 100 chips. Each game lasts 90 seconds and gives you three balls.')
       ),
       h('div',{className:'panel'},
         h('h2',null,'How to play'),
