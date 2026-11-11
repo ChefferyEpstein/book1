@@ -7348,7 +7348,7 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
       setScore(0);scoreRef.current=0;setBoost(1);setSeconds(90);setBalls(3);
       keys.current={left:false,right:false};
       simRef.current={ball:{x:360,y:620,vx:0,vy:0,launched:false},score:0,balls:3,secretDropUsed:false,
-        bumpTimes:Array(5).fill(0),targetTimes:[0,0],bounceCount:0,lastFrame:0,drainAt:0,startedAt:Date.now(),pendingFinish:false,flipperScoreAt:0,slingScoreAt:0,prevFlippers:{left:{x:168,y:622},right:{x:187,y:622}}};
+        bumpTimes:Array(5).fill(0),targetTimes:[0,0],bounceCount:0,lastFrame:0,drainAt:0,startedAt:Date.now(),pendingFinish:false,flipperScoreAt:0,slingScoreAt:0,flipperContactLock:false,slingContactLock:false,prevFlippers:{left:{x:168,y:622},right:{x:187,y:622}}};
       setActive(true);await refresh();
     }catch(e){toast(e.message||'Could not start Pinball.');}
     finally{setBusy(false);}
@@ -7431,14 +7431,18 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
         });
         targets.forEach((p,i)=>{
           const d=Math.hypot(b.x-p.x,b.y-p.y);
-          if(d<p.r+R){
+          if(d<p.r+R&&now-(s.targetTimes[i]||0)>300){
             const nx=(b.x-p.x)/(d||1),ny=(b.y-p.y)/(d||1);
             b.x=p.x+nx*(p.r+R+1);b.y=p.y+ny*(p.r+R+1);
             b.vx+=nx*3;b.vy-=4;s.targetTimes[i]=now;registerBounce();addPoints(250);
           }
         });
-        // Slingshot faces kick the ball back into the playfield.
-        if(hitSegment(b,48,510,100,555,2.7)||hitSegment(b,265,555,315,510,2.7)){s.slingScoreAt=now;registerBounce();addPoints(25);}
+        // Slingshots award once per contact, not once per animation frame.
+        const slingHit=hitSegment(b,48,510,100,555,2.7)||hitSegment(b,265,555,315,510,2.7);
+        if(!slingHit)s.slingContactLock=false;
+        if(slingHit&&!s.slingContactLock&&now-(s.slingScoreAt||0)>250){
+          s.slingContactLock=true;s.slingScoreAt=now;registerBounce();addPoints(25);
+        }
         const lx=168,ly=keys.current.left?545:622;
         const rx=187,ry=keys.current.right?545:622;
         const prevL=s.prevFlippers?.left||{x:lx,y:ly},prevR=s.prevFlippers?.right||{x:rx,y:ry};
@@ -7452,13 +7456,15 @@ function PinballPage({store,me,cred,api,refresh,toast}) {
         const rightFlipperHit=hitSegment(b,237,600,rx,ry,0,10.5,0.08)||
           hitSegment(b,237,600,prevR.x,prevR.y,0,10.5,0.08)||
           (rightMoving&&hitSegment(b,prevR.x,prevR.y,rx,ry,0,10.5,0.08));
-        if(leftFlipperHit||rightFlipperHit){
+        if(!leftFlipperHit&&!rightFlipperHit)s.flipperContactLock=false;
+        if((leftFlipperHit||rightFlipperHit)&&!s.flipperContactLock&&now-(s.flipperScoreAt||0)>180){
+          s.flipperContactLock=true;s.flipperScoreAt=now;
           // A moving/held flipper gives a decisive upward impulse; a resting blade only cushions.
           if(now>(s.secretDropNoKickUntil||0)){
             if(leftFlipperHit&&keys.current.left){b.vy=Math.min(b.vy,-15.5);b.vx-=1.8;}
             if(rightFlipperHit&&keys.current.right){b.vy=Math.min(b.vy,-15.5);b.vx+=1.8;}
           }
-          s.flipperScoreAt=now;registerBounce();addPoints(10);
+          registerBounce();addPoints(10);
         }
         s.prevFlippers={left:{x:lx,y:ly},right:{x:rx,y:ry}};
         // A narrow centre drain gives the player a chance to save the ball with either flipper.
