@@ -127,6 +127,14 @@ table.plain tr.me td{background:rgba(200,16,46,.1)}
 .chip.on{border-color:var(--blood);background:rgba(200,16,46,.15)}
 .nm-click{cursor:pointer;background:none;border:0;padding:0;margin:0;color:inherit;font:inherit;text-align:inherit;display:inline-flex;align-items:center}
 .nm-click:hover{text-decoration:underline}
+.nm-colour{color:var(--player-name-color,var(--chalk))}
+.felt .nm-colour{color:var(--chalk)!important}
+.app.prestige-master{--black:#050609;--coal:#11151d;--felt:#9E0B1E;--felt-deep:#6B0512;--blood:#D6B45C;--bone:#E5EAF2;--chalk:#FFFFFF;--ash:#A9B4C5;--smoke:#303B4C;--brass:#D8B65C;--silver:#C9D7EA;--bronze:#B87333;--ok:#63C58A}
+.app.prestige-master .rail{border-right-color:#D8B65C}
+.app.prestige-master .panel{border-color:#59677D;box-shadow:inset 0 0 0 1px rgba(216,182,92,.16)}
+.app.prestige-master .btn:not(.ghost){background:linear-gradient(110deg,#B28A35,#E6D38A);color:#10141B}
+.app.prestige-master .nav button.on{border-left-color:#D8B65C;background:rgba(216,182,92,.12)}
+.app.prestige-master .wordmark span{color:#D8B65C}
 .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;z-index:60;padding:20px}
 .modal-box{background:var(--coal);border:2px solid var(--felt);padding:26px 22px 22px;max-width:360px;width:100%;text-align:center;position:relative}
 .modal-box .close{position:absolute;top:6px;right:10px;background:none;border:0;color:var(--ash);font-size:26px;cursor:pointer;line-height:1;padding:4px}
@@ -512,7 +520,7 @@ const {
 } = React;
 const STORE_KEY = 'book1.2-local';
 const CFG = window.BOOK_CONFIG || {};
-const APP_SQL_VERSION = 59; // bump this whenever a new SQL script adds or changes a server function
+const APP_SQL_VERSION = 60; // bump this whenever a new SQL script adds or changes a server function
 const CLOUD = !!(CFG.url && CFG.key);
 const ADMINS = ['Chef', 'Lorcan'];
 const DECREES = ['Abstention is not permitted.', 'The Book sees all results.', 'Ball difference is destiny.', 'The Dictator collects. The Dictator distributes.', 'Report your score. Report it honestly.', 'Twelfth place is a service to the office.', 'The mong off is not optional.', 'Disputes are settled by the regime.'];
@@ -1674,7 +1682,10 @@ function Nm({
       opacity: .75,
       fontWeight: 700
     }
-  }, "[", p.tag, "] "), n, prog && /*#__PURE__*/React.createElement("span", {
+  }, "[", p.tag, "] "), /*#__PURE__*/React.createElement("span", {
+    className: "nm-colour",
+    style: { '--player-name-color': p && p.nameColor || '#FFFFFF' }
+  }, n), prog && /*#__PURE__*/React.createElement("span", {
     className: "small muted",
     style: {
       marginLeft: 5,
@@ -1689,6 +1700,10 @@ function EmblemStudio({
 }) {
   const p = PROF[me] || {};
   const [tag, setTag] = useState(p.tag || '');
+  const [nameColor, setNameColor] = useState(p.nameColor || '#FFFFFF');
+  const [masterTheme, setMasterTheme] = useState(!!p.prestigeMasterTheme);
+  const currentPrestige = PROGRESS_STORE ? playerProgress(PROGRESS_STORE,me).prestige : 0;
+  const prestigeMasterUnlocked = currentPrestige >= 10;
   const [e, setE] = useState(p.emblem || {
     bg: '#000000',
     shape: 'circle',
@@ -1772,7 +1787,9 @@ function EmblemStudio({
       t: 'profile',
       p: me,
       tag: tag.toUpperCase(),
-      emblem: e
+      emblem: e,
+      nameColor,
+      prestigeMasterTheme: prestigeMasterUnlocked && masterTheme
     });
     toast('Saved. The table knows.');
   };
@@ -1795,6 +1812,15 @@ function EmblemStudio({
       marginTop: 18
     }
   }, /*#__PURE__*/React.createElement("h2", null, "Identity"), /*#__PURE__*/React.createElement("div", {
+    style: { marginBottom: 16, padding: 12, background: 'rgba(255,255,255,.03)', border: '1px solid var(--smoke)' }
+  }, /*#__PURE__*/React.createElement("label", { className: "f" }, "Your name colour (shown throughout Book1, except the main league table)"), /*#__PURE__*/React.createElement("div", { className: "row" }, /*#__PURE__*/React.createElement("input", {
+    type: "color", value: nameColor, onChange: ev => setNameColor(ev.target.value),
+    style: { width: 58, height: 38, padding: 2, cursor: 'pointer' }
+  }), /*#__PURE__*/React.createElement("span", { style: { color: nameColor, fontWeight: 700 } }, me), /*#__PURE__*/React.createElement("button", {
+    className: "btn ghost sm", onClick: () => setNameColor('#FFFFFF')
+  }, "Reset to white")), /*#__PURE__*/React.createElement("div", { style: { marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--smoke)' } }, prestigeMasterUnlocked ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("label", { className: "row", style: { cursor: 'pointer', gap: 9 } }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox", checked: masterTheme, onChange: ev => setMasterTheme(ev.target.checked), style: { width: 18, minWidth: 18 }
+  }), /*#__PURE__*/React.createElement("b", null, "Prestige Master — gold / diamond theme")), /*#__PURE__*/React.createElement("p", { className: "small muted", style: { margin: '5px 0 0' } }, "Unlocked permanently at Prestige 10. Switch between the standard black theme and the Prestige Master finish.")) : /*#__PURE__*/React.createElement("p", { className: "small muted", style: { margin: 0 } }, "Secret reward: Prestige Master unlocks at Prestige 10."))), /*#__PURE__*/React.createElement("div", {
     className: "grid g2"
   }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
     className: "f"
@@ -11057,7 +11083,9 @@ function reduce(store, a) {
         s.profiles = s.profiles || {};
         s.profiles[a.p] = {
           tag: String(a.tag || '').slice(0, 5),
-          emblem: a.emblem || null
+          emblem: a.emblem || null,
+          nameColor: /^#[0-9A-Fa-f]{6}$/.test(a.nameColor || '') ? a.nameColor.toUpperCase() : '#FFFFFF',
+          prestigeMasterTheme: playerProgress(s,a.p).prestige >= 10 && !!a.prestigeMasterTheme
         };
         log(a.p + ' updated their identity');
         break;
@@ -11613,10 +11641,12 @@ function App() {
     className: (tab === k ? 'on' : '') + (k === 'chat' && chatUnread > 0 ? ' unread' : '') + (k === 'hogs' && hogPending > 0 ? ' unread' : '') + (k === 'battleships' && bsPending > 0 ? ' unread' : '') + (k === 'connect4' && c4Pending > 0 ? ' unread' : '') + (k === 'chess' && chessPending > 0 ? ' unread' : ''),
     onClick: () => setTab(k)
   }, l, k === 'regime' && pending > 0 ? ' (' + pending + ')' : '', k === 'chat' && chatUnread > 0 ? ' (' + chatUnread + (chatMention ? ' @' : '') + ')' : k === 'hogs' && hogPending > 0 ? ' (' + hogPending + ')' : k === 'battleships' && bsPending > 0 ? ' (' + bsPending + ')' : k === 'connect4' && c4Pending > 0 ? ' (' + c4Pending + ')' : k === 'chess' && chessPending > 0 ? ' (' + chessPending + ')' : ''));
+  const ownProfile = me && store && store.profiles && store.profiles[me] || {};
+  const prestigeMasterActive = !!(me && playerProgress(store,me).prestige >= 10 && ownProfile.prestigeMasterTheme);
   return /*#__PURE__*/React.createElement(EmblemCtx.Provider, {
     value: setFocus
   }, /*#__PURE__*/React.createElement("div", {
-    className: "app"
+    className: "app" + (prestigeMasterActive ? " prestige-master" : "")
   }, /*#__PURE__*/React.createElement("aside", {
     className: "rail"
   }, /*#__PURE__*/React.createElement("div", {
