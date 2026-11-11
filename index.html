@@ -533,7 +533,7 @@ const {
 } = React;
 const STORE_KEY = 'book1.2-local';
 const CFG = window.BOOK_CONFIG || {};
-const APP_SQL_VERSION = 61; // bump this whenever a new SQL script adds or changes a server function
+const APP_SQL_VERSION = 62; // bump this whenever a new SQL script adds or changes a server function
 const CLOUD = !!(CFG.url && CFG.key);
 const ADMINS = ['Chef', 'Lorcan'];
 const DECREES = ['Abstention is not permitted.', 'The Book sees all results.', 'Ball difference is destiny.', 'The Dictator collects. The Dictator distributes.', 'Report your score. Report it honestly.', 'Twelfth place is a service to the office.', 'The mong off is not optional.', 'Disputes are settled by the regime.'];
@@ -1639,18 +1639,25 @@ function Emblem({
   });
 }
 function prestigeEmblem(level) {
-  const p=Math.max(0,+level||0);
+  const p=Math.max(0,Math.min(10,+level||0));
   if(!p) return null;
-  const tier=p>=10?'prestigeMaster':p>=5?'red':p===4?'diamond':p===3?'gold':p===2?'silver':'bronze';
-  const cfg={
-    bronze:{bg:'#2A2626',c:'#C9824B',g:'star'},
-    silver:{bg:'#20242A',c:'#D7DCE2',g:'shield'},
-    gold:{bg:'#0A0A0A',c:'#C9A227',g:'crown'},
-    diamond:{bg:'#101820',c:'#DCE8F5',g:'diamond'},
-    red:{bg:'#2B0508',c:'#EDE6D6',g:'crown'},
-    prestigeMaster:{bg:'#111111',c:'#D6A928',g:'prestigeMasterBall'}
-  }[tier];
+  const tiers={
+    1:{bg:'#2A2626',c:'#C9824B',g:'star'},
+    2:{bg:'#20242A',c:'#D7DCE2',g:'shield'},
+    3:{bg:'#0A0A0A',c:'#C9A227',g:'crown'},
+    4:{bg:'#101820',c:'#DCE8F5',g:'diamond'},
+    5:{bg:'#2B0508',c:'#F04B5D',g:'flame'},
+    6:{bg:'#101C35',c:'#55A8FF',g:'bolt'},
+    7:{bg:'#24152F',c:'#C58AE8',g:'skull'},
+    8:{bg:'#10291F',c:'#65D69A',g:'hexagon'},
+    9:{bg:'#292A35',c:'#E6E9F0',g:'crescent'},
+    10:{bg:'#080808',c:'#E2B94F',g:'eightball'}
+  };
+  const cfg=tiers[p];
   return {bg:cfg.bg,shape:'shield',layers:[{g:cfg.g,c:cfg.c,x:0,y:-4,s:.72,r:0}]};
+}
+function prestigeMasterEmblem() {
+  return {bg:'#111111',shape:'shield',layers:[{g:'prestigeMasterBall',c:'#D6A928',x:0,y:-4,s:.72,r:0}]};
 }
 function Nm({
   n,
@@ -10690,10 +10697,11 @@ function reduce(store, a) {
     case 'prestige':
       {
         const p=playerProgress(s,a.by);
+        if(p.prestige>=10) throw new Error('Prestige Master is the final rank. There are no further prestiges.');
         if(!p.canPrestige) throw new Error('Reach level 25 first.');
         s.progression=s.progression||{};
-        s.progression[a.by]={prestige:p.prestige+1,xpOffset:p.raw,at:Date.now()};
-        log(a.by+' prestiged to P'+(p.prestige+1));
+        s.progression[a.by]={prestige:Math.min(10,p.prestige+1),xpOffset:p.raw,at:Date.now()};
+        log(a.by+' prestiged to P'+Math.min(10,p.prestige+1));
         break;
       }
     case 'fantasyPick':
