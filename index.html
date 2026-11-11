@@ -129,20 +129,23 @@ table.plain tr.me td{background:rgba(200,16,46,.1)}
 .nm-click:hover{text-decoration:underline}
 .nm-colour{color:var(--player-name-color,var(--chalk))}
 .felt .nm-colour{color:var(--chalk)!important}
-.app.prestige-master{--black:#050609;--coal:#111318;--felt:#080A0D;--felt-deep:#050609;--blood:#D6B45C;--bone:#E5EAF2;--chalk:#FFFFFF;--ash:#A9B4C5;--smoke:#30343D;--brass:#D8B65C;--silver:#C9D7EA;--bronze:#B87333;--ok:#63C58A}
-.app.prestige-master .rail{border-right-color:#8F7840;box-shadow:inset -1px 0 0 rgba(216,182,92,.18)}
-.app.prestige-master .panel{border-color:#75633A;box-shadow:inset 0 0 0 1px rgba(216,182,92,.10),0 0 18px rgba(216,182,92,.035);background-image:linear-gradient(135deg,transparent 0 94%,rgba(216,182,92,.09) 94.3% 94.7%,transparent 95%),linear-gradient(315deg,transparent 0 96%,rgba(201,215,234,.08) 96.2% 96.6%,transparent 97%)}
-.app.prestige-master .btn:not(.ghost){background:rgba(255,255,255,.025);color:var(--bone);border:1px solid #A88B48;box-shadow:inset 0 0 0 1px rgba(216,182,92,.12),0 0 9px rgba(216,182,92,.06)}
-.app.prestige-master .btn:not(.ghost):hover{border-color:#E2C56F;box-shadow:inset 0 0 0 1px rgba(216,182,92,.25),0 0 14px rgba(216,182,92,.12)}
-.app.prestige-master .nav button.on{border-left:2px solid #D8B65C;background:rgba(216,182,92,.045);color:#E5D3A0}
-.app.prestige-master .wordmark span{color:#D8B65C;text-shadow:0 0 9px rgba(216,182,92,.2)}
-.app.prestige-master .panel h2,.app.prestige-master .panel h3{color:#D8C17D}
+/* Prestige Master changes the trim only: retain the original typography, layout and surfaces. */
+.app.prestige-master{--brass:#D8B65C;--silver:#C9D7EA}
+.app.prestige-master,.app.prestige-master *{color:#FFFFFF}
+.app.prestige-master .rail{border-right-color:#9C8958;box-shadow:inset -1px 0 0 rgba(216,182,92,.16)}
+.app.prestige-master .panel{border:1px solid transparent;background-image:linear-gradient(var(--coal),var(--coal)),repeating-linear-gradient(135deg,#D8B65C 0 2px,#C9D7EA 2px 4px,#30343D 4px 6px);background-origin:border-box;background-clip:padding-box,border-box;box-shadow:inset 0 0 0 1px rgba(201,215,234,.10)}
+.app.prestige-master .btn{color:#FFFFFF!important;border:1px solid #B99B53;box-shadow:inset 0 0 0 1px rgba(201,215,234,.24),0 0 0 1px rgba(216,182,92,.18),0 0 8px rgba(201,215,234,.08);outline:1px solid rgba(201,215,234,.32);outline-offset:2px}
+.app.prestige-master .btn:hover{border-color:#E6D28B;box-shadow:inset 0 0 0 1px rgba(201,215,234,.38),0 0 0 1px rgba(216,182,92,.32),0 0 12px rgba(201,215,234,.14)}
+.app.prestige-master .nav button.on{border-left:2px solid #D8B65C;background:rgba(216,182,92,.035);color:#FFFFFF}
+.app.prestige-master .wordmark span{color:#FFFFFF;text-shadow:0 0 7px rgba(201,215,234,.18)}
+.app.prestige-master .panel h2,.app.prestige-master .panel h3{color:#FFFFFF}
+.app.prestige-master .panel input:focus,.app.prestige-master .panel select:focus,.app.prestige-master .panel textarea:focus{outline:1px solid #D8B65C;outline-offset:2px}
 .prestige-master-modal{position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(0,0,0,.84);backdrop-filter:blur(7px)}
-.prestige-master-card{position:relative;overflow:hidden;width:min(560px,100%);padding:34px 30px 28px;text-align:center;background:linear-gradient(145deg,#101216,#07080B 58%,#11141A);border:1px solid #B9974D;box-shadow:0 0 0 1px rgba(201,215,234,.18),0 0 45px rgba(185,151,77,.16);color:#F0F1F3}
+.prestige-master-card{position:relative;overflow:hidden;width:min(560px,100%);padding:34px 30px 28px;text-align:center;background:linear-gradient(145deg,#101216,#07080B 58%,#11141A);border:1px solid #B9974D;box-shadow:0 0 0 1px rgba(201,215,234,.18),0 0 45px rgba(185,151,77,.16);color:#FFFFFF}
 .prestige-master-card:before,.prestige-master-card:after{content:"";position:absolute;pointer-events:none;width:150px;height:150px;opacity:.55;background:repeating-linear-gradient(135deg,transparent 0 13px,rgba(201,215,234,.28) 14px 16px,transparent 17px 28px);clip-path:polygon(0 0,100% 0,0 100%)}
 .prestige-master-card:before{top:0;left:0}.prestige-master-card:after{bottom:0;right:0;transform:rotate(180deg)}
 .prestige-master-card .pm-crown{font-size:54px;color:#D9B95E;text-shadow:0 0 22px rgba(216,182,92,.3)}
-.prestige-master-card h2{margin:10px 0;color:#E2C875;letter-spacing:.11em;text-transform:uppercase}
+.prestige-master-card h2{margin:10px 0;color:#FFFFFF;letter-spacing:.11em;text-transform:uppercase}
 .prestige-master-card .pm-rule{height:1px;margin:18px auto;background:linear-gradient(90deg,transparent,#D8B65C,#D6E0EF,transparent);max-width:330px}
 .prestige-master-card .btn{min-width:150px;margin-top:14px}
 .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;z-index:60;padding:20px}
