@@ -10122,12 +10122,69 @@ function reduce(store, a) {
         const g = ctx.g;
         if (!g || !ctx.w || !ctx.w.fixtures.includes(g)) throw new Error('Only a gameweek league score can be cleared here.');
         if (!played(g)) throw new Error('That fixture does not have a score to remove.');
-        const hasSettledBets = (s.bets || []).some(b => b.status !== 'open' && (b.game === g.id || (b.legs || []).some(l => l.game === g.id)));
-        const hasSettledScoreBets = (s.scoreBets || []).some(b => b.game === g.id && b.status !== 'open');
-        const hasPredictionSettlement = !!(s.predictionRewards && s.predictionRewards[g.id] && Object.keys(s.predictionRewards[g.id]).length);
-        if (hasSettledBets || hasSettledScoreBets || hasPredictionSettlement) throw new Error('This result has already settled bets or prediction rewards. Ask the regime to correct it so payouts can be reconciled safely.');
+
+        // Reverse settlements that depended on this fixture before removing its result.
+        // The original stake remains deducted: reopening a bet puts it back in play.
+        s.chips = s.chips || {};
+        let reopenedBets = 0, reversedPayouts = 0;
+        (s.bets || []).forEach(b => {
+          if (b.legs) {
+            const leg = b.legs.find(l => l.game === g.id);
+            if (!leg || !['won', 'lost'].includes(leg.status)) return;
+            if (b.status === 'won') {
+              const pay = Math.max(0, Math.floor(+b.payout || 0));
+              const balance = s.chips[b.player] != null ? +s.chips[b.player] : 1000;
+              s.chips[b.player] = balance - pay;
+              reversedPayouts += pay;
+            }
+            leg.status = 'open';
+            const stillLost = b.legs.some(l => l.status === 'lost');
+            const stillOpen = b.legs.some(l => l.status === 'open');
+            if (b.status === 'won' || b.status === 'lost') {
+              if (!stillLost && stillOpen) {
+                b.status = 'open';
+                b.payout = 0;
+              } else if (stillLost) {
+                b.status = 'lost';
+                b.payout = 0;
+              } else if (!stillOpen && b.legs.every(l => l.status === 'won')) {
+                // The accumulator remains settled only if every remaining leg won.
+                b.status = 'won';
+              }
+            }
+            reopenedBets++;
+            return;
+          }
+          if (b.game !== g.id || !['won', 'lost'].includes(b.status)) return;
+          if (b.status === 'won') {
+            const pay = Math.max(0, Math.floor(+b.payout || 0));
+            const balance = s.chips[b.player] != null ? +s.chips[b.player] : 1000;
+            s.chips[b.player] = balance - pay;
+            reversedPayouts += pay;
+          }
+          b.status = 'open';
+          b.payout = 0;
+          reopenedBets++;
+        });
+        (s.scoreBets || []).forEach(b => {
+          if (b.game !== g.id || !['won', 'lost'].includes(b.status)) return;
+          if (b.status === 'won') {
+            const pay = Math.max(0, Math.floor(+b.payout || 0));
+            const balance = s.chips[b.player] != null ? +s.chips[b.player] : 1000;
+            s.chips[b.player] = balance - pay;
+            reversedPayouts += pay;
+          }
+          b.status = 'open';
+          b.payout = 0;
+          reopenedBets++;
+        });
+
+        // Prediction rewards are derived from the result and must not survive its removal.
+        if (s.predictionRewards) delete s.predictionRewards[g.id];
         g.s1 = null; g.s2 = null; g.status = 'open'; g.sub = {}; delete g.golden;
-        log(a.by + ' removed the score for ' + g.p1 + ' v ' + g.p2 + ' and reopened the fixture');
+        log(a.by + ' removed the score for ' + g.p1 + ' v ' + g.p2 + ' and reopened the fixture' +
+          (reopenedBets ? '; reopened ' + reopenedBets + ' related bets' : '') +
+          (reversedPayouts ? '; reversed ' + reversedPayouts + ' chips of winnings' : ''));
         break;
       }
     case 'setupPlayoffs':
