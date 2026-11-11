@@ -3090,11 +3090,6 @@ function CaseOpener({
     equipped: null
   };
   const owned = [...new Set(mine.owned || [])];
-  const caseBoard = (store.players || []).map(p => ({
-    name: p.name,
-    total: Math.max(0, Number((store.caseOpens || {})[p.name] || 0))
-  })).filter(p => p.total > 0 || (store.players || []).some(x => x.name === p.name && x.active))
-    .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
   const od = Object.assign({
     common: 60,
     uncommon: 25,
@@ -3207,22 +3202,7 @@ function CaseOpener({
         color: RARITY_COLORS[c.rarity]
       }
     }, "equipped"));
-  })), /*#__PURE__*/React.createElement("div", {
-    className: "panel",
-    style: { marginTop: 18 }
-  }, /*#__PURE__*/React.createElement("h2", null, "Cases opened leaderboard"), /*#__PURE__*/React.createElement("table", {
-    className: "plain"
-  }, /*#__PURE__*/React.createElement("tbody", null, caseBoard.map((p, i) => /*#__PURE__*/React.createElement("tr", {
-    key: p.name,
-    className: p.name === me ? 'me' : ''
-  }, /*#__PURE__*/React.createElement("td", {
-    className: "n muted"
-  }, i + 1), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement(Nm, {
-    n: p.name,
-    size: 18
-  })), /*#__PURE__*/React.createElement("td", {
-    className: "n"
-  }, p.total.toLocaleString())))))), /*#__PURE__*/React.createElement(CardSeller, {
+  })), /*#__PURE__*/React.createElement(CardSeller, {
     store: store,
     me: me,
     dispatch: dispatch
@@ -11339,31 +11319,7 @@ function App() {
   const bsPending = store && me ? (store.battleships || []).filter(g => (g.status === 'playing' && g.turn === me) || (g.status === 'setup' && g.opponent === me && !g.ready[me])).length : 0;
   const c4Pending = store && me ? (store.connect4 || []).filter(g => (g.status === 'pending' && g.opponent === me) || (g.status === 'playing' && g.turn === me)).length : 0;
   const chessPending = store && me ? (store.chess || []).filter(g => (g.status === 'pending' && g.opponent === me) || (g.status === 'playing' && ((g.white === me ? 'w' : g.black === me ? 'b' : '') === g.turn))).length : 0;
-  const [chatUnread, setChatUnread] = useState(0);
-  const [chatMention, setChatMention] = useState(false);
-  useEffect(() => {
-    if (!me) { setChatUnread(0); setChatMention(false); return; }
-    const key = 'book.chatSeen.' + me;
-    let alive = true;
-    const check = async () => {
-      try {
-        const msgs = await api.loadMessages(60);
-        if (!alive) return;
-        const maxId = msgs.length ? Math.max(...msgs.map(m => +m.id)) : 0;
-        let seen = localStorage.getItem(key);
-        if (seen == null) { localStorage.setItem(key, String(maxId)); seen = String(maxId); }
-        if (tab === 'chat') { localStorage.setItem(key, String(maxId)); setChatUnread(0); setChatMention(false); return; }
-        const fresh = msgs.filter(m => +m.id > +seen && m.author !== me);
-        setChatUnread(fresh.length);
-        setChatMention(fresh.some(m => (m.body || '').toLowerCase().includes('@' + me.toLowerCase())));
-      } catch (e) {}
-    };
-    check();
-    const iv = setInterval(() => { if (!document.hidden) check(); }, 60000);
-    const off = api.subscribeChat(check, 'chat-badge');
-    return () => { alive = false; clearInterval(iv); off(); };
-  }, [me, tab]);
-  useEffect(() => { document.title = (chatUnread + hogPending + bsPending + c4Pending + chessPending > 0 ? '(' + (chatUnread + hogPending + bsPending + c4Pending + chessPending) + ') ' : '') + 'Book1.9.6'; }, [chatUnread, hogPending, bsPending, c4Pending, chessPending]);
+  useEffect(() => { document.title = (hogPending + bsPending + c4Pending + chessPending > 0 ? '(' + (hogPending + bsPending + c4Pending + chessPending) + ') ' : '') + 'Book1.9.6'; }, [hogPending, bsPending, c4Pending, chessPending]);
   const cloudEmpty = !!(store && !store.weeks);
   const persistCred = c => {
     setCred(c);
@@ -11556,7 +11512,7 @@ function App() {
     onClick: () => persistCred(undefined)
   }, "Log out"));
   const wIdx = weekIdx == null ? store.weeks.length - 1 : Math.min(weekIdx, store.weeks.length - 1);
-  const tabs = [['table', 'Table'], ['me', 'My book'], ['progress', 'Progress'], ['bokemongs', 'Bokémongs'], ['calendar', 'Calendar'], ['brain', 'Brain Gym'], ['pinball', 'Pinball'], ['fantasy', 'Fantasy'], ['bounties', 'Bounties'], ['casino', 'Casino'], ['hogs', 'Hogs'], ['battleships', 'Battleships'], ['connect4', 'Connect 4'], ['chess', 'Chess'], ['eightman', '8 Man'], ['predict', 'Predictions'], ['chat', 'Chat'], ['master', 'Master'], ['stats', 'Dossier'], ['ko', 'Knockout']];
+  const tabs = [['table', 'Table'], ['me', 'My book'], ['progress', 'Progress'], ['bokemongs', 'Bokémongs'], ['calendar', 'Calendar'], ['brain', 'Brain Gym'], ['pinball', 'Pinball'], ['fantasy', 'Fantasy'], ['casino', 'Casino'], ['hogs', 'Hogs'], ['battleships', 'Battleships'], ['connect4', 'Connect 4'], ['chess', 'Chess'], ['eightman', '8 Man'], ['predict', 'Predictions'], ['master', 'Master'], ['stats', 'Dossier'], ['ko', 'Knockout']];
   if (isAdmin) tabs.push(['regime', 'Regime']);
   const live = store.weeks[store.weeks.length - 1];
   const pending = isAdmin ? live.fixtures.concat(live.playoffs).filter(g => g.status === 'disputed').length + (store.chipRequests || []).filter(r => r.status === 'pending').length : 0;
@@ -11606,11 +11562,7 @@ function App() {
     store: store,
     me: me,
     dispatch: dispatch
-  }) : /*#__PURE__*/React.createElement("div", { className: "panel" }, "Log in to play fantasy.") : tab === 'bounties' ? me ? /*#__PURE__*/React.createElement(BountiesPage, {
-    store: store,
-    me: me,
-    dispatch: dispatch
-  }) : /*#__PURE__*/React.createElement("div", { className: "panel" }, "Log in to post bounties.") : tab === 'casino' ? me ? /*#__PURE__*/React.createElement(CasinoPage, {
+  }) : /*#__PURE__*/React.createElement("div", { className: "panel" }, "Log in to play fantasy.") : tab === 'casino' ? me ? /*#__PURE__*/React.createElement(CasinoPage, {
     store: store,
     me: me,
     cred: cred,
@@ -11662,10 +11614,6 @@ function App() {
     me: me,
     dispatch: dispatch,
     toast: toast
-  }) : tab === 'chat' ? /*#__PURE__*/React.createElement(ChatPage, {
-    me: me,
-    cred: cred,
-    toast: toast
   }) : tab === 'master' ? /*#__PURE__*/React.createElement(MasterPage, {
     store: store,
     me: me
@@ -11698,9 +11646,9 @@ function App() {
         block: 'nearest'
       });
     },
-    className: (tab === k ? 'on' : '') + (k === 'chat' && chatUnread > 0 ? ' unread' : '') + (k === 'hogs' && hogPending > 0 ? ' unread' : '') + (k === 'battleships' && bsPending > 0 ? ' unread' : '') + (k === 'connect4' && c4Pending > 0 ? ' unread' : '') + (k === 'chess' && chessPending > 0 ? ' unread' : ''),
+    className: (tab === k ? 'on' : '') + (k === 'hogs' && hogPending > 0 ? ' unread' : '') + (k === 'battleships' && bsPending > 0 ? ' unread' : '') + (k === 'connect4' && c4Pending > 0 ? ' unread' : '') + (k === 'chess' && chessPending > 0 ? ' unread' : ''),
     onClick: () => setTab(k)
-  }, l, k === 'regime' && pending > 0 ? ' (' + pending + ')' : '', k === 'chat' && chatUnread > 0 ? ' (' + chatUnread + (chatMention ? ' @' : '') + ')' : k === 'hogs' && hogPending > 0 ? ' (' + hogPending + ')' : k === 'battleships' && bsPending > 0 ? ' (' + bsPending + ')' : k === 'connect4' && c4Pending > 0 ? ' (' + c4Pending + ')' : k === 'chess' && chessPending > 0 ? ' (' + chessPending + ')' : ''));
+  }, l, k === 'regime' && pending > 0 ? ' (' + pending + ')' : k === 'hogs' && hogPending > 0 ? ' (' + hogPending + ')' : k === 'battleships' && bsPending > 0 ? ' (' + bsPending + ')' : k === 'connect4' && c4Pending > 0 ? ' (' + c4Pending + ')' : k === 'chess' && chessPending > 0 ? ' (' + chessPending + ')' : ''));
   const ownProfile = me && store && store.profiles && store.profiles[me] || {};
   const prestigeMasterActive = !!(me && playerProgress(store,me).prestige >= 10 && ownProfile.prestigeMasterTheme);
   const closePrestigeMasterModal = async () => {
