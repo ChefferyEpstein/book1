@@ -10,5 +10,5 @@
 - Added weekly challenges: complete 3 Tower Defense games, and reach wave 15 in a single game.
 
 ## Technical
-- Added SQL migration v64 with server-side game start/finish functions and weekly-challenge validation.
-- Updated the app SQL version to 64.
+- Added SQL migrations v64–65 with server-side game start/finish functions, weekly-challenge validation and server-only session tokens.
+- Updated the app SQL version to 65.
