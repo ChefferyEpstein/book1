@@ -533,7 +533,7 @@ const {
 } = React;
 const STORE_KEY = 'book1.2-local';
 const CFG = window.BOOK_CONFIG || {};
-const APP_SQL_VERSION = 67; // bump this whenever a new SQL script adds or changes a server function
+const APP_SQL_VERSION = 68; // bump this whenever a new SQL script adds or changes a server function
 const CLOUD = !!(CFG.url && CFG.key);
 const ADMINS = ['Chef', 'Lorcan'];
 const DECREES = ['Abstention is not permitted.', 'The Book sees all results.', 'Ball difference is destiny.', 'The Dictator collects. The Dictator distributes.', 'Report your score. Report it honestly.', 'Twelfth place is a service to the office.', 'The mong off is not optional.', 'Disputes are settled by the regime.'];
@@ -7410,7 +7410,7 @@ function TowerDefensePage({store,me,cred,api,refresh,toast}){
   g.bullets.forEach(b=>{x.beginPath();x.fillStyle=b.color;x.arc(b.x*z,b.y*z,3,0,7);x.fill();});
  };
  const ui=()=>{let g=game.current;if(g)setStats({wave:g.wave,cash:g.cash,lives:g.lives,score:g.score,kills:g.kills});draw();};
- const finish=async()=>{let g=game.current;if(!g||g.ended||!token)return;g.ended=true;g.playing=false;if(raf.current)cancelAnimationFrame(raf.current);setRunning(false);setBusy(true);try{let r=await api.tdFinish(cred,token,{score:g.score,kills:g.kills,wave:g.wave,lives:g.lives,elapsedSeconds:Math.floor((Date.now()-g.started)/1000)});setResult(r);setMessage('Game saved · '+r.xp+' XP earned.');await refresh();setToken(null);}catch(e){toast(e.message||'Could not save score.');setMessage(e.message||'Score not saved.');}finally{setBusy(false);}};
+ const finish=async()=>{let g=game.current;if(!g||g.ended||!token)return;g.ended=true;g.playing=false;if(raf.current)cancelAnimationFrame(raf.current);setRunning(false);setBusy(true);try{let r=await api.tdFinish(cred,token,{score:g.score,kills:g.kills,wave:g.wave,lives:g.lives,elapsedSeconds:Math.floor((Date.now()-g.started)/1000)});setResult(r);setMessage('Game saved · '+r.xp+' XP · '+r.chips+' chips returned.');await refresh();setToken(null);}catch(e){toast(e.message||'Could not save score.');setMessage(e.message||'Score not saved.');}finally{setBusy(false);}};
  const tick=()=>{let g=game.current;if(!g||!g.playing)return;let now=performance.now(),dt=Math.min(.05,(now-g.last)/1000);g.last=now;
   if(g.left>0){g.spawn-=dt*1000;if(g.spawn<=0){let type=g.waveMobs[g.spawned]||'grunt',m=mobs[type],hp=Math.round(m.hp*1.35*(1+g.wave*.28));g.creeps.push({id:g.id++,type,x:.5,y:11.5,path:g.path,at:0,hp,max:hp,speed:m.speed*(1+g.wave*.025),slow:1,color:m.color,reward:m.reward,shield:type==='shield',regenAt:now+1000});g.left--;g.spawned++;g.spawn=Math.max(220,680-g.wave*16);}}
   let dead=new Set();g.creeps.forEach(c=>{if(c.type==='regen'&&now>=c.regenAt){c.hp=Math.min(c.max,c.hp+Math.max(1,Math.round(c.max*.06)));c.regenAt=now+1000;}let p=c.path[c.at+1];if(!p){dead.add(c.id);g.lives--;g.score=Math.max(0,g.score-5);return;}let dx=p.x+.5-c.x,dy=p.y+.5-c.y,d=Math.hypot(dx,dy),step=c.speed*c.slow*dt;if(d<=step){c.x=p.x+.5;c.y=p.y+.5;c.at++;}else{c.x+=dx/d*step;c.y+=dy/d*step;}});
@@ -7472,10 +7472,10 @@ function TowerDefensePage({store,me,cred,api,refresh,toast}){
           h('p', {className:'small muted'}, 'Upgrades increase damage by 45%, range by 0.35 cells and firing speed by 16%. Upgrade prices rise sharply by level. Maximum level 3.')
         )
       : h('p', {className:'small muted'}, 'Select a placed tower on the board to see its attack radius, damage, firing speed, range, upgrade price and sell value.'),
-    h('hr'),h('p',{className:'small muted'},'Board: 480 × 480 px · 24 × 24 grid · 20 px snap. Each tower occupies 2 × 2 cells (40 × 40 px). Up to 144 towers by area, provided a clear entrance-to-exit route remains.'),h('p',{className:'small muted'},'Entry: 100 chips · XP: 0.5% of final score.')
+    h('hr'),h('p',{className:'small muted'},'Board: 480 × 480 px · 24 × 24 grid · 20 px snap. Each tower occupies 2 × 2 cells (40 × 40 px). Up to 144 towers by area, provided a clear entrance-to-exit route remains.'),h('p',{className:'small muted'},'Entry: 100 chips · Chips returned: 1% of final score · XP: 0.5% of final score.')
    )
   ),
-  result&&h('div',{className:'panel',style:{marginTop:12}},h('h2',null,'GAME COMPLETE'),h('p',null,'Score ',result.score,' · Wave ',result.wave,' · Kills ',result.kills,' · XP ',result.xp)),
+  result&&h('div',{className:'panel',style:{marginTop:12}},h('h2',null,'GAME COMPLETE'),h('p',null,'Score ',result.score,' · Wave ',result.wave,' · Kills ',result.kills,' · XP ',result.xp,' · Chips returned ',result.chips)),
   h('div',{className:'panel',style:{marginTop:12}},h('h2',null,'TOWER DEFENSE LEADERBOARD'),board.length?board.map((a,i)=>h('div',{key:a.player,className:'row spread small',style:{padding:6,borderBottom:'1px solid var(--smoke)'}},h('span',null,(i+1)+'. '+a.player),h('b',null,(+a.score).toLocaleString()+' · W'+a.wave))):h('p',{className:'small muted'},'No scores yet.')),
   h('style',null,'@keyframes tdMobRoll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}')
  );
