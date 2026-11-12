@@ -533,7 +533,7 @@ const {
 } = React;
 const STORE_KEY = 'book1.2-local';
 const CFG = window.BOOK_CONFIG || {};
-const APP_SQL_VERSION = 66; // bump this whenever a new SQL script adds or changes a server function
+const APP_SQL_VERSION = 67; // bump this whenever a new SQL script adds or changes a server function
 const CLOUD = !!(CFG.url && CFG.key);
 const ADMINS = ['Chef', 'Lorcan'];
 const DECREES = ['Abstention is not permitted.', 'The Book sees all results.', 'Ball difference is destiny.', 'The Dictator collects. The Dictator distributes.', 'Report your score. Report it honestly.', 'Twelfth place is a service to the office.', 'The mong off is not optional.', 'Disputes are settled by the regime.'];
@@ -7415,10 +7415,10 @@ function TowerDefensePage({store,me,cred,api,refresh,toast}){
   if(g.left>0){g.spawn-=dt*1000;if(g.spawn<=0){let type=g.waveMobs[g.spawned]||'grunt',m=mobs[type],hp=Math.round(m.hp*1.35*(1+g.wave*.28));g.creeps.push({id:g.id++,type,x:.5,y:11.5,path:g.path,at:0,hp,max:hp,speed:m.speed*(1+g.wave*.025),slow:1,color:m.color,reward:m.reward,shield:type==='shield',regenAt:now+1000});g.left--;g.spawned++;g.spawn=Math.max(220,680-g.wave*16);}}
   let dead=new Set();g.creeps.forEach(c=>{if(c.type==='regen'&&now>=c.regenAt){c.hp=Math.min(c.max,c.hp+Math.max(1,Math.round(c.max*.06)));c.regenAt=now+1000;}let p=c.path[c.at+1];if(!p){dead.add(c.id);g.lives--;g.score=Math.max(0,g.score-5);return;}let dx=p.x+.5-c.x,dy=p.y+.5-c.y,d=Math.hypot(dx,dy),step=c.speed*c.slow*dt;if(d<=step){c.x=p.x+.5;c.y=p.y+.5;c.at++;}else{c.x+=dx/d*step;c.y+=dy/d*step;}});
   g.towers.forEach(t=>{let d=defs[t.type],q=towerStats(t);t.cool-=dt*1000;if(t.cool>0)return;let target=g.creeps.filter(c=>!dead.has(c.id)&&Math.hypot(c.x-(t.x+1),c.y-(t.y+1))<=q.range).sort((a,b)=>b.at-a.at)[0];if(target){t.cool=q.rate;g.bullets.push({x:t.x+1,y:t.y+1,target:target.id,damage:q.damage,color:d.color,slow:t.type==='frost'?.55:t.type==='ink'?.72:1,splash:t.type==='bash'?1.2:t.type==='ink'?.8:t.type==='missile'?1.8:0});}});
-  g.bullets.forEach(b=>{let c=g.creeps.find(a=>a.id===b.target&&!dead.has(a.id));if(!c){b.dead=true;return;}let dx=c.x-b.x,dy=c.y-b.y,d=Math.hypot(dx,dy),step=7*dt;if(d<=step){c.hp-=b.damage*(c.shield?.72:1);c.slow=Math.min(c.slow,b.slow);if(b.splash)g.creeps.forEach(q=>{if(q.id!==c.id&&Math.hypot(q.x-c.x,q.y-c.y)<=b.splash)q.hp-=b.damage*.55;});b.dead=true;if(c.hp<=0){dead.add(c.id);g.cash+=Math.max(1,Math.floor(c.reward*.65));g.score+=c.reward*10;g.kills++;}}else{b.x+=dx/d*step;b.y+=dy/d*step;}});
+  g.bullets.forEach(b=>{let c=g.creeps.find(a=>a.id===b.target&&!dead.has(a.id));if(!c){b.dead=true;return;}let dx=c.x-b.x,dy=c.y-b.y,d=Math.hypot(dx,dy),step=7*dt;if(d<=step){c.hp-=b.damage*(c.shield?.72:1);c.slow=Math.min(c.slow,b.slow);if(b.splash)g.creeps.forEach(q=>{if(q.id!==c.id&&Math.hypot(q.x-c.x,q.y-c.y)<=b.splash)q.hp-=b.damage*.55;});b.dead=true;if(c.hp<=0){dead.add(c.id);g.cash+=Math.max(1,Math.floor(c.reward*.65));g.score+=c.reward*4;g.kills++;}}else{b.x+=dx/d*step;b.y+=dy/d*step;}});
   g.creeps=g.creeps.filter(c=>!dead.has(c.id));g.bullets=g.bullets.filter(b=>!b.dead);
   if(g.lives<=0){g.lives=0;ui();draw();finish();return;}
-  if(g.left===0&&g.creeps.length===0){g.wait+=dt;if(g.wait>2){g.playing=false;g.wait=0;setRunning(false);g.cash+=5+g.wave;g.score+=g.lives*2;if(g.wave>=MAX_WAVE){setMessage('Wave 50 cleared. Game complete!');finish();return;}setMessage('Wave '+g.wave+' cleared. Build or start the next wave.');}}
+  if(g.left===0&&g.creeps.length===0){g.wait+=dt;if(g.wait>2){g.playing=false;g.wait=0;setRunning(false);g.cash+=5+g.wave;g.score+=g.lives;if(g.wave>=MAX_WAVE){setMessage('Wave 50 cleared. Game complete!');finish();return;}setMessage('Wave '+g.wave+' cleared. Build or start the next wave.');}}
   ui();raf.current=requestAnimationFrame(tick);
  };
  const start=async()=>{setBusy(true);setResult(null);setSelected(null);try{let r=await api.tdStart(cred);setToken(r.token);game.current={towers:[],creeps:[],bullets:[],wave:0,waveMobs:[],path:[],cash:100,lives:20,score:0,kills:0,left:0,spawn:0,spawned:0,playing:false,ended:false,wait:0,id:1,last:performance.now(),started:Date.now()};setMessage('Session ready. Build your maze, then start wave 1.');ui();setPreviewTick(v=>v+1);}catch(e){toast(e.message||'Could not start.');}finally{setBusy(false);}};
