@@ -533,7 +533,7 @@ const {
 } = React;
 const STORE_KEY = 'book1.2-local';
 const CFG = window.BOOK_CONFIG || {};
-const APP_SQL_VERSION = 64; // bump this whenever a new SQL script adds or changes a server function
+const APP_SQL_VERSION = 65; // bump this whenever a new SQL script adds or changes a server function
 const CLOUD = !!(CFG.url && CFG.key);
 const ADMINS = ['Chef', 'Lorcan'];
 const DECREES = ['Abstention is not permitted.', 'The Book sees all results.', 'Ball difference is destiny.', 'The Dictator collects. The Dictator distributes.', 'Report your score. Report it honestly.', 'Twelfth place is a service to the office.', 'The mong off is not optional.', 'Disputes are settled by the regime.'];
@@ -977,6 +977,8 @@ const api = CLOUD ? {
 
 } : {
   mode: 'local',
+  async tdStart() { throw new Error('Tower Defense requires the shared Book database.'); },
+  async tdFinish() { throw new Error('Tower Defense requires the shared Book database.'); },
   async load() {
     return {
       data: loadStore(),
@@ -7378,7 +7380,7 @@ function TowerDefensePage({store,me,cred,api,refresh,toast}){
  const path=(blocked)=>{let q=[{x:0,y:9,p:[{x:0,y:9}]}],seen=new Set(['0,9']);while(q.length){let n=q.shift();if(n.x===19&&n.y===9)return n.p;for(let [dx,dy] of [[1,0],[0,1],[0,-1],[-1,0]]){let x=n.x+dx,y=n.y+dy,k=x+','+y;if(x<0||x>=W||y<0||y>=H||seen.has(k)||blocked.has(k))continue;seen.add(k);q.push({x,y,p:n.p.concat([{x,y}])});}}return null;};
  const draw=()=>{let c=canvas.current,g=game.current;if(!c||!g)return;let x=c.getContext('2d'),z=28;x.fillStyle='#171b1e';x.fillRect(0,0,560,560);x.strokeStyle='#343b40';for(let i=0;i<=20;i++){x.beginPath();x.moveTo(i*z,0);x.lineTo(i*z,560);x.stroke();x.beginPath();x.moveTo(0,i*z);x.lineTo(560,i*z);x.stroke();}let p=path(new Set(g.towers.map(t=>t.x+','+t.y)))||[];p.forEach(a=>{x.fillStyle='#263033';x.fillRect(a.x*z+1,a.y*z+1,z-2,z-2);});x.fillStyle='#38a66b';x.fillRect(2,9*z+2,24,24);x.fillStyle='#e1b34e';x.fillRect(19*z+2,9*z+2,24,24);g.towers.forEach(t=>{x.beginPath();x.fillStyle=defs[t.type][5];x.arc((t.x+.5)*z,(t.y+.5)*z,9,0,7);x.fill();x.fillStyle='#111';x.font='10px sans-serif';x.textAlign='center';x.fillText(t.level,(t.x+.5)*z,(t.y+.5)*z+3);});g.creeps.forEach(a=>{x.beginPath();x.fillStyle=a.color;x.arc(a.x*z,a.y*z,6,0,7);x.fill();x.fillStyle='#62d078';x.fillRect(a.x*z-7,a.y*z-10,14*Math.max(0,a.hp/a.max),3);});g.bullets.forEach(b=>{x.beginPath();x.fillStyle=b.color;x.arc(b.x*z,b.y*z,3,0,7);x.fill();});};
  const ui=()=>{let g=game.current;if(g)setStats({wave:g.wave,cash:g.cash,lives:g.lives,score:g.score,kills:g.kills});draw();};
- const finish=async()=>{let g=game.current;if(!g||g.ended||!token)return;g.ended=true;g.playing=false;setRunning(false);setBusy(true);try{let r=await api.tdFinish(cred,token,{score:g.score,kills:g.kills,wave:g.wave,lives:g.lives,elapsedSeconds:Math.floor((Date.now()-g.started)/1000)});setResult(r);setMessage('Game saved · '+r.xp+' XP earned.');await refresh();}catch(e){toast(e.message||'Could not save score.');setMessage(e.message||'Score not saved.');}finally{setBusy(false);}};
+ const finish=async()=>{let g=game.current;if(!g||g.ended||!token)return;g.ended=true;g.playing=false;setRunning(false);setBusy(true);try{let r=await api.tdFinish(cred,token,{score:g.score,kills:g.kills,wave:g.wave,lives:g.lives,elapsedSeconds:Math.floor((Date.now()-g.started)/1000)});setResult(r);setMessage('Game saved · '+r.xp+' XP earned.');await refresh();setToken(null);}catch(e){toast(e.message||'Could not save score.');setMessage(e.message||'Score not saved.');}finally{setBusy(false);}};
  const tick=()=>{let g=game.current;if(!g||!g.playing)return;let now=performance.now(),dt=Math.min(.05,(now-g.last)/1000);g.last=now;
  if(g.left>0){g.spawn-=dt*1000;if(g.spawn<=0){let pathNow=path(new Set(g.towers.map(t=>t.x+','+t.y)))||[];let i=g.spawned++,arm=i%5===2,boss=i%11===10,fast=i%5===1,fly=i%7===5,hp=Math.round((boss?30:arm?12:fast?4:fly?6:7)*(1+g.wave*.2));g.creeps.push({id:g.id++,x:.5,y:9.5,path:pathNow,at:0,hp,max:hp,speed:(boss?.65:arm?.85:fast?2.1:fly?1.7:1.2)*(1+g.wave*.03),slow:1,color:boss?'#df5968':arm?'#b5a58d':fast?'#e5d15b':fly?'#9e9ef0':'#78c8a3',reward:boss?12:arm?5:3});g.left--;g.spawn=Math.max(180,650-g.wave*18);}}
  let dead=new Set();g.creeps.forEach(c=>{let p=c.path[c.at+1];if(!p){dead.add(c.id);g.lives--;g.score=Math.max(0,g.score-5);return;}let dx=p.x+.5-c.x,dy=p.y+.5-c.y,d=Math.hypot(dx,dy),step=c.speed*c.slow*dt;if(d<=step){c.x=p.x+.5;c.y=p.y+.5;c.at++;}else{c.x+=dx/d*step;c.y+=dy/d*step;}});
