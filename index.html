@@ -7451,7 +7451,27 @@ function TowerDefensePage({store,me,cred,api,refresh,toast}){
    h('div',{className:'panel'},
     h('h3',null,'TOWER OVERVIEW'),towerCards,
     h('hr'),
-    selectedTower?h('div',null,h('h3',null,'SELECTED TOWER'),h('b',null,defs[selectedTower.type].name+' · Level '+selectedTower.level),h('div',{className:'small muted',style:{marginTop:5}},defs[selectedTower.type].desc),h('div',{className:'small',style:{marginTop:8,lineHeight:1.8}},'Damage: ',selectedStats.damage.toFixed(1),' per shot',h('br'),'Fire rate: ',(1000/selectedStats.rate).toFixed(2),' shots/sec',h('br'),'Reload: ',(selectedStats.rate/1000).toFixed(2),' sec',h('br'),'Range: ',selectedStats.range.toFixed(2),' grid spaces',h('br'),'DPS: ',selectedStats.dps.toFixed(2)),h('div',{className:'row',style:{marginTop:8,flexWrap:'wrap'}},h('button',{className:'btn',onClick:upgrade,disabled:selectedTower.level>=MAX_LEVEL||stats.cash<upgradeCost(selectedTower)},selectedTower.level>=MAX_LEVEL?'MAX LEVEL':'UPGRADE · $'+upgradeCost(selectedTower)),h('button',{className:'btn ghost',onClick:sell,disabled:false},'SELL · +)),h('p',{className:'small muted'},'Upgrades increase damage by 45%, range by 0.35 cells and firing speed by 16%. Maximum level 3.')):h('p',{className:'small muted'},'Select a placed tower on the board to see its attack radius, damage, firing speed, range, upgrade price and sell value.'),
+    selectedTower
+      ? h('div', null,
+          h('h3', null, 'SELECTED TOWER'),
+          h('b', null, defs[selectedTower.type].name + ' · Level ' + selectedTower.level),
+          h('div', {className:'small muted', style:{marginTop:5}}, defs[selectedTower.type].desc),
+          h('div', {className:'small', style:{marginTop:8,lineHeight:1.8}},
+            'Damage: ', selectedStats.damage.toFixed(1), ' per shot',
+            h('br'), 'Fire rate: ', (1000 / selectedStats.rate).toFixed(2), ' shots/sec',
+            h('br'), 'Reload: ', (selectedStats.rate / 1000).toFixed(2), ' sec',
+            h('br'), 'Range: ', selectedStats.range.toFixed(2), ' grid spaces',
+            h('br'), 'DPS: ', selectedStats.dps.toFixed(2)
+          ),
+          h('div', {className:'row', style:{marginTop:8,flexWrap:'wrap'}},
+            h('button', {className:'btn', onClick:upgrade, disabled:selectedTower.level>=MAX_LEVEL || stats.cash<upgradeCost(selectedTower)},
+              selectedTower.level>=MAX_LEVEL ? 'MAX LEVEL' : 'UPGRADE · $' + upgradeCost(selectedTower)
+            ),
+            h('button', {className:'btn ghost', onClick:sell, disabled:false}, 'SELL · +')
+          ),
+          h('p', {className:'small muted'}, 'Upgrades increase damage by 45%, range by 0.35 cells and firing speed by 16%. Maximum level 3.')
+        )
+      : h('p', {className:'small muted'}, 'Select a placed tower on the board to see its attack radius, damage, firing speed, range, upgrade price and sell value.'),
     h('hr'),h('p',{className:'small muted'},'Board: 480 × 480 px · 24 × 24 grid · 20 px snap. Each tower occupies 2 × 2 cells (40 × 40 px). Up to 144 towers by area, provided a clear entrance-to-exit route remains.'),h('p',{className:'small muted'},'Entry: 100 chips · XP: 0.5% of final score.')
    )
   ),
