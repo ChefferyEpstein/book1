@@ -17,7 +17,7 @@ BEGIN
   'd:=jsonb_set(d,''{chips}'',coalesce(d->''chips'',''{}''::jsonb),true); d:=jsonb_set(d,array[''chips'',p_name],to_jsonb(coalesce((d->''chips''->>p_name)::int,0)+chips_reward),true); d:=jsonb_set(d,array[''towerDefenseSessions'',idx::text],');
  f:=replace(f,
   'RETURN jsonb_build_object(''score'',sc,''kills'',kw,''wave'',wv,''lives'',lv,''xp'',xp,''serverValidated'',true,',
-  'RETURN jsonb_build_object(''score'',sc,''kills'',kw,''wave'',wv,''lives'',lv,''xp'',xp,''serverValidated'',true,');
+  'RETURN jsonb_build_object(''score'',sc,''kills'',kw,''wave'',wv,''lives'',lv,''xp'',xp,''chips'',chips_reward,''serverValidated'',true,');
  IF position('chips_reward' in f)=0 OR position('''chipsReward'',chips_reward' in f)=0 THEN
   RAISE EXCEPTION 'Could not safely patch Tower Defense reward function';
  END IF;
