@@ -533,7 +533,7 @@ const {
 } = React;
 const STORE_KEY = 'book1.2-local';
 const CFG = window.BOOK_CONFIG || {};
-const APP_SQL_VERSION = 68; // bump this whenever a new SQL script adds or changes a server function
+const APP_SQL_VERSION = 69; // bump this whenever a new SQL script adds or changes a server function
 const CLOUD = !!(CFG.url && CFG.key);
 const ADMINS = ['Chef', 'Lorcan'];
 const DECREES = ['Abstention is not permitted.', 'The Book sees all results.', 'Ball difference is destiny.', 'The Dictator collects. The Dictator distributes.', 'Report your score. Report it honestly.', 'Twelfth place is a service to the office.', 'The mong off is not optional.', 'Disputes are settled by the regime.'];
@@ -3334,7 +3334,7 @@ function rawPlayerXp(store, p) {
   const pinballXPResetAt=Number(store.pinballXPResetAt||0);
   const pinballHalfRateFrom=1794404120183;
   xp += (store.pinballScores || []).filter(g => g.player === p && Number(g.at||0)>=pinballXPResetAt).reduce((t,g)=>t+Math.floor(Math.max(0,+g.score||0)/(Number(g.at||0)>=pinballHalfRateFrom?200:100)),0);
-  xp += (store.towerDefenseScores || []).filter(g => g.player === p).reduce((t,g)=>t+Math.floor(Math.max(0,+g.score||0)/200),0);
+  xp += (store.towerDefenseScores || []).filter(g => g.player === p).reduce((t,g)=>t+Math.floor(Math.max(0,+g.score||0)/20),0);
   // Each correctly settled prediction is worth 100 XP.
   xp += Object.values(store.predictionRewards || {}).filter(players => players && players[p] === true).length * 100;
   return xp;
