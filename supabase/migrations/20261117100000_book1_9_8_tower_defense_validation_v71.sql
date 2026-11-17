@@ -9,7 +9,7 @@ DECLARE
   new_check text := $new$IF wv>floor(elapsed/8.0)+1
     OR kw>coalesce((SELECT sum(ceil((8+g*2+0.025*g*g)*1.25)::int) FROM generate_series(1,wv) AS waves(g)),0)
     OR sc>79260
-    OR sc>kw*56
+    OR sc::bigint>kw::bigint*56
   THEN RAISE EXCEPTION 'Tower Defense score failed server validation.'; END IF;$new$;
 BEGIN
   SELECT pg_get_functiondef('public.book_tower_defense_finish(text,text,text,jsonb)'::regprocedure) INTO f;
