@@ -7472,7 +7472,7 @@ function TowerDefensePage({store,me,cred,api,refresh,toast}){
           h('p', {className:'small muted'}, 'Upgrades increase damage by 45%, range by 0.35 cells and firing speed by 16%. Upgrade prices rise sharply by level. Maximum level 3.')
         )
       : h('p', {className:'small muted'}, 'Select a placed tower on the board to see its attack radius, damage, firing speed, range, upgrade price and sell value.'),
-    h('hr'),h('p',{className:'small muted'},'Board: 480 × 480 px · 24 × 24 grid · 20 px snap. Each tower occupies 2 × 2 cells (40 × 40 px). Up to 144 towers by area, provided a clear entrance-to-exit route remains.'),h('p',{className:'small muted'},'Entry: 100 chips · Chips returned: 10% of final score · XP: 5% of final score.')
+    h('hr'),h('p',{className:'small muted'},'Board: 480 × 480 px · 24 × 24 grid · 20 px snap. Each tower occupies 2 × 2 cells (40 × 40 px). Up to 144 towers by area, provided a clear entrance-to-exit route remains.'),h('p',{className:'small muted'},'Entry: 100 chips · Chips returned: 5% of final score · XP: 2.5% of final score.')
    )
   ),
   result&&h('div',{className:'panel',style:{marginTop:12}},h('h2',null,'GAME COMPLETE'),h('p',null,'Score ',result.score,' · Wave ',result.wave,' · Kills ',result.kills,' · XP ',result.xp,' · Chips returned ',result.chips)),
