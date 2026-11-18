@@ -1154,8 +1154,11 @@ const api = CLOUD ? {
       s.chips[cred.name] += refund;
     }
     s.cards[cred.name].owned.push(picked.id);
+    const xpAwarded = ({common:25,uncommon:50,rare:100,epic:200,legendary:400})[rarity] || 25;
+    s.caseXP = s.caseXP || {};
+    s.caseXP[cred.name] = (+s.caseXP[cred.name] || 0) + xpAwarded;
     saveStore(s);
-    return { ...picked, duplicate: isDup, refund };
+    return { ...picked, duplicate: isDup, refund, xpAwarded };
   },
   async spinWheel(cred) {
     const st = loadStore();
@@ -3124,7 +3127,8 @@ function CaseOpener({
     if (card) setResult({
       ...(CATALOG.find(c => c.id === card.id) || card),
       duplicate: card.duplicate,
-      refund: card.refund
+      refund: card.refund,
+      xpAwarded: card.xpAwarded
     });
   };
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", {
@@ -3165,7 +3169,7 @@ function CaseOpener({
     style: {
       textTransform: 'capitalize'
     }
-  }, result.rarity), result.duplicate && /*#__PURE__*/React.createElement("p", {
+  }, result.rarity), /*#__PURE__*/React.createElement("p", { className: "small", style: { color: 'var(--brass)', fontWeight: 700 } }, "+", (result.xpAwarded || 0), " XP"), result.duplicate && /*#__PURE__*/React.createElement("p", {
     className: "small",
     style: {
       color: 'var(--brass)'
@@ -3337,6 +3341,14 @@ function rawPlayerXp(store, p) {
   xp += (store.towerDefenseScores || []).filter(g => g.player === p).reduce((t,g)=>t+Math.floor(Math.max(0,+g.score||0)/40),0);
   // Each correctly settled prediction is worth 100 XP.
   xp += Object.values(store.predictionRewards || {}).filter(players => players && players[p] === true).length * 100;
+  // Case XP is recorded by the case-opening RPC; Fantasy XP is credited only after week settlement.
+  xp += Math.max(0, +((store.caseXP || {})[p]) || 0);
+  (store.weeks || []).filter(w => w.closed).forEach(w => {
+    const fw = (store.fantasyWeeks || {})[String(w.n)];
+    if (!fw || !fw.paid || !fw.picks || !Array.isArray(fw.picks[p])) return;
+    const tiers = fw.tiers || fantasySnapshotBeforeWeek(store,w);
+    xp += Math.max(0, fantasyScore(store,w,fw.picks[p],tiers,fw.captains && fw.captains[p]));
+  });
   return xp;
 }
 const BASE_LEVEL_XP = Array.from({length:25},(_,i)=>Math.round((100 + i * (1400 / 24)) / 25) * 25);
