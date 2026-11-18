@@ -3464,41 +3464,59 @@ const CHALLENGE_POOL = {
   tdgames3:{id:'tdgames3',name:'Tower Regular',desc:'Complete 3 Tower Defense games this game week.',reward:10000,xp:1400},
   tdwave15:{id:'tdwave15',name:'Maze Master',desc:'Reach wave 15 in Tower Defense this game week.',reward:15000,xp:2200},
   spins2:{id:'spins2',name:'Lucky Dip',desc:'Use the casino wheel 20 times this game week.',reward:7500,xp:1000},
-  spins5:{id:'spins5',name:'Wheel Addict',desc:'Use the casino wheel 50 times this game week.',reward:15000,xp:2200}
+  spins5:{id:'spins5',name:'Wheel Addict',desc:'Use the casino wheel 50 times this game week.',reward:15000,xp:2200},
+  wins7:{id:'wins7',name:'Seven Up',desc:'Win 7 pool games this game week.',reward:22000,xp:3800},
+  wins10:{id:'wins10',name:'Pool Dominator',desc:'Win 10 pool games this game week.',reward:30000,xp:5000},
+  play6:{id:'play6',name:'Regular at the Table',desc:'Complete 6 pool games this game week.',reward:12000,xp:2200},
+  c4wins6:{id:'c4wins6',name:'Connect 4 Streak',desc:'Win 6 Connect 4 games this game week.',reward:22000,xp:2600},
+  c4wins8:{id:'c4wins8',name:'Unbeatable Grid',desc:'Win 8 Connect 4 games this game week.',reward:30000,xp:3600},
+  bswin3:{id:'bswin3',name:'Destroyer of Fleets',desc:'Win 3 Battleships games this game week.',reward:22000,xp:2600},
+  bswin4:{id:'bswin4',name:'Master of the Seas',desc:'Win 4 Battleships games this game week.',reward:30000,xp:3600},
+  hogwin3:{id:'hogwin3',name:'Hog Hot Streak',desc:'Win 3 Hog duels this game week.',reward:15000,xp:2100},
+  hogwin4:{id:'hogwin4',name:'Hog Legend',desc:'Win 4 Hog duels this game week.',reward:22000,xp:3000},
+  chesswin3:{id:'chesswin3',name:'Tactical Mind',desc:'Win 3 Chess games this game week.',reward:22000,xp:2600},
+  chesswin4:{id:'chesswin4',name:'Board Master',desc:'Win 4 Chess games this game week.',reward:30000,xp:3600},
+  pinplays7:{id:'pinplays7',name:'Arcade Fixture',desc:'Play 7 Pinball games this week.',reward:25000,xp:3200},
+  pinplays10:{id:'pinplays10',name:'Pinball Marathon',desc:'Play 10 Pinball games this week.',reward:35000,xp:4500},
+  pinscore300000:{id:'pinscore300000',name:'High Roller',desc:'Score at least 300,000 in Pinball this week.',reward:35000,xp:4500},
+  pinscore400000:{id:'pinscore400000',name:'Pinball Perfectionist',desc:'Score at least 400,000 in Pinball this week.',reward:50000,xp:6500},
+  pred20:{id:'pred20',name:'Sharp Instincts',desc:'Get 20 predictions correct this game week.',reward:27000,xp:3800},
+  pred25:{id:'pred25',name:'Prediction Expert',desc:'Get 25 predictions correct this game week.',reward:35000,xp:5000},
+  bokplay3:{id:'bokplay3',name:'Bokémong Battler',desc:'Complete 3 Bokémong battles this game week.',reward:22000,xp:3000},
+  bokwin2:{id:'bokwin2',name:'Double Champion',desc:'Win 2 Bokémong battles this game week.',reward:25000,xp:3500},
+  tdgames5:{id:'tdgames5',name:'Defence Specialist',desc:'Complete 5 Tower Defense games this game week.',reward:25000,xp:3500},
+  tdwave25:{id:'tdwave25',name:'Wave Conqueror',desc:'Reach wave 25 in Tower Defense this game week.',reward:30000,xp:4200}
 };
 // Weekly rotation: each section gets a different number of challenges, and the
 // selected tasks change week-to-week. Keep the selection deterministic so every
 // player sees the same challenges for a given game week.
 const WEEKLY_CHALLENGE_SECTIONS = [
-  {key:'pool', ids:['wins3','wins5','play2','play4','diff5','diff10','diff15']},
-  {key:'connect4', ids:['c4wins2','c4wins4']},
-  {key:'battleships', ids:['bswin1','bswin2']},
-  {key:'hog', ids:['hogwin1','hogwin2']},
-  {key:'chess', ids:['chesswin1','chesswin2']},
-  {key:'pinball', ids:['pinplays3','pinplays5','pinscore50000','pinscore125000','pinscore200000','pinscore250000']},
-  {key:'predictions', ids:['pred3','pred5']},
-  {key:'bokemong', ids:['bokplay1','bokwin1']},
-  {key:'towerDefense', ids:['tdgames3','tdwave15']},
+  {key:'pool', ids:['wins3','wins5','play2','play4','diff5','diff10','diff15','wins7','wins10','play6']},
+  {key:'connect4', ids:['c4wins2','c4wins4','c4wins6','c4wins8']},
+  {key:'battleships', ids:['bswin1','bswin2','bswin3','bswin4']},
+  {key:'hog', ids:['hogwin1','hogwin2','hogwin3','hogwin4']},
+  {key:'chess', ids:['chesswin1','chesswin2','chesswin3','chesswin4']},
+  {key:'pinball', ids:['pinplays3','pinplays5','pinscore50000','pinscore125000','pinscore200000','pinscore250000','pinplays7','pinplays10','pinscore300000','pinscore400000']},
+  {key:'predictions', ids:['pred3','pred5','pred20','pred25']},
+  {key:'bokemong', ids:['bokplay1','bokwin1','bokplay3','bokwin2']},
+  {key:'towerDefense', ids:['tdgames3','tdwave15','tdgames5','tdwave25']},
   {key:'casino', ids:['spins2','spins5']}
 ];
+// Keep 20 visible challenges each week, rotating through the expanded 50-task pool.
 const WEEKLY_CHALLENGE_COUNTS = [
-  [4,2,2,1,2,3,2,1,2,1],
-  [3,2,1,2,2,3,2,1,2,2],
-  [4,1,2,2,1,4,1,2,2,1],
-  [3,2,2,1,2,4,2,1,2,1]
+  [3,2,2,1,1,3,2,2,2,2],
+  [2,2,2,2,2,2,2,2,2,2],
+  [3,1,2,2,1,3,2,2,2,2],
+  [2,2,1,1,2,3,2,3,2,2]
 ];
 function weeklyChallengesForWeek(n) {
   const week = Math.max(1,Math.floor(+n||1));
   const counts = WEEKLY_CHALLENGE_COUNTS[(week-1)%WEEKLY_CHALLENGE_COUNTS.length];
   const selected = [];
   WEEKLY_CHALLENGE_SECTIONS.forEach((section,index)=>{
-    const count = counts[index]||0, ids=section.ids;
-    if(!count||!ids.length)return;
-    const start=((week-1)*(index+2)+index)%ids.length;
-    for(let i=0;i<Math.min(count,ids.length);i++){
-      const id=ids[(start+i)%ids.length];
-      if(CHALLENGE_POOL[id])selected.push(CHALLENGE_POOL[id]);
-    }
+    const ordered=section.ids.map(id=>({id,rank:((week*1103515245 + (index+1)*12345 + id.split('').reduce((a,c)=>a+c.charCodeAt(0),0))>>>0)}))
+      .sort((a,b)=>a.rank-b.rank);
+    ordered.slice(0,counts[index]||0).forEach(x=>{if(CHALLENGE_POOL[x.id])selected.push(CHALLENGE_POOL[x.id]);});
   });
   return selected;
 }
@@ -3525,19 +3543,20 @@ function weeklyChallengeProgress(store,p) {
 }
 function weeklyChallengeMetric(stats,id) {
   const m={
-    wins3:['wins',3,'wins'],wins5:['wins',5,'wins'],
-    play2:['played',2,'games'],play4:['played',4,'games'],
+    wins3:['wins',3,'wins'],wins5:['wins',5,'wins'],wins7:['wins',7,'wins'],wins10:['wins',10,'wins'],
+    play2:['played',2,'games'],play4:['played',4,'games'],play6:['played',6,'games'],
     diff5:['diff',5,'ball diff'],diff10:['diff',10,'ball diff'],diff15:['diff',15,'ball diff'],
-    c4wins2:['c4wins',2,'Connect 4 wins'],c4wins4:['c4wins',4,'Connect 4 wins'],
-    bswin1:['bswins',1,'Battleships wins'],bswin2:['bswins',2,'Battleships wins'],
-    hogwin1:['hogwins',1,'Hog wins'],hogwin2:['hogwins',2,'Hog wins'],
-    chesswin1:['chesswins',1,'Chess wins'],chesswin2:['chesswins',2,'Chess wins'],
-    pinplays3:['pinplays',3,'Pinball games'],pinplays5:['pinplays',5,'Pinball games'],
+    c4wins2:['c4wins',2,'Connect 4 wins'],c4wins4:['c4wins',4,'Connect 4 wins'],c4wins6:['c4wins',6,'Connect 4 wins'],c4wins8:['c4wins',8,'Connect 4 wins'],
+    bswin1:['bswins',1,'Battleships wins'],bswin2:['bswins',2,'Battleships wins'],bswin3:['bswins',3,'Battleships wins'],bswin4:['bswins',4,'Battleships wins'],
+    hogwin1:['hogwins',1,'Hog wins'],hogwin2:['hogwins',2,'Hog wins'],hogwin3:['hogwins',3,'Hog wins'],hogwin4:['hogwins',4,'Hog wins'],
+    chesswin1:['chesswins',1,'Chess wins'],chesswin2:['chesswins',2,'Chess wins'],chesswin3:['chesswins',3,'Chess wins'],chesswin4:['chesswins',4,'Chess wins'],
+    pinplays3:['pinplays',3,'Pinball games'],pinplays5:['pinplays',5,'Pinball games'],pinplays7:['pinplays',7,'Pinball games'],pinplays10:['pinplays',10,'Pinball games'],
     pinscore50000:['pinbest',15000,'best Pinball score'],pinscore125000:['pinbest',40000,'best Pinball score'],
     pinscore200000:['pinbest',60000,'best Pinball score'],pinscore250000:['pinbest',90000,'best Pinball score'],
-    pred3:['predictionWins',9,'correct predictions'],pred5:['predictionWins',15,'correct predictions'],
-    bokplay1:['bokplays',1,'Bokémong battles'],bokwin1:['bokwins',1,'Bokémong wins'],
-    tdgames3:['tdgames',3,'Tower Defense games'],tdwave15:['tdwave',15,'best wave'],
+    pinscore300000:['pinbest',300000,'best Pinball score'],pinscore400000:['pinbest',400000,'best Pinball score'],
+    pred3:['predictionWins',9,'correct predictions'],pred5:['predictionWins',15,'correct predictions'],pred20:['predictionWins',20,'correct predictions'],pred25:['predictionWins',25,'correct predictions'],
+    bokplay1:['bokplays',1,'Bokémong battles'],bokplay3:['bokplays',3,'Bokémong battles'],bokwin1:['bokwins',1,'Bokémong wins'],bokwin2:['bokwins',2,'Bokémong wins'],
+    tdgames3:['tdgames',3,'Tower Defense games'],tdgames5:['tdgames',5,'Tower Defense games'],tdwave15:['tdwave',15,'best wave'],tdwave25:['tdwave',25,'best wave'],
     spins2:['spins',20,'casino spins'],spins5:['spins',50,'casino spins']
   };
   return m[id]||null;
