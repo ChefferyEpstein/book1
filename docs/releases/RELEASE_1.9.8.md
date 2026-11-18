@@ -12,4 +12,5 @@
 ## Technical
 - Added SQL migration v77 with an XP-balance synchronisation trigger on the shared Book record.
 - Updated the client to display the authoritative `progression.*.xpBalance` value.
-- Updated the app SQL version to 77.
+- Updated the app SQL version to 78.
+- Reconciled the P5 balance to 2,230 verified post-prestige XP (weekly claims, Pinball, Connect 4, Battleships and two common case openings); removed the overlapping 4,400 manual carryover.
