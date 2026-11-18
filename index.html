@@ -7916,6 +7916,10 @@ function ProgressPage({store,me,dispatch}) {
         )
       )
     ),
+    h('div',{className:'panel',style:{marginTop:18}},
+      h('h2',null,'Weekly challenge claim history'),
+      (()=>{const history=claims.filter(x=>x.player===me).slice().sort((a,b)=>(+b.at||0)-(+a.at||0));return history.length?h('div',{style:{overflowX:'auto'}},h('table',{className:'plain',style:{minWidth:560}},h('thead',null,h('tr',null,['Challenge','Game week','Claimed','Chips','XP'].map(x=>h('th',{key:x},x)))),h('tbody',null,history.map((x,i)=>{const challenge=weeklyChallengesForWeek(+x.week).find(c=>c.id===x.key);return h('tr',{key:String(x.week)+'-'+x.key+'-'+String(x.at||i)},h('td',null,challenge?challenge.name:x.key),h('td',{className:'n'},'GW',x.week),h('td',null,x.at?new Date(+x.at).toLocaleString('en-GB'):'—'),h('td',{className:'n'},(+x.reward||0).toLocaleString()),h('td',{className:'n'},(+x.xp||0).toLocaleString()));})))):h('p',{className:'small muted'},'No weekly challenge rewards claimed yet.');})()
+    ),
     h('div',{className:'grid g2',style:{marginTop:18}},
       h('div',{className:'panel'},
         h('h2',null,'Prestige rewards'),
