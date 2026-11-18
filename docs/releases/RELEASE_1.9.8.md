@@ -1,14 +1,15 @@
+
 # Book1 1.9.8
 
-## Tower Defense
-- Added a new Tower Defense game inspired by classic Desktop Tower Defense.
-- Added a 20×20 open build grid with route-finding: towers can shape the maze, but cannot block the creep route.
-- Added Pellet, Dart, Swarm, Frost, Bash, Ink, Squirt and Missile tower choices, with cash costs, firing rates, range and damage differences.
-- Added normal, fast, armoured and boss creeps, escalating waves, lives, cash from kills, tower upgrades and a separate Tower Defense leaderboard.
-- Added a 100-chip server-side entry fee.
-- Added server-side session validation and score recording. Tower Defense XP is 0.5% of the final score, rounded down.
-- Added weekly challenges: complete 3 Tower Defense games, and reach wave 15 in a single game.
+## Progression and XP integrity
+- Replaced history-reconstructed Progress totals with a durable server-maintained XP balance.
+- XP is credited automatically when server-side reward records are added, including weekly challenges, Brain Gym, case openings, Pinball, Tower Defense, predictions, fantasy settlement and completed games.
+- Prestige now resets the balance while retaining a raw-history checkpoint, so old rewards are not subtracted repeatedly and new rewards continue to count.
+- Removing or trimming old game/reward history no longer removes XP already earned.
+- Aligned the server XP calculation for Tower Defense with the live 0.5% XP reward rate.
+- Reconciled existing balances without carrying forward the overlapping manual XP offset patch; restored the two verified post-prestige common case rewards for Lorcan.
 
 ## Technical
-- Added SQL migrations v64–66 with server-side game start/finish functions, weekly-challenge validation and server-only session tokens.
-- Updated the app SQL version to 66.
+- Added SQL migration v77 with an XP-balance synchronisation trigger on the shared Book record.
+- Updated the client to display the authoritative `progression.*.xpBalance` value.
+- Updated the app SQL version to 77.
