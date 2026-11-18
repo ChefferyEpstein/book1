@@ -3374,7 +3374,7 @@ function playerProgress(store,p) {
   const rec = store.progression && store.progression[p] || {prestige:0,xpOffset:0};
   const prestige=+rec.prestige||0;
   const raw = rawPlayerXp(store,p);
-  const xp = Math.max(0, raw - (+rec.xpOffset || 0));
+  const xp = Math.max(0, raw - (+rec.xpOffset || 0)) + Math.max(0, +rec.xpCarry || 0);
   const levelXp=prestigeLevelXp(prestige);
   const targetXp=prestigeXpRequired(prestige);
   let spent = 0, level = 1;
@@ -10898,7 +10898,7 @@ function reduce(store, a) {
         if(p.prestige>=10) throw new Error('Prestige Master is the final rank. There are no further prestiges.');
         if(!p.canPrestige) throw new Error('Reach level 25 first.');
         s.progression=s.progression||{};
-        s.progression[a.by]={prestige:Math.min(10,p.prestige+1),xpOffset:p.raw,at:Date.now()};
+        s.progression[a.by]={prestige:Math.min(10,p.prestige+1),xpOffset:p.raw,xpCarry:0,at:Date.now()};
         log(a.by+' prestiged to P'+Math.min(10,p.prestige+1));
         break;
       }
