@@ -3499,7 +3499,6 @@ function weeklyChallengesForWeek(n) {
     const rotated=ids.map((id,i)=>({id,offset:(i-start+ids.length)%ids.length})).sort((a,b)=>a.offset-b.offset);
     const fresh=rotated.filter(x=>!previous.has(x.id));
     const chosen=fresh.slice(0,count);
-    if(chosen.length<count) chosen.push(...rotated.filter(x=>previous.has(x.id)).slice(0,count-chosen.length));
     chosen.forEach(x=>{if(CHALLENGE_POOL[x.id])selected.push(CHALLENGE_POOL[x.id]);});
   });
   return selected;
