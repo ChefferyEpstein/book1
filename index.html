@@ -533,7 +533,7 @@ const {
 } = React;
 const STORE_KEY = 'book1.2-local';
 const CFG = window.BOOK_CONFIG || {};
-const APP_SQL_VERSION = 81; // bump this whenever a new SQL script adds or changes a server function
+const APP_SQL_VERSION = 82; // bump this whenever a new SQL script adds or changes a server function
 const CLOUD = !!(CFG.url && CFG.key);
 const ADMINS = ['Chef', 'Lorcan'];
 const DECREES = ['Abstention is not permitted.', 'The Book sees all results.', 'Ball difference is destiny.', 'The Dictator collects. The Dictator distributes.', 'Report your score. Report it honestly.', 'Twelfth place is a service to the office.', 'The mong off is not optional.', 'Disputes are settled by the regime.'];
@@ -3465,8 +3465,6 @@ const CHALLENGE_POOL = {
   tdwave15:{id:'tdwave15',name:'Maze Master',desc:'Reach wave 15 in Tower Defense this game week.',reward:15000,xp:2200},
   spins2:{id:'spins2',name:'Lucky Dip',desc:'Use the casino wheel 20 times this game week.',reward:7500,xp:1000},
   spins5:{id:'spins5',name:'Wheel Addict',desc:'Use the casino wheel 50 times this game week.',reward:15000,xp:2200},
-  wins7:{id:'wins7',name:'Seven Up',desc:'Win 7 pool games this game week.',reward:22000,xp:3800},
-  wins10:{id:'wins10',name:'Pool Dominator',desc:'Win 10 pool games this game week.',reward:30000,xp:5000},
   play6:{id:'play6',name:'Regular at the Table',desc:'Complete 6 pool games this game week.',reward:12000,xp:2200},
   c4wins6:{id:'c4wins6',name:'Connect 4 Streak',desc:'Win 6 Connect 4 games this game week.',reward:22000,xp:2600},
   c4wins8:{id:'c4wins8',name:'Unbeatable Grid',desc:'Win 8 Connect 4 games this game week.',reward:30000,xp:3600},
@@ -3491,7 +3489,7 @@ const CHALLENGE_POOL = {
 // selected tasks change week-to-week. Keep the selection deterministic so every
 // player sees the same challenges for a given game week.
 const WEEKLY_CHALLENGE_SECTIONS = [
-  {key:'pool', ids:['wins3','wins5','play2','play4','diff5','diff10','diff15','wins7','wins10','play6']},
+  {key:'pool', ids:['wins3','wins5','play2','play4','diff5','diff10','diff15','play6']},
   {key:'connect4', ids:['c4wins2','c4wins4','c4wins6','c4wins8']},
   {key:'battleships', ids:['bswin1','bswin2','bswin3','bswin4']},
   {key:'hog', ids:['hogwin1','hogwin2','hogwin3','hogwin4']},
@@ -3536,14 +3534,14 @@ function weeklyChallengeProgress(store,p) {
   const predictionWins=(w.fixtures||[]).filter(g=>g.id&&store.predictionRewards&&store.predictionRewards[g.id]&&store.predictionRewards[g.id][p]===true).length;
   const bokBattles=((store.bokemongs||{}).battles||[]).filter(g=>{const completedAt=+(g.completedAt||g.at||0),completed=g.status==='done'||(!g.status&&!!g.winner);return (g.a===p||g.b===p)&&completed&&completedAt>=challengeStart;});
   const bokplays=bokBattles.length,bokwins=bokBattles.filter(g=>g.winner===p).length;
-  const td=(store.towerDefenseScores||[]).filter(g=>g.player===p&&+g.week===+w.n);
+  const td=(store.towerDefenseScores||[]).filter(g=>g.player===p&&+g.week===+w.n&&Number(g.at||0)>=challengeStart);
   const tdgames=td.length, tdwave=td.reduce((m,g)=>Math.max(m,+g.wave||0),0);
   const spins=(store.wheelSpinHistory||[]).filter(g=>g.player===p&&+g.at>=challengeStart).length;
   return {week:w.n,wins,played:gs.length,diff:d,c4wins,bswins,hogwins,chesswins,pinplays,pinbest,predictionWins,bokplays,bokwins,spins,tdgames,tdwave};
 }
 function weeklyChallengeMetric(stats,id) {
   const m={
-    wins3:['wins',3,'wins'],wins5:['wins',5,'wins'],wins7:['wins',7,'wins'],wins10:['wins',10,'wins'],
+    wins3:['wins',3,'wins'],wins5:['wins',5,'wins'],
     play2:['played',2,'games'],play4:['played',4,'games'],play6:['played',6,'games'],
     diff5:['diff',5,'ball diff'],diff10:['diff',10,'ball diff'],diff15:['diff',15,'ball diff'],
     c4wins2:['c4wins',2,'Connect 4 wins'],c4wins4:['c4wins',4,'Connect 4 wins'],c4wins6:['c4wins',6,'Connect 4 wins'],c4wins8:['c4wins',8,'Connect 4 wins'],
