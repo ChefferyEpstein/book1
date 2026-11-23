@@ -7950,16 +7950,21 @@ function BrainGymPage({store,me,claimBrain}) {
   const h=React.createElement, day=brainDayKey(), sdk=brainSudoku(day), cw=brainCrossword(day), tease=brainTeaser(day);
   const [cells,setCells]=useState(()=>sdk.puzzle.split('').map(x=>x==='0'?'':x));
   const [cross,setCross]=useState(()=>cw.words.map(()=>'')),[teaser,setTeaser]=useState('');
-  useEffect(()=>{setCells(sdk.puzzle.split('').map(x=>x==='0'?'':x));setCross(cw.words.map(()=>''));setTeaser('');},[day]);
+  const [anagram,setAnagram]=useState(''),[sequence,setSequence]=useState(''),[logic,setLogic]=useState(''),[memory,setMemory]=useState('');
+  const extra=brainExtraPuzzles(day);
+  useEffect(()=>{setCells(sdk.puzzle.split('').map(x=>x==='0'?'':x));setCross(cw.words.map(()=>''));setTeaser('');setAnagram('');setSequence('');setLogic('');setMemory('');},[day]);
   const claimed=t=>brainClaimed(store,me,day,t);
   const sdkDone=cells.join('')===sdk.solution;
   const crossDone=cross.length===cw.words.length&&cross.every((x,i)=>brainNorm(x)===brainNorm(cw.words[i]));
   const teaserDone=tease.a.some(a=>brainNorm(a)===brainNorm(teaser));
+  const extraDone={anagram:brainNorm(anagram)===brainNorm(extra.anagram.answer),sequence:brainNorm(sequence)===brainNorm(extra.sequence.answer),logic:brainNorm(logic)===brainNorm(extra.logic.answer),memory:brainNorm(memory)===brainNorm(extra.memory.answer)};
+  const extraInput=(value,setter,type,placeholder)=>h('input',{value,disabled:claimed(type),onChange:e=>setter(e.target.value),placeholder});
+  const extraClaim=(type,value,done)=>h('button',{className:'btn',disabled:claimed(type)||!done,onClick:()=>submit(type,value)},claimed(type)?'Completed':done?'Claim 100 XP':'Solve to claim');
   const submit=(type,answer)=>claimBrain({type,day,answer});
   const today=(store.brainClaims||[]).filter(c=>c.player===me&&c.day===day);
   const streak=brainStreak(store,me);
   return h('div',null,
-    h('div',{className:'page-title'},h('h1',null,'Brain Gym'),h('span',{className:'sub'},'Daily puzzles. Useful neurons only. XP rewards, zero chip farming.')),
+    h('div',{className:'page-title'},h('h1',null,'Brain Gym'),h('span',{className:'sub'},'Seven daily puzzles. Fresh rotations. Useful neurons only. XP rewards, zero chip farming.')),
     h('div',{className:'row',style:{marginBottom:18,flexWrap:'wrap'}},
       h('span',{className:'chip on'},'Daily streak: '+streak),
       h('span',{className:'chip'},'Today: '+today.reduce((t,c)=>t+(+c.xp||0),0)+' XP claimed'),
@@ -8003,9 +8008,13 @@ function BrainGymPage({store,me,claimBrain}) {
         h('input',{value:teaser,disabled:claimed('teaser'),onChange:e=>setTeaser(e.target.value),placeholder:'Your answer'}),
         h('button',{className:'btn',style:{marginLeft:8},disabled:claimed('teaser')||!teaserDone,onClick:()=>submit('teaser',teaser)},claimed('teaser')?'Completed':teaserDone?'Claim 150 XP':'Think harder')
       ),
+      h('div',{className:'panel'},h('h2',null,'Anagram attack · 100 XP'),h('p',{className:'small muted'},'Rearrange the letters to make the word that fits the clue.'),h('div',{className:'display',style:{fontSize:30,letterSpacing:4,color:'var(--brass)'}},extra.anagram.scramble),h('p',null,extra.anagram.clue),extraInput(anagram,setAnagram,'anagram','Unscrambled word'),h('div',{style:{marginTop:10}},extraClaim('anagram',anagram,extraDone.anagram))),
+      h('div',{className:'panel'},h('h2',null,'Number sequence · 100 XP'),h('p',{className:'small muted'},'Find the next number in the pattern.'),h('div',{className:'display',style:{fontSize:27,color:'var(--brass)'}},extra.sequence.prompt),extraInput(sequence,setSequence,'sequence','Next number'),h('div',{style:{marginTop:10}},extraClaim('sequence',sequence,extraDone.sequence))),
+      h('div',{className:'panel'},h('h2',null,'Logic puzzle · 100 XP'),h('p',null,extra.logic.prompt),extraInput(logic,setLogic,'logic','Your answer'),h('div',{style:{marginTop:10}},extraClaim('logic',logic,extraDone.logic))),
+      h('div',{className:'panel'},h('h2',null,'Memory match · 100 XP'),h('p',{className:'small muted'},'Study the sequence, then enter it in exactly the same order. Spaces and punctuation do not matter.'),h('div',{className:'display',style:{fontSize:27,letterSpacing:3,color:'var(--brass)'}},extra.memory.display),extraInput(memory,setMemory,'memory','Repeat the sequence'),h('div',{style:{marginTop:10}},extraClaim('memory',memory,extraDone.memory))),
       h('div',{className:'panel'},
         h('h2',null,'Daily rules'),
-        h('p',null,'Sudoku + crossword + teaser = 700 XP. Clear the lot and the server adds another 200 XP.'),
+        h('p',null,'All seven puzzles are worth 1,100 XP combined. Complete the original Sudoku, crossword and teaser trio for the existing additional 200 XP full-clear bonus.'),
         h('p',{className:'small muted'},'One claim per puzzle per London calendar day. No chips, no rerolls, no infinite reward loop. A tiny patch of productive behaviour inside this otherwise cursed application.')
       )
     )
