@@ -22,6 +22,7 @@ v_extra text := $extra$
 $extra$;
 begin
  select pg_get_functiondef('public.book_brain_claim(text,text,text,text,text)'::regprocedure) into v_definition;
+ if position('anagram' in v_definition)>0 and position('memory' in v_definition)>0 then return; end if;
  v_old := $old$if p_type not in ('sudoku','crossword','teaser') then$old$;
  if position(v_old in v_definition)=0 then raise exception 'Brain Gym claim whitelist mismatch'; end if;
  v_definition := replace(v_definition,v_old,$new$if p_type not in ('sudoku','crossword','teaser','anagram','sequence','logic','memory') then$new$);
