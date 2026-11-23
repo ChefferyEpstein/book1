@@ -3635,6 +3635,49 @@ const BRAIN_TEASERS=[
   {q:'What has a head and a tail but no body?',a:['coin']}
 ];
 function brainTeaser(day=brainDayKey()) { return BRAIN_TEASERS[((brainDayNumber(day)%BRAIN_TEASERS.length)+BRAIN_TEASERS.length)%BRAIN_TEASERS.length]; }
+
+const BRAIN_ANAGRAMS=[
+ {scramble:'TALPE',answer:'PLATE',clue:'A flat dish used for serving food.'},
+ {scramble:'RABZE',answer:'ZEBRA',clue:'A striped African animal.'},
+ {scramble:'NOLME',answer:'LEMON',clue:'A sharp yellow citrus fruit.'},
+ {scramble:'RTAES',answer:'STARE',clue:'To look fixedly at something.'},
+ {scramble:'HCTAW',answer:'WATCH',clue:'A small timepiece worn on the wrist.'},
+ {scramble:'RAGPE',answer:'GRAPE',clue:'A small fruit that grows in bunches.'},
+ {scramble:'NIPTA',answer:'PAINT',clue:'Colour applied to a wall or canvas.'},
+ {scramble:'RACET',answer:'TRACE',clue:'A faint sign or mark left behind.'},
+ {scramble:'WADRA',answer:'AWARD',clue:'A prize given for an achievement.'},
+ {scramble:'DREAB',answer:'BEARD',clue:'Facial hair grown on the chin.'},
+ {scramble:'DLOUC',answer:'COULD',clue:'A past-tense form of can.'},
+ {scramble:'HTIGN',answer:'THING',clue:'An object or matter; a general noun.'}
+];
+const BRAIN_SEQUENCES=[
+ {prompt:'2, 4, 8, 16, ?',answer:'32'},{prompt:'3, 6, 11, 18, ?',answer:'27'},
+ {prompt:'1, 1, 2, 3, 5, ?',answer:'8'},{prompt:'100, 90, 81, 73, ?',answer:'66'},
+ {prompt:'5, 10, 20, 40, ?',answer:'80'},{prompt:'2, 5, 10, 17, ?',answer:'26'},
+ {prompt:'1, 4, 9, 16, ?',answer:'25'},{prompt:'64, 32, 16, 8, ?',answer:'4'},
+ {prompt:'7, 14, 12, 24, 22, ?',answer:'44'},{prompt:'4, 7, 13, 25, ?',answer:'49'},
+ {prompt:'2, 3, 5, 8, 12, ?',answer:'17'},{prompt:'81, 27, 9, 3, ?',answer:'1'}
+];
+const BRAIN_LOGICS=[
+ {prompt:'A farmer has 17 sheep. All but 9 run away. How many remain?',answer:'9'},
+ {prompt:'Two fathers and two sons share three apples, one each. What is the smallest number of people?',answer:'3'},
+ {prompt:'You overtake the person in second place in a race. What position are you now?',answer:'2'},
+ {prompt:'A drawer has 5 red socks and 5 blue socks. Minimum socks to guarantee a matching pair?',answer:'3'},
+ {prompt:'A clock shows 3:15. What is the smaller angle between its hands, in degrees? (Enter 7.5.)',answer:'7.5'},
+ {prompt:'There are 10 candles. Two are blown out; the rest burn away. How many remain?',answer:'2'},
+ {prompt:'If 5 machines make 5 widgets in 5 minutes, how many minutes do 100 machines take to make 100 widgets?',answer:'5'},
+ {prompt:'A book has 100 pages. How many times does the digit 9 appear in page numbers 1–100?',answer:'20'},
+ {prompt:'A lily pad doubles in size each day and covers a pond on day 20. On what day was it half covered?',answer:'19'},
+ {prompt:'You have 3 switches downstairs and one bulb upstairs. You may visit the bulb once. How many switches can you identify using heat and light?',answer:'3'},
+ {prompt:'A bat and ball cost £1.10. The bat costs £1 more than the ball. How many pence does the ball cost?',answer:'5'},
+ {prompt:'How many months have 28 days?',answer:'12'}
+];
+const BRAIN_MEMORIES=['R7K2M','P4T9B','6H2Q8','C3N7F','W8D5L','2J9RX','M6V1A','T5P8C','9B3KH','F2R7N','L4X8D','Q7M2P'];
+function brainExtraPuzzles(day=brainDayKey()){
+ const n=((brainDayNumber(day)%12)+12)%12;
+ return {anagram:BRAIN_ANAGRAMS[n],sequence:BRAIN_SEQUENCES[n],logic:BRAIN_LOGICS[n],memory:{display:BRAIN_MEMORIES[n].split('').join(' · '),answer:BRAIN_MEMORIES[n]}};
+}
+
 function brainNorm(x){return String(x||'').toLowerCase().replace(/[^a-z0-9]/g,'');}
 function brainClaimed(store,p,day,type){return (store.brainClaims||[]).some(c=>c.player===p&&c.day===day&&c.type===type);}
 function brainFullDays(store,p) {
