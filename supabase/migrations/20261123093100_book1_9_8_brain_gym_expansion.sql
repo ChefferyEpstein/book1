@@ -41,3 +41,8 @@ begin
  execute v_definition;
 end
 $brain_gym_expand$;
+
+create or replace function public.book_version()
+returns integer language sql stable
+set search_path to 'public','extensions'
+as $function$ select 83; $function$;
