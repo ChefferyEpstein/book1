@@ -533,7 +533,7 @@ const {
 } = React;
 const STORE_KEY = 'book1.2-local';
 const CFG = window.BOOK_CONFIG || {};
-const APP_SQL_VERSION = 83; // bump this whenever a new SQL script adds or changes a server function
+const APP_SQL_VERSION = 84; // bump this whenever a new SQL script adds or changes a server function
 const CLOUD = !!(CFG.url && CFG.key);
 const ADMINS = ['Chef', 'Lorcan'];
 const DECREES = ['Abstention is not permitted.', 'The Book sees all results.', 'Ball difference is destiny.', 'The Dictator collects. The Dictator distributes.', 'Report your score. Report it honestly.', 'Twelfth place is a service to the office.', 'The mong off is not optional.', 'Disputes are settled by the regime.'];
@@ -1537,7 +1537,8 @@ const RARITY_COLORS = {
   uncommon: '#3FA34D',
   rare: '#1F6FEB',
   epic: '#8E44AD',
-  legendary: '#C9A227'
+  legendary: '#C9A227',
+  secret: '#DDF7FF'
 };
 const RARITY_ODDS = {
   common: '60%',
@@ -1547,6 +1548,7 @@ const RARITY_ODDS = {
   legendary: '1%'
 };
 const PALETTE = ['#FFFFFF', '#000000', '#C8102E', '#C9A227', '#54B9B3', '#3FA34D', '#1F6FEB', '#8E44AD', '#F39C12', '#E84393', '#7A7370', '#EDE6D6', '#0B6623', '#5C2E91', '#00B4D8', '#FF4D00'];
+const DIAMOND_GOAT_CARD = { id: 'diamond_goat', name: 'Diamond-Studded Goat', rarity: 'secret', emblem: { bg: '#090D17', shape: 'shield', layers: [ { g: 'goat', c: '#E9F4FA', x: 0, y: 0, s: .82 }, { g: 'diamond', c: '#7FE8FF', x: -24, y: -25, s: .12 }, { g: 'diamond', c: '#FFFFFF', x: 24, y: -25, s: .12 }, { g: 'diamond', c: '#7FE8FF', x: -29, y: 13, s: .10 }, { g: 'diamond', c: '#FFFFFF', x: 29, y: 13, s: .10 }, { g: 'diamond', c: '#B8F3FF', x: 0, y: 31, s: .11 } ] } };
 const GLYPHS = {
   circle: '<circle cx="50" cy="50" r="40"/>',
   ring: '<circle cx="50" cy="50" r="36" fill="none" stroke="__C__" stroke-width="10"/>',
@@ -1565,6 +1567,7 @@ const GLYPHS = {
   shield: '<path d="M50 6l38 12v34c0 22-18 36-38 44C30 88 12 74 12 52V18z"/>',
   skull: '<circle cx="50" cy="42" r="30"/><rect x="34" y="60" width="32" height="24" rx="4"/><circle cx="39" cy="42" r="7" fill="__B__"/><circle cx="61" cy="42" r="7" fill="__B__"/><rect x="45" y="70" width="4" height="10" fill="__B__"/><rect x="52" y="70" width="4" height="10" fill="__B__"/>',
   eightball: '<circle cx="50" cy="50" r="42"/><circle cx="50" cy="50" r="18" fill="#fff"/><text x="50" y="59" font-size="26" font-family="Anton,Impact,sans-serif" text-anchor="middle" fill="#000">8</text>',
+  goat: '<path d="M24 36Q12 16 18 5Q31 13 34 28Q42 22 50 24Q58 22 66 28Q69 13 82 5Q88 16 76 36L82 57Q78 73 62 78L56 94L50 82L44 94L38 78Q22 73 18 57Z"/><path d="M31 48Q38 42 44 49M56 49Q62 42 69 48" fill="none" stroke="__B__" stroke-width="4" stroke-linecap="round"/><path d="M43 63Q50 68 57 63" fill="none" stroke="__B__" stroke-width="3" stroke-linecap="round"/>',
   prestigeMasterBall: '<circle cx="50" cy="57" r="35" fill="#D6A928" stroke="#FFF0B0" stroke-width="4"/><path d="M25 36Q38 20 57 25" fill="none" stroke="#FFF1B8" stroke-width="5" stroke-linecap="round" opacity=".8"/><circle cx="50" cy="58" r="15" fill="#FFF7DF" stroke="#9B7419" stroke-width="2"/><text x="50" y="65" font-size="19" font-weight="900" font-family="Arial,sans-serif" text-anchor="middle" fill="#171717">10</text><path d="M13 25L8 7L27 18L50 2L73 18L92 7L87 25Z" fill="#C8102E" stroke="#F4A0A8" stroke-width="3"/><rect x="13" y="24" width="74" height="9" rx="3" fill="#A30D25" stroke="#F4A0A8" stroke-width="2"/>',
   cue: '<polygon points="6,90 12,96 96,14 92,4"/>',
   splat: '<path d="M50 30c-6-12-20-14-30-8c8 2 12 8 10 16c-10-2-20 0-26 8c10-2 18 2 20 10c-8 2-12 8-10 16c6-6 14-8 22-4c-2 6 0 12 6 16l8-14l8 14c6-4 8-10 6-16c8-4 16-2 22 4c2-8-2-14-10-16c2-8 10-12 20-10c-6-8-16-10-26-8c-2-8 2-14 10-16c-10-6-24-4-30 8z"/>',
@@ -3133,7 +3136,7 @@ function CaseOpener({
   };
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", {
     className: "small muted"
-  }, "Spend ", cost.toLocaleString(), " chips for a random calling card", caseDiscount ? " ("+caseDiscount+"% prestige discount; base "+baseCost.toLocaleString()+")" : "", ". Odds: ", pct('legendary'), " legendary, ", pct('epic'), " epic, ", pct('rare'), " rare, ", pct('uncommon'), " uncommon, ", pct('common'), " common. You own ", owned.filter(id => CATALOG.some(c => c.id === id)).length, " of ", CATALOG.length, ". Duplicates give a partial chip refund based on rarity."), /*#__PURE__*/React.createElement("button", {
+  }, "Spend ", cost.toLocaleString(), " chips for a random calling card", caseDiscount ? " ("+caseDiscount+"% prestige discount; base "+baseCost.toLocaleString()+")" : "", ". Odds: ", pct('legendary'), " legendary, ", pct('epic'), " epic, ", pct('rare'), " rare, ", pct('uncommon'), " uncommon, ", pct('common'), " common. You own ", owned.filter(id => CATALOG.some(c => c.id === id && c.id !== 'diamond_goat')).length, " of ", CATALOG.filter(c => c.id !== 'diamond_goat').length, ". Duplicates give a partial chip refund based on rarity."), /*#__PURE__*/React.createElement("button", {
     className: "btn",
     disabled: opening || balance < cost,
     onClick: open
@@ -5872,7 +5875,7 @@ function CardSeller({
   (mine.owned || []).forEach(id => {
     counts[id] = (counts[id] || 0) + 1;
   });
-  const owned = Object.keys(counts).map(id => CATALOG.find(c => c.id === id)).filter(Boolean);
+  const owned = Object.keys(counts).map(id => CATALOG.find(c => c.id === id)).filter(c => c && c.id !== 'diamond_goat');
   const sp = Object.assign({
     common: 15,
     uncommon: 25,
@@ -11541,7 +11544,11 @@ function App() {
   }, []);
   PROF = store && store.profiles || {};
   CARDS = store && store.cards || {};
-  CATALOG = store && store.cardCatalog && store.cardCatalog.length ? store.cardCatalog : defaultCardCatalog();
+  const standardCardCatalog = store && store.cardCatalog && store.cardCatalog.length ? store.cardCatalog : defaultCardCatalog();
+  const currentCardOwner = cred ? cred.name : cred;
+  const currentCardOwned = currentCardOwner && store && store.cards && store.cards[currentCardOwner] ? store.cards[currentCardOwner].owned || [] : [];
+  const hasFullCardSet = standardCardCatalog.length > 0 && standardCardCatalog.every(c => currentCardOwned.includes(c.id));
+  CATALOG = hasFullCardSet || currentCardOwned.includes('diamond_goat') ? [...standardCardCatalog, DIAMOND_GOAT_CARD] : standardCardCatalog;
   PROGRESS_STORE = store;
   const me = cred ? cred.name : cred;
   const isAdmin = !!(cred && cred.role === 'admin');
