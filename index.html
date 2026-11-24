@@ -129,17 +129,17 @@ table.plain tr.me td{background:rgba(200,16,46,.1)}
 .nm-click:hover{text-decoration:underline}
 .nm-colour{color:var(--player-name-color,var(--chalk))}
 .felt .nm-colour{color:var(--chalk)!important}
-/* Prestige Master changes the trim only: retain the original typography, layout and surfaces. */
-.app.prestige-master{--brass:#D8B65C;--silver:#C9D7EA}
+/* Prestige Master: a full-site diamond-encrusted finish, with gold and icy-silver detailing. */
+.app.prestige-master{--brass:#D8B65C;--silver:#DCEBFA}
 .app.prestige-master,.app.prestige-master *{color:#FFFFFF}
-.app.prestige-master .rail{border-right-color:#9C8958;box-shadow:inset -1px 0 0 rgba(216,182,92,.16)}
-.app.prestige-master .panel{border-color:#A88D4F;box-shadow:inset 0 0 0 1px rgba(201,215,234,.18),0 0 0 1px rgba(216,182,92,.10)}
-.app.prestige-master .btn{color:#FFFFFF!important;border:1px solid #B99B53;box-shadow:inset 0 0 0 1px rgba(201,215,234,.24),0 0 0 1px rgba(216,182,92,.18),0 0 8px rgba(201,215,234,.08);outline:1px solid rgba(201,215,234,.32);outline-offset:2px}
-.app.prestige-master .btn:hover{border-color:#E6D28B;box-shadow:inset 0 0 0 1px rgba(201,215,234,.38),0 0 0 1px rgba(216,182,92,.32),0 0 12px rgba(201,215,234,.14)}
-.app.prestige-master .nav button.on{border-left:2px solid #D8B65C;background:rgba(216,182,92,.035);color:#FFFFFF}
-.app.prestige-master .wordmark span{color:#FFFFFF;text-shadow:0 0 7px rgba(201,215,234,.18)}
-.app.prestige-master .panel h2,.app.prestige-master .panel h3{color:#FFFFFF}
-.app.prestige-master .panel input:focus,.app.prestige-master .panel select:focus,.app.prestige-master .panel textarea:focus{outline:1px solid #D8B65C;outline-offset:2px}
+.app.prestige-master .rail{border-right-color:#B9CDE4;box-shadow:inset -1px 0 0 rgba(220,235,250,.55),0 0 16px rgba(190,220,255,.10)}
+.app.prestige-master .panel{border-color:#C7D9EC;background-image:linear-gradient(135deg,rgba(220,235,250,.075),transparent 22%,transparent 78%,rgba(216,182,92,.07));box-shadow:inset 0 0 0 1px rgba(220,235,250,.34),inset 0 0 18px rgba(190,220,255,.055),0 0 0 1px rgba(216,182,92,.24),0 0 14px rgba(190,220,255,.09)}
+.app.prestige-master .btn{color:#FFFFFF!important;border:1px solid #D6E6F7;background-image:linear-gradient(135deg,rgba(220,235,250,.16),transparent 42%,rgba(216,182,92,.12));box-shadow:inset 0 0 0 1px rgba(220,235,250,.38),0 0 0 1px rgba(216,182,92,.22),0 0 12px rgba(190,220,255,.12);outline:1px solid rgba(220,235,250,.42);outline-offset:2px}
+.app.prestige-master .btn:hover{border-color:#FFFFFF;box-shadow:inset 0 0 0 1px rgba(255,255,255,.58),0 0 0 1px rgba(216,182,92,.38),0 0 18px rgba(190,220,255,.22)}
+.app.prestige-master .nav button.on{border-left:2px solid #D8B65C;background:linear-gradient(90deg,rgba(220,235,250,.12),rgba(216,182,92,.04));color:#FFFFFF}
+.app.prestige-master .wordmark span{color:#FFFFFF;text-shadow:0 0 7px rgba(220,235,250,.45),0 0 14px rgba(216,182,92,.22)}
+.app.prestige-master .panel h2,.app.prestige-master .panel h3{color:#FFFFFF;text-shadow:0 0 8px rgba(220,235,250,.18)}
+.app.prestige-master .panel input:focus,.app.prestige-master .panel select:focus,.app.prestige-master .panel textarea:focus{outline:1px solid #DCEBFA;outline-offset:2px;box-shadow:0 0 12px rgba(190,220,255,.22)}
 .prestige-master-modal{position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(0,0,0,.84);backdrop-filter:blur(7px)}
 .prestige-master-card{position:relative;overflow:hidden;width:min(560px,100%);padding:34px 30px 28px;text-align:center;background:linear-gradient(145deg,#101216,#07080B 58%,#11141A);border:1px solid #B9974D;box-shadow:0 0 0 1px rgba(201,215,234,.18),0 0 45px rgba(185,151,77,.16);color:#FFFFFF}
 .prestige-master-card:before,.prestige-master-card:after{content:"";position:absolute;pointer-events:none;width:150px;height:150px;opacity:.55;background:repeating-linear-gradient(135deg,transparent 0 13px,rgba(201,215,234,.28) 14px 16px,transparent 17px 28px);clip-path:polygon(0 0,100% 0,0 100%)}
@@ -1858,7 +1858,7 @@ function EmblemStudio({
     className: "btn ghost sm", onClick: () => setNameColor('#FFFFFF')
   }, "Reset to white")), /*#__PURE__*/React.createElement("div", { style: { marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--smoke)' } }, prestigeMasterUnlocked ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("label", { className: "row", style: { cursor: 'pointer', gap: 9 } }, /*#__PURE__*/React.createElement("input", {
     type: "checkbox", checked: masterTheme, onChange: ev => setMasterTheme(ev.target.checked), style: { width: 18, minWidth: 18 }
-  }), /*#__PURE__*/React.createElement("b", null, "Prestige Master — gold / diamond theme")), /*#__PURE__*/React.createElement("p", { className: "small muted", style: { margin: '5px 0 0' } }, "Unlocked permanently at Prestige 10. Switch between the standard black theme and the Prestige Master finish.")) : /*#__PURE__*/React.createElement("p", { className: "small muted", style: { margin: 0 } }, "Secret reward: Prestige Master unlocks at Prestige 10."))), /*#__PURE__*/React.createElement("div", {
+  }), /*#__PURE__*/React.createElement("b", null, "Diamond-encrusted site finish")), /*#__PURE__*/React.createElement("p", { className: "small muted", style: { margin: '5px 0 0' } }, "Unlocked permanently at Prestige 10. Switch between the standard black theme and the Prestige Master finish.")) : /*#__PURE__*/React.createElement("p", { className: "small muted", style: { margin: 0 } }, "Secret reward: Prestige Master unlocks at Prestige 10."))), /*#__PURE__*/React.createElement("div", {
     className: "grid g2"
   }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
     className: "f"
@@ -11939,7 +11939,7 @@ function App() {
     /*#__PURE__*/React.createElement("div", { className: "pm-rule" }),
     /*#__PURE__*/React.createElement("h2", null, "Prestige Master Unlocked"),
     /*#__PURE__*/React.createElement("p", null, "You've completed Prestige 10."),
-    /*#__PURE__*/React.createElement("p", { className: "muted" }, "Your exclusive gold-and-diamond finish is now available in My Book → Identity. You can also choose a custom name colour."),
+    /*#__PURE__*/React.createElement("p", { className: "muted" }, "Your diamond-encrusted site finish, Prestige Master icon and custom name colour are now unlocked. Switch on the site finish and choose your name colour in My Book → Identity."),
     /*#__PURE__*/React.createElement("div", { className: "pm-rule" }),
     /*#__PURE__*/React.createElement("button", { className: "btn", onClick: closePrestigeMasterModal }, "Let's go")
   )), /*#__PURE__*/React.createElement(EmblemModal, {
