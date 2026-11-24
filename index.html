@@ -1573,7 +1573,7 @@ const GLYPHS = {
   text: '<text x="50" y="72" font-size="64" font-family="Anton,Impact,sans-serif" text-anchor="middle">T</text>'
 };
 const PRESTIGE_MASTER_GLYPH = '<circle cx="50" cy="57" r="35" fill="#D6A928" stroke="#FFF0B0" stroke-width="4"/><path d="M25 36Q38 20 57 25" fill="none" stroke="#FFF1B8" stroke-width="5" stroke-linecap="round" opacity=".8"/><circle cx="50" cy="58" r="15" fill="#FFF7DF" stroke="#9B7419" stroke-width="2"/><path d="M39 58L42 45L50 52L58 45L61 58L58 64L42 64Z" fill="#C8102E" stroke="#8E1023" stroke-width="2" stroke-linejoin="round"/><path d="M40 66H60" stroke="#C8102E" stroke-width="4" stroke-linecap="round"/><path d="M13 25L8 7L27 18L50 2L73 18L92 7L87 25Z" fill="#C8102E" stroke="#F4A0A8" stroke-width="3"/><rect x="13" y="24" width="74" height="9" rx="3" fill="#A30D25" stroke="#F4A0A8" stroke-width="2"/>'; 
-const tagOf n => {
+const tagOf = n => {
   const p = PROF[n];
   return p && p.tag ? '[' + p.tag + '] ' : '';
 };
